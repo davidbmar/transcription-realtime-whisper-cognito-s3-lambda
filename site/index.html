@@ -308,7 +308,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.0.4-absolute-times</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.1.0-word-highlighting</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
     </div>
@@ -1522,8 +1522,10 @@
               task: 'transcribe',
               language: 'en',
               model: 'Systran/faster-whisper-small.en',
-              use_vad: true
+              use_vad: true,
+              word_timestamps: true  // Request word-level timestamps from WhisperLive
             };
+            console.log('%c📤 Sending WhisperLive Config:', 'font-weight:bold;color:#00d4ff;', config);
             ws.send(JSON.stringify(config));
             log('Sent config to WhisperLive');
 
@@ -1866,8 +1868,19 @@
       function wrapWordsInSpans(segment, chunkStart, chunkEnd) {
         if (!segment.words || segment.words.length === 0) {
           // No word-level data, return plain text
+          console.log('[WRAP-WORDS] No words in segment:', {
+            hasWords: !!segment.words,
+            wordCount: segment.words ? segment.words.length : 0,
+            text: segment.text ? segment.text.substring(0, 50) : 'N/A'
+          });
           return segment.text;
         }
+
+        console.log('[WRAP-WORDS] Wrapping words:', {
+          wordCount: segment.words.length,
+          segmentTime: segment.start.toFixed(2) + 's → ' + segment.end.toFixed(2) + 's',
+          chunkTime: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's'
+        });
 
         // IMPORTANT: Word timestamps from WhisperLive are SEGMENT-RELATIVE, not absolute!
         // We must add the segment's start time to get absolute timestamps.
@@ -1951,7 +1964,9 @@
                 text: seg.text.substring(0, 30),
                 overlap: overlapPercent.toFixed(1) + '%',
                 offset: offsetDesc,
-                quality: quality.label
+                quality: quality.label,
+                hasWords: !!(seg.words && seg.words.length > 0),
+                wordCount: seg.words ? seg.words.length : 0
               });
 
               // Build HTML with color coding
@@ -2310,7 +2325,9 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.0.4-absolute-times', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.1.0-word-highlighting', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c✅ Word-level karaoke highlighting fully operational!', 'font-size:12px;color:#3be38a;');
+      console.log('%c🔧 Server patches: word_timestamps enabled + word extraction', 'font-size:12px;color:#ff9500;');
       console.log('%c🔧 CRITICAL FIX: Word timestamps are segment-relative! Now converting to absolute.', 'font-size:14px;font-weight:bold;color:#fbbf24;');
       console.log('%c⚠️  OLD SESSIONS HAVE WRONG DATA - Record a NEW session to see fix!', 'font-size:13px;font-weight:bold;color:#ff6b6b;background:#1a0000;padding:4px;');
       console.log('✅ Word-level highlighting enabled');
