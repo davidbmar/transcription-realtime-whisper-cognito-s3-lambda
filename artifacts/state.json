@@ -1,0 +1,9 @@
+{
+  "instance_id": "i-03a292875d9b12688",
+  "state": "running",
+  "public_ip": "3.133.86.157",
+  "private_ip": "172.31.41.158",
+  "last_state_change": "2025-10-27T03:25:40Z",
+  "region": "us-east-2",
+  "instance_type": "g4dn.xlarge"
+}

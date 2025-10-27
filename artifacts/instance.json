@@ -1,0 +1,9 @@
+{
+  "instance_id": "i-03a292875d9b12688",
+  "instance_type": "g4dn.xlarge",
+  "ami_id": "ami-097ce8c584be0264b",
+  "security_group_id": "sg-011fcd4b207daa640",
+  "key_name": "dbm-oct18-2025",
+  "region": "us-east-2",
+  "created_at": "2025-10-27T03:25:40Z"
+}
