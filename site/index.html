@@ -1882,21 +1882,18 @@
           chunkTime: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's'
         });
 
-        // IMPORTANT: Word timestamps from WhisperLive are SEGMENT-RELATIVE, not absolute!
-        // We must add the segment's start time to get absolute timestamps.
-        var segmentStartTime = parseFloat(segment.start);
+        // IMPORTANT: Word timestamps from server are ALREADY ABSOLUTE (server adds segment offset)
+        // DO NOT add segment start time again or we'll double-count!
 
         // Filter and wrap only words that fall within chunk boundaries (with small tolerance)
         var WORD_TOLERANCE = 0.5; // Allow words up to 0.5s outside chunk boundaries
 
         var wrappedParts = segment.words.map(function(word) {
           var wordText = word.word || word.text || '';
-          var wordStartRelative = parseFloat(word.start) || 0; // 'N/A' or missing → 0
-          var wordEndRelative = parseFloat(word.end) || 0;
 
-          // Convert segment-relative times to ABSOLUTE times
-          var wordStartAbsolute = segmentStartTime + wordStartRelative;
-          var wordEndAbsolute = segmentStartTime + wordEndRelative;
+          // Word timestamps are already absolute from the server
+          var wordStartAbsolute = parseFloat(word.start) || 0;
+          var wordEndAbsolute = parseFloat(word.end) || 0;
 
           // Check if this word falls within the chunk's time range
           var wordMidpoint = (wordStartAbsolute + wordEndAbsolute) / 2;

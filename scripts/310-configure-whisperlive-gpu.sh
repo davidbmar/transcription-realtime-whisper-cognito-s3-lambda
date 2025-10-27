@@ -337,12 +337,28 @@ helper = '''    def extract_words_from_segment(self, segment, segment_start_time
 
         words_list = []
         for word in segment.words:
-            words_list.append({
-                'start': float(word.start) + segment_start_time,
-                'end': float(word.end) + segment_start_time,
-                'word': word.word,
-                'probability': float(word.probability)
-            })
+            try:
+                word_start = float(word.start) + segment_start_time
+                word_end = float(word.end) + segment_start_time
+
+                # Skip invalid words (negative times, zero duration, or NaN)
+                if word_start < 0 or word_end < 0 or word_start >= word_end:
+                    logging.warning(f"[WORD-DEBUG] Skipping invalid word: {word.word} ({word.start} -> {word.end})")
+                    continue
+
+                words_list.append({
+                    'start': word_start,
+                    'end': word_end,
+                    'word': word.word,
+                    'probability': float(word.probability)
+                })
+            except (ValueError, TypeError) as e:
+                logging.warning(f"[WORD-DEBUG] Failed to process word: {word.word}, error: {e}")
+                continue
+
+        if words_list:
+            logging.info(f"[WORD-DEBUG] Extracted {len(words_list)} words from segment starting at {segment_start_time:.2f}s")
+
         return words_list if words_list else None
 
 '''

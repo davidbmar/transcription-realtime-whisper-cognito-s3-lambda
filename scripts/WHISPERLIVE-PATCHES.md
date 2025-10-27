@@ -180,10 +180,13 @@ After applying the patch:
 
 ### Related Changes
 
-**Browser Client** (`site/index.html`):
+**Browser Client Fixes** (`site/index.html`):
 - Added `word_timestamps: true` to WhisperLive config (line ~1526)
-- Implemented word-by-word highlighting with absolute timestamp conversion (lines ~1866-1904)
-- Added karaoke-style highlighting during audio playback (lines ~1760-1862)
+- **CRITICAL FIX**: Removed double-adding of segment start time to word timestamps (line ~1885-1896)
+  - Server already sends absolute timestamps, browser was incorrectly adding segment time again
+  - This caused highlighting to fail on chunk 2+ (progressively worse timing)
+- Implemented word-by-word highlighting during audio playback (lines ~1762-1916)
+- Added karaoke-style highlighting with `.word.active` class for yellow highlight
 
 ## Why This Patch is Needed
 
