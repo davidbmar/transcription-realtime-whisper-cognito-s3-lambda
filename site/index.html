@@ -373,6 +373,17 @@
                  style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
                         border-radius:6px;padding:4px 8px;color:var(--text);width:70px;font-size:12px;" />
         </label>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">TZ:
+          <select id="timezone-select"
+                  style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                         border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;">
+            <option value="America/Chicago">Central</option>
+            <option value="America/New_York">Eastern</option>
+            <option value="America/Denver">Mountain</option>
+            <option value="America/Los_Angeles">Pacific</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </label>
         <div class="spacer"></div>
         <div id="storage-status" style="color:var(--muted);font-size:11px;">
           Storage: Loading...
@@ -1051,10 +1062,61 @@
         const s = String(t%60).padStart(2,'0');
         return `${m}:${s}`;
       }
+      function formatSessionId(sessionId){
+        // Extract timestamp from session_2025-10-28T19_30_45_123Z
+        // Convert to selected timezone and return format: [2025-10-28 14:30:45 CST]
+        if (!sessionId) return '';
+        const match = sessionId.match(/session_(.+)/);
+        if (!match) return sessionId;
+
+        // Parse the ISO string with underscores: 2025-10-28T19_30_45_123Z
+        const isoString = match[1].replace(/_/g, ':').replace(/:::/, '.');  // Fix the milliseconds part
+
+        try {
+          const utcDate = new Date(isoString);
+
+          // Get user's preferred timezone (default to America/Chicago - Central Time)
+          const timezone = localStorage.getItem('displayTimezone') || 'America/Chicago';
+
+          // Format the date/time in the selected timezone
+          const options = {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          };
+
+          const formatter = new Intl.DateTimeFormat('en-US', options);
+          const parts = formatter.formatToParts(utcDate);
+
+          const year = parts.find(p => p.type === 'year').value;
+          const month = parts.find(p => p.type === 'month').value;
+          const day = parts.find(p => p.type === 'day').value;
+          const hour = parts.find(p => p.type === 'hour').value;
+          const minute = parts.find(p => p.type === 'minute').value;
+          const second = parts.find(p => p.type === 'second').value;
+
+          // Get timezone abbreviation
+          const tzAbbr = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            timeZoneName: 'short'
+          }).formatToParts(utcDate).find(p => p.type === 'timeZoneName')?.value || timezone;
+
+          return `[${year}-${month}-${day} ${hour}:${minute}:${second} ${tzAbbr}]`;
+        } catch (e) {
+          console.error('Error formatting session ID:', e);
+          return `[${sessionId}]`;
+        }
+      }
 
       // UI refs
       var timesliceInput = $('timeslice');
       var overlapInput = $('overlap');
+      var timezoneSelect = $('timezone-select');
       var startBtn = $('btn-start');
       var stopBtn  = $('btn-stop');
       var palStart = $('palette-start');
@@ -1254,7 +1316,9 @@
         var startTimeStr = fmt(startOffset);
         var endTimeStr = fmt(endOffset);
 
-        meta.innerHTML = 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
+        // Add session timestamp prefix to chunk name
+        var sessionPrefix = currentSession ? formatSessionId(currentSession.id) + ' ' : '';
+        meta.innerHTML = sessionPrefix + 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
                          '<span style="color:var(--accent);font-size:11px;">' +
                          startTimeStr + ' → ' + endTimeStr + ' (' + Math.round(blob.size / 1024) + 'KB)</span>';
 
@@ -2263,6 +2327,18 @@
       clearDbBtn?.addEventListener('click', clearDatabase);
       confirmClose.addEventListener('click', ()=> confirmEl.classList.remove('open'));
 
+      // Timezone selector: load saved preference and handle changes
+      if (timezoneSelect) {
+        const savedTz = localStorage.getItem('displayTimezone') || 'America/Chicago';
+        timezoneSelect.value = savedTz;
+        timezoneSelect.addEventListener('change', function() {
+          localStorage.setItem('displayTimezone', this.value);
+          log('Timezone changed to: ' + this.value);
+          // Refresh display by reloading all chunks
+          window.location.reload();
+        });
+      }
+
       window.addEventListener('keydown', (e)=>{
         const mod = e.ctrlKey || e.metaKey;
         if(mod && (e.key.toLowerCase() === 'k')){
@@ -2352,7 +2428,9 @@
           var meta = document.createElement('div');
           meta.className = 'meta';
 
-          meta.innerHTML = 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
+          // Add session timestamp prefix to chunk name
+          var sessionPrefix = chunk.sessionId ? formatSessionId(chunk.sessionId) + ' ' : '';
+          meta.innerHTML = sessionPrefix + 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
                            '<span style="color:var(--accent);font-size:11px;">' +
                            'Loaded from storage (' + Math.round(blob.size / 1024) + 'KB)</span>';
 
