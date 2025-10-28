@@ -2308,9 +2308,12 @@
           }));
 
           // Load chunks in chronological order (oldest first, newest at bottom)
+          // Calculate cumulative timing for proper transcription matching
+          let cumulativeTime = 0;
           for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
-            await restoreChunk(chunk);
+            await restoreChunk(chunk, cumulativeTime);
+            cumulativeTime += chunk.duration;
           }
 
           completedChunks = chunks.length;
@@ -2329,16 +2332,15 @@
       }
 
       // Restore a single chunk from IndexedDB
-      async function restoreChunk(chunk) {
+      async function restoreChunk(chunk, cumulativeTime = 0) {
         try {
           const blob = chunk.blob;
           const idx = chunk.chunkIndex;
           const duration = chunk.duration;
 
-          // Calculate timing from stored timestamp
-          var chunkStartTime = chunk.timestamp;
-          var startOffset = 0; // We don't have recording start time, so use relative
-          var endOffset = duration;
+          // Calculate timing using cumulative time across chunks
+          var startOffset = cumulativeTime;
+          var endOffset = cumulativeTime + duration;
 
           // Create chunk UI elements
           var row = document.createElement('div');
