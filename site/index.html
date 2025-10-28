@@ -2278,8 +2278,8 @@
             words: t.words || []
           }));
 
-          // Load chunks in reverse order (newest first in UI)
-          for (let i = chunks.length - 1; i >= 0; i--) {
+          // Load chunks in chronological order (oldest first, newest at bottom)
+          for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
             await restoreChunk(chunk);
           }
