@@ -1064,13 +1064,26 @@
       }
       function formatSessionId(sessionId){
         // Extract timestamp from session_2025-10-28T19_30_45_123Z
-        // Convert to selected timezone and return format: [2025-10-28 14:30:45 CST]
+        // Convert to selected timezone and return format: [19:30:45 CST]
         if (!sessionId) return '';
         const match = sessionId.match(/session_(.+)/);
         if (!match) return sessionId;
 
-        // Parse the ISO string with underscores: 2025-10-28T19_30_45_123Z
-        const isoString = match[1].replace(/_/g, ':').replace(/:::/, '.');  // Fix the milliseconds part
+        // Parse: 2025-10-28T04_25_38_242Z
+        // Need to convert to: 2025-10-28T04:25:38.242Z
+        const timestamp = match[1];
+        const parts = timestamp.split('T');
+        if (parts.length !== 2) return `[${sessionId}]`;
+
+        const datePart = parts[0];  // 2025-10-28
+        const timePart = parts[1];  // 04_25_38_242Z
+
+        // Replace underscores with colons/dots: 04_25_38_242Z -> 04:25:38.242Z
+        const timeFormatted = timePart
+          .replace(/_/g, ':')           // 04:25:38:242Z
+          .replace(/:(\d+Z)$/, '.$1');  // 04:25:38.242Z
+
+        const isoString = `${datePart}T${timeFormatted}`;
 
         try {
           const utcDate = new Date(isoString);
