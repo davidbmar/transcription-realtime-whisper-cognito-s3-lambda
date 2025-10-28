@@ -1106,7 +1106,8 @@
             timeZoneName: 'short'
           }).formatToParts(utcDate).find(p => p.type === 'timeZoneName')?.value || timezone;
 
-          return `[${year}-${month}-${day} ${hour}:${minute}:${second} ${tzAbbr}]`;
+          // Friendly format: just show time, not full date
+          return `[${hour}:${minute}:${second} ${tzAbbr}]`;
         } catch (e) {
           console.error('Error formatting session ID:', e);
           return `[${sessionId}]`;
