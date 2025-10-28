@@ -1,1 +1,28 @@
-/home/ubuntu/event-b/whisper-live-test/Caddyfile
+https:// {
+    tls /certs/server.crt /certs/server.key
+
+    # WebSocket proxy to WhisperLive on GPU
+    handle /ws {
+        reverse_proxy {$GPU_HOST}:{$GPU_PORT}
+    }
+
+    # Health check endpoint
+    handle /healthz {
+        respond "OK" 200
+    }
+
+    # Static files (browser clients)
+    handle {
+        root * /srv
+        file_server browse
+    }
+
+    log {
+        output stdout
+    }
+}
+
+# HTTP redirect to HTTPS
+http:// {
+    redir https://{host}{uri} permanent
+}
