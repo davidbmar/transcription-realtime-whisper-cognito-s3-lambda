@@ -165,6 +165,11 @@ LANGUAGE=en
 EOF
 
 log_success ".env-http created"
+
+# Create symlink in project root for startup-restore script
+log_info "Creating .env-http symlink in project root..."
+ln -sf "$EDGE_DIR/.env-http" "$REPO_ROOT/.env-http"
+log_success "Symlink created: $REPO_ROOT/.env-http -> $EDGE_DIR/.env-http"
 echo ""
 
 # ============================================================================
