@@ -362,6 +362,7 @@
         <button id="btn-start" class="btn btn-accent">🎙 Start Recording</button>
         <button id="btn-stop" class="btn" disabled>⏹ Stop</button>
         <button id="clearBtn" class="btn">🗑️ Clear</button>
+        <button id="clearDbBtn" class="btn">🗄️ Clear DB</button>
         <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">Chunk:
           <input id="timeslice" type="number" value="5000" min="500" step="500"
                  style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
@@ -1059,6 +1060,7 @@
       var palStart = $('palette-start');
       var palStop  = $('palette-stop');
       var clearBtn = $('clearBtn');
+      var clearDbBtn = $('clearDbBtn');
       var list     = $('chunkList');
       var dot      = $('mic-status');
       var palette  = $('palette');
@@ -2166,7 +2168,33 @@
         completedChunks = 0;
         chunkStartTimes = [];
         transcriptionSegments = [];
-        log('Cleared');
+        log('Cleared current session');
+      }
+
+      async function clearDatabase(){
+        if (!confirm('⚠️ Clear entire database? This will delete ALL recordings and cannot be undone!')) {
+          return;
+        }
+
+        try {
+          log('Clearing database...');
+          await window.audioStorage.clearDatabase();
+
+          // Clear UI
+          list.innerHTML = '';
+          chunkIndex = 0;
+          completedChunks = 0;
+          chunkStartTimes = [];
+          transcriptionSegments = [];
+
+          // Reinitialize storage
+          await window.audioStorage.init();
+          await updateStorageStatus();
+
+          log('✅ Database cleared - all recordings deleted');
+        } catch (error) {
+          log('❌ Failed to clear database:', error.message);
+        }
       }
 
       async function updateStorageStatus() {
@@ -2232,6 +2260,7 @@
       palStart.addEventListener('click', start);
       palStop.addEventListener('click', stop);
       clearBtn?.addEventListener('click', clearList);
+      clearDbBtn?.addEventListener('click', clearDatabase);
       confirmClose.addEventListener('click', ()=> confirmEl.classList.remove('open'));
 
       window.addEventListener('keydown', (e)=>{
