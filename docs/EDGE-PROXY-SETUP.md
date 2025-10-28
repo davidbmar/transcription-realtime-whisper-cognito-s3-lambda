@@ -54,13 +54,13 @@ Created to enable startup-restore script automation:
 
 #### Shutdown GPU to Save Costs
 ```bash
-./scripts/210-shutdown-gpu.sh
+./scripts/810-shutdown-gpu.sh
 ```
 This stops the GPU EC2 instance.
 
 #### Startup GPU
 ```bash
-./scripts/220-startup-restore.sh
+./scripts/820-startup-restore.sh
 ```
 
 **What this script does**:
@@ -80,7 +80,7 @@ This stops the GPU EC2 instance.
 
 ## How Symlinks Enable Script Automation
 
-The `220-startup-restore.sh` script includes this logic:
+The `820-startup-restore.sh` script includes this logic:
 
 ```bash
 # Update .env-http files in multiple locations
@@ -178,8 +178,8 @@ This is harmless - Docker Compose v2 ignores the version field.
 ## Related Scripts
 
 - `305-setup-whisperlive-edge.sh` - Initial edge proxy setup, creates symlinks
-- `220-startup-restore.sh` - GPU startup with IP change handling
-- `210-shutdown-gpu.sh` - GPU shutdown
+- `820-startup-restore.sh` - GPU startup with IP change handling
+- `810-shutdown-gpu.sh` - GPU shutdown
 - `310-configure-whisperlive-gpu.sh` - WhisperLive deployment to GPU
 
 ## Version History

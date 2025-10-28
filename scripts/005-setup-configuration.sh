@@ -183,7 +183,7 @@ WHEN TO UPGRADE:
 
 COST CALCULATOR:
   • g4dn.xlarge running 24/7: ~$380/month
-  • With scripts/210-shutdown-gpu.sh: Shut down when not needed!
+  • With scripts/810-shutdown-gpu.sh: Shut down when not needed!
 
 Press Enter to continue...
 EOF

@@ -60,7 +60,7 @@ Updates browser clients:
 2. Restarts Caddy to pick up changes
 3. Verifies deployment
 
-### 220-startup-restore.sh
+### 820-startup-restore.sh
 GPU startup with automatic IP updates:
 1. Starts GPU instance
 2. Updates `.env-http` with new GPU IP

@@ -34,8 +34,8 @@ echo -e "${GREEN}  6)${NC} 030-configure-gpu-security.sh  - Configure GPU securi
 echo ""
 
 echo -e "${YELLOW}DAILY OPERATIONS${NC}"
-echo -e "${GREEN}  7)${NC} 220-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
-echo -e "${GREEN}  8)${NC} 210-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
+echo -e "${GREEN}  7)${NC} 820-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
+echo -e "${GREEN}  8)${NC} 810-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
 echo -e "${GREEN}  9)${NC} 310-configure-whisperlive-gpu.sh - Deploy/configure WhisperLive"
 echo ""
 
@@ -71,13 +71,13 @@ case $choice in
         ./scripts/030-configure-gpu-security.sh
         ;;
     7)
-        echo -e "${BLUE}Running: 220-startup-restore.sh${NC}"
+        echo -e "${BLUE}Running: 820-startup-restore.sh${NC}"
         echo -e "${YELLOW}This will start the GPU and may take 1-5 minutes...${NC}"
-        ./scripts/220-startup-restore.sh
+        ./scripts/820-startup-restore.sh
         ;;
     8)
-        echo -e "${BLUE}Running: 210-shutdown-gpu.sh${NC}"
-        ./scripts/210-shutdown-gpu.sh
+        echo -e "${BLUE}Running: 810-shutdown-gpu.sh${NC}"
+        ./scripts/810-shutdown-gpu.sh
         ;;
     9)
         echo -e "${BLUE}Running: 310-configure-whisperlive-gpu.sh${NC}"
