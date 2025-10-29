@@ -88,3 +88,4 @@ Thumbs.db
 cognito-stack/.serverless/
 cognito-stack/node_modules/
 cognito-stack/web/app.js
+cognito-stack/package-lock.json

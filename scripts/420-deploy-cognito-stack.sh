@@ -345,6 +345,63 @@ EOL
 log_success "Created web/app.js with deployment configuration"
 echo ""
 
+log_info "Step 9b: Creating callback.html with deployment configuration"
+cat > web/callback.html << EOL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Callback</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Processing Authentication...</h1>
+        <p>Please wait while we process your sign-in.</p>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+    <script>
+        // Configuration
+        const userPoolId = '${USER_POOL_ID}';
+        const userPoolClientId = '${USER_POOL_CLIENT_ID}';
+
+        // Parse the URL fragment for tokens (implicit flow)
+        const fragment = window.location.hash.substring(1);
+        const params = new URLSearchParams(fragment);
+
+        const idToken = params.get('id_token');
+        const accessToken = params.get('access_token');
+
+        if (idToken && accessToken) {
+            // Decode the id_token to get the username (sub claim)
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            const username = payload['cognito:username'] || payload['sub'];
+
+            // Store tokens in Cognito SDK format
+            const keyPrefix = \`CognitoIdentityServiceProvider.\${userPoolClientId}\`;
+            const userPrefix = \`\${keyPrefix}.\${username}\`;
+
+            localStorage.setItem(\`\${keyPrefix}.LastAuthUser\`, username);
+            localStorage.setItem(\`\${userPrefix}.idToken\`, idToken);
+            localStorage.setItem(\`\${userPrefix}.accessToken\`, accessToken);
+            localStorage.setItem(\`\${userPrefix}.clockDrift\`, '0');
+
+            console.log('Tokens stored successfully for user:', username);
+        } else {
+            console.error('No tokens found in URL fragment');
+        }
+
+        // Redirect back to the main page
+        window.location.href = 'index.html';
+    </script>
+</body>
+</html>
+EOL
+
+log_success "Created web/callback.html with deployment configuration"
+echo ""
+
 log_info "Step 10: Uploading web files to S3"
 aws s3 cp web/ "s3://$COGNITO_S3_BUCKET/" --recursive
 log_success "Web files uploaded to S3"
