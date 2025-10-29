@@ -34,7 +34,7 @@ if [ -L "${BASH_SOURCE[0]}" ]; then
 else
     SCRIPT_REAL="${BASH_SOURCE[0]}"
 fi
-REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/..\" && pwd)"
+REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 load_environment
