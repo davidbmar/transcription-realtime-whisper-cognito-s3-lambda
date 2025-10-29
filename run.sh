@@ -33,17 +33,23 @@ echo -e "${GREEN}  5)${NC} 021-setup-gpu-s3-access.sh     - Configure S3 model a
 echo -e "${GREEN}  6)${NC} 030-configure-gpu-security.sh  - Configure GPU security groups"
 echo ""
 
-echo -e "${YELLOW}DAILY OPERATIONS${NC}"
-echo -e "${GREEN}  7)${NC} 820-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
-echo -e "${GREEN}  8)${NC} 810-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
-echo -e "${GREEN}  9)${NC} 310-configure-whisperlive-gpu.sh - Deploy/configure WhisperLive"
+echo -e "${YELLOW}AUTHENTICATION & WEB HOSTING (4xx)${NC}"
+echo -e "${GREEN}  7)${NC} 410-questions-setup-cognito-s3-lambda.sh - Setup Cognito/S3/Lambda"
+echo -e "${GREEN}  8)${NC} 420-deploy-cognito-stack.sh  - Deploy auth stack (~15 min)"
+echo -e "${GREEN}  9)${NC} 430-create-cognito-user.sh   - Create authenticated user"
+echo ""
+
+echo -e "${YELLOW}DAILY OPERATIONS (8xx)${NC}"
+echo -e "${GREEN} 10)${NC} 820-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
+echo -e "${GREEN} 11)${NC} 810-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
+echo -e "${GREEN} 12)${NC} 310-configure-whisperlive-gpu.sh - Deploy/configure WhisperLive"
 echo ""
 
 echo -e "${YELLOW}OTHER${NC}"
 echo -e "${GREEN}  0)${NC} Exit"
 echo ""
 
-read -p "Select script to run (0-9): " choice
+read -p "Select script to run (0-12): " choice
 
 case $choice in
     1)
@@ -71,15 +77,28 @@ case $choice in
         ./scripts/030-configure-gpu-security.sh
         ;;
     7)
+        echo -e "${BLUE}Running: 410-questions-setup-cognito-s3-lambda.sh${NC}"
+        ./scripts/410-questions-setup-cognito-s3-lambda.sh
+        ;;
+    8)
+        echo -e "${BLUE}Running: 420-deploy-cognito-stack.sh${NC}"
+        echo -e "${YELLOW}This will deploy the CloudFormation stack and may take 10-15 minutes...${NC}"
+        ./scripts/420-deploy-cognito-stack.sh
+        ;;
+    9)
+        echo -e "${BLUE}Running: 430-create-cognito-user.sh${NC}"
+        ./scripts/430-create-cognito-user.sh
+        ;;
+    10)
         echo -e "${BLUE}Running: 820-startup-restore.sh${NC}"
         echo -e "${YELLOW}This will start the GPU and may take 1-5 minutes...${NC}"
         ./scripts/820-startup-restore.sh
         ;;
-    8)
+    11)
         echo -e "${BLUE}Running: 810-shutdown-gpu.sh${NC}"
         ./scripts/810-shutdown-gpu.sh
         ;;
-    9)
+    12)
         echo -e "${BLUE}Running: 310-configure-whisperlive-gpu.sh${NC}"
         ./scripts/310-configure-whisperlive-gpu.sh
         ;;
