@@ -366,17 +366,8 @@ resources:
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
 
-    # Custom resource to set identity pool roles after creation
-    SetRolesCustomResource:
-      Type: Custom::SetIdentityPoolRoles
-      DependsOn:
-        - IdentityPool
-        - AuthenticatedRole
-      Properties:
-        ServiceToken: !GetAtt SetIdentityPoolRolesLambdaFunction.Arn
-        IdentityPoolId: !Ref IdentityPool
-        Roles:
-          authenticated: !GetAtt AuthenticatedRole.Arn
+    # Note: Identity Pool roles are set via manual Lambda invocation in script 420
+    # (Removed custom resource to avoid CloudFormation timeout issues)
 
     CloudFrontDistribution:
       Type: AWS::CloudFront::Distribution
