@@ -226,7 +226,14 @@ Combine all the patterns above with the user's requirements to create a complete
 
 1. Write the script to `scripts/###-[name].sh`
 2. Make it executable: `chmod +x scripts/###-[name].sh`
-3. Display the full path to the user
+3. **VALIDATE SYNTAX**: Run `bash -n scripts/###-[name].sh` to check for syntax errors
+   - If validation fails, FIX the errors and re-validate
+   - Common errors to check:
+     - Unmatched quotes, parentheses, brackets
+     - Extra backslashes escaping quotes
+     - Missing 'fi', 'done', 'esac' keywords
+     - Unclosed heredocs
+4. Display the full path to the user
 
 ### Step 5: Completion Message
 
@@ -258,8 +265,25 @@ The script includes all standard patterns:
 - **DO** validate required .env variables exist before proceeding
 - **DO** include helpful error messages
 - **DO** tell users what to run next in the success message
+- **DO** validate bash syntax with `bash -n` after writing each script
 - Scripts should be **idempotent** when possible (safe to run multiple times)
 - Always use `set -euo pipefail` for proper error handling
+
+## Common Syntax Errors to Avoid
+
+1. **Extra backslashes in path resolution**:
+   - WRONG: `REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/..\" && pwd)"`
+   - RIGHT: `REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"`
+   - Error: Extra `\` before closing quote escapes it, causing "unexpected EOF"
+
+2. **Unmatched quotes in heredocs**:
+   - Always use `<<'EOF'` for literal heredocs (prevents variable expansion issues)
+   - Always close heredocs with `EOF` on its own line
+
+3. **Missing closing keywords**:
+   - Every `if` needs `fi`
+   - Every `for/while` needs `done`
+   - Every `case` needs `esac`
 
 ## Example Generated Script Structure
 
