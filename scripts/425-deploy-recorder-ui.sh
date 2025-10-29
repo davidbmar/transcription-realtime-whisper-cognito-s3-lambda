@@ -28,16 +28,17 @@ fi
 REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 # Load library functions
-source "$REPO_ROOT/scripts/lib/common.sh"
+source "$REPO_ROOT/scripts/lib/common-functions.sh"
+load_environment
 
 # Change to repository root
 cd "$REPO_ROOT"
 
-# Load environment variables
-load_env
-
 # Script header
-log_header "425: Deploy Recorder UI"
+echo "============================================"
+echo "425: Deploy Recorder UI"
+echo "============================================"
+echo ""
 
 log_info "This script will:"
 log_info "  1. Copy recorder UI from audio-ui-cf-s3-lambda-cognito"
