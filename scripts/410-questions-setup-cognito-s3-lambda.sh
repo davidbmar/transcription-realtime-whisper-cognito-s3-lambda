@@ -280,9 +280,6 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${BUCKET_NAME}
-        WebsiteConfiguration:
-          IndexDocument: index.html
-          ErrorDocument: error.html
         PublicAccessBlockConfiguration:
           BlockPublicAcls: false
           BlockPublicPolicy: false
@@ -374,7 +371,7 @@ resources:
       Properties:
         DistributionConfig:
           Origins:
-            - DomainName: !GetAtt WebsiteBucket.DomainName
+            - DomainName: !Sub "\${WebsiteBucket}.s3.\${AWS::Region}.amazonaws.com"
               Id: S3Origin
               S3OriginConfig:
                 OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/\${CloudFrontOriginAccessIdentity}"
