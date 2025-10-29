@@ -89,3 +89,5 @@ cognito-stack/.serverless/
 cognito-stack/node_modules/
 cognito-stack/web/app.js
 cognito-stack/package-lock.json
+cognito-stack/web/audio.html
+cognito-stack/web/audio-ui-styles.css
