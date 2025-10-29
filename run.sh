@@ -36,20 +36,21 @@ echo ""
 echo -e "${YELLOW}AUTHENTICATION & WEB HOSTING (4xx)${NC}"
 echo -e "${GREEN}  7)${NC} 410-questions-setup-cognito-s3-lambda.sh - Setup Cognito/S3/Lambda"
 echo -e "${GREEN}  8)${NC} 420-deploy-cognito-stack.sh  - Deploy auth stack (~15 min)"
-echo -e "${GREEN}  9)${NC} 430-create-cognito-user.sh   - Create authenticated user"
+echo -e "${GREEN}  9)${NC} 425-deploy-recorder-ui.sh   - Deploy full recorder UI"
+echo -e "${GREEN} 10)${NC} 430-create-cognito-user.sh   - Create authenticated user"
 echo ""
 
 echo -e "${YELLOW}DAILY OPERATIONS (8xx)${NC}"
-echo -e "${GREEN} 10)${NC} 820-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
-echo -e "${GREEN} 11)${NC} 810-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
-echo -e "${GREEN} 12)${NC} 310-configure-whisperlive-gpu.sh - Deploy/configure WhisperLive"
+echo -e "${GREEN} 11)${NC} 820-startup-restore.sh         - Start GPU + WhisperLive (1-5 min)"
+echo -e "${GREEN} 12)${NC} 810-shutdown-gpu.sh            - Stop GPU (save \$0.526/hour)"
+echo -e "${GREEN} 13)${NC} 310-configure-whisperlive-gpu.sh - Deploy/configure WhisperLive"
 echo ""
 
 echo -e "${YELLOW}OTHER${NC}"
 echo -e "${GREEN}  0)${NC} Exit"
 echo ""
 
-read -p "Select script to run (0-12): " choice
+read -p "Select script to run (0-13): " choice
 
 case $choice in
     1)
@@ -86,19 +87,23 @@ case $choice in
         ./scripts/420-deploy-cognito-stack.sh
         ;;
     9)
+        echo -e "${BLUE}Running: 425-deploy-recorder-ui.sh${NC}"
+        ./scripts/425-deploy-recorder-ui.sh
+        ;;
+    10)
         echo -e "${BLUE}Running: 430-create-cognito-user.sh${NC}"
         ./scripts/430-create-cognito-user.sh
         ;;
-    10)
+    11)
         echo -e "${BLUE}Running: 820-startup-restore.sh${NC}"
         echo -e "${YELLOW}This will start the GPU and may take 1-5 minutes...${NC}"
         ./scripts/820-startup-restore.sh
         ;;
-    11)
+    12)
         echo -e "${BLUE}Running: 810-shutdown-gpu.sh${NC}"
         ./scripts/810-shutdown-gpu.sh
         ;;
-    12)
+    13)
         echo -e "${BLUE}Running: 310-configure-whisperlive-gpu.sh${NC}"
         ./scripts/310-configure-whisperlive-gpu.sh
         ;;
