@@ -752,7 +752,34 @@ COGNITO_CLOUDFRONT_URL=
 EOL
     log_success "Added Cognito configuration to .env"
 else
-    log_warn "⚠️  Cognito section already exists in .env - skipping"
+    # Update existing values
+    log_info "Updating existing Cognito configuration in .env..."
+
+    if grep -q "^COGNITO_APP_NAME=" .env; then
+        sed -i.bak "s|^COGNITO_APP_NAME=.*$|COGNITO_APP_NAME=${APP_NAME}|" .env
+    else
+        sed -i.bak "/^# Cognito authentication stack/a COGNITO_APP_NAME=${APP_NAME}" .env
+    fi
+
+    if grep -q "^COGNITO_STAGE=" .env; then
+        sed -i.bak "s|^COGNITO_STAGE=.*$|COGNITO_STAGE=${STAGE}|" .env
+    else
+        sed -i.bak "/^COGNITO_APP_NAME=/a COGNITO_STAGE=${STAGE}" .env
+    fi
+
+    if grep -q "^COGNITO_S3_BUCKET=" .env; then
+        sed -i.bak "s|^COGNITO_S3_BUCKET=.*$|COGNITO_S3_BUCKET=${BUCKET_NAME}|" .env
+    else
+        sed -i.bak "/^COGNITO_STAGE=/a COGNITO_S3_BUCKET=${BUCKET_NAME}" .env
+    fi
+
+    if grep -q "^COGNITO_DOMAIN=" .env; then
+        sed -i.bak "s|^COGNITO_DOMAIN=.*$|COGNITO_DOMAIN=${COGNITO_DOMAIN}|" .env
+    else
+        sed -i.bak "/^COGNITO_S3_BUCKET=/a COGNITO_DOMAIN=${COGNITO_DOMAIN}" .env
+    fi
+
+    log_success "Updated Cognito configuration in .env"
 fi
 echo ""
 
