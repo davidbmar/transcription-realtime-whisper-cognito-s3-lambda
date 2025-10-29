@@ -1,0 +1,16 @@
+{
+  "name": "dbm-ts-cog-oct-28-2025",
+  "version": "1.0.0",
+  "description": "Cognito/S3/Lambda serverless authentication stack for transcription app",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "remove": "serverless remove"
+  },
+  "devDependencies": {
+    "serverless": "^3.30.1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1423.0"
+  }
+}

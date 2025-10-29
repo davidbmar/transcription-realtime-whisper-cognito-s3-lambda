@@ -83,3 +83,8 @@ state/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Cognito Stack
+cognito-stack/.serverless/
+cognito-stack/node_modules/
+cognito-stack/web/app.js
