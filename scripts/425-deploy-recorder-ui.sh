@@ -100,13 +100,16 @@ echo ""
 log_info "Step 4: Updating audio.html configuration"
 
 # Replace placeholders in audio.html
-sed -i "s|YOUR_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" audio.html
-sed -i "s|YOUR_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" audio.html
-sed -i "s|YOUR_IDENTITY_POOL_ID|$COGNITO_IDENTITY_POOL_ID|g" audio.html
-sed -i "s|YOUR_REGION|$AWS_REGION|g" audio.html
-sed -i "s|YOUR_CLOUDFRONT_API_ENDPOINT|$COGNITO_API_ENDPOINT|g" audio.html
-sed -i "s|YOUR_AUDIO_API_ENDPOINT|$COGNITO_API_ENDPOINT|g" audio.html
-sed -i "s|YOUR_CLOUDFRONT_URL|$COGNITO_CLOUDFRONT_URL|g" audio.html
+sed -i "s|TO_BE_REPLACED_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" audio.html
+sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" audio.html
+sed -i "s|TO_BE_REPLACED_IDENTITY_POOL_ID|$COGNITO_IDENTITY_POOL_ID|g" audio.html
+sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" audio.html
+sed -i "s|TO_BE_REPLACED_AUDIO_API_URL|$COGNITO_API_ENDPOINT|g" audio.html
+sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" audio.html
+
+# Replace WhisperLive WebSocket URL (default to wss://EDGE_BOX_DNS/ws if not set)
+WHISPERLIVE_WS_URL="${WHISPERLIVE_WS_URL:-wss://${EDGE_BOX_DNS:-localhost}/ws}"
+sed -i "s|TO_BE_REPLACED_WHISPERLIVE_WS_URL|$WHISPERLIVE_WS_URL|g" audio.html
 
 log_success "Configuration updated in audio.html"
 echo ""
