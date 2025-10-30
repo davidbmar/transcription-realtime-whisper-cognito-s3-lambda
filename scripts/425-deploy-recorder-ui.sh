@@ -114,16 +114,13 @@ echo ""
 # Remove test panel and add logout button
 log_info "Step 4b: Customizing audio.html (remove test panel, add logout)"
 
-# Remove the test-panel div and all its nested content (more aggressive)
-sed -i '/<div id="test-panel"/,/<\/div><\/div>/d' audio.html
-
-# Remove any remaining panel-content divs
-sed -i '/<div class="panel-content">/,/<\/div>/d' audio.html
-
-# Remove test functions that use the panel
-sed -i '/window.testRecord = /,/};/d' audio.html
-sed -i '/window.testPlayback = /,/};/d' audio.html
-sed -i '/window.toggleTestPanel = /,/};/d' audio.html
+# Remove test panel and test functions using precise line numbers
+# Delete in reverse order so line numbers don't shift
+# After config update:
+#   Lines 816-830: testRecord and testPlayback functions
+#   Lines 61-72: toggleTestPanel function
+#   Lines 16-29: test-panel HTML
+sed -i '816,830d; 61,72d; 16,29d' audio.html
 
 # Add logout button CSS to audio-ui-styles.css
 cat >> audio-ui-styles.css << 'CSS_EOF'
