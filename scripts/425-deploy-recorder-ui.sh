@@ -114,10 +114,15 @@ echo ""
 # Remove test panel and add logout button
 log_info "Step 4b: Customizing audio.html (remove test panel, add logout)"
 
-# Remove the test-panel div and its content
-sed -i '/<div id="test-panel"/,/<\/div>/d' audio.html
+# Remove the test-panel div and all its nested content (more aggressive)
+sed -i '/<div id="test-panel"/,/<\/div><\/div>/d' audio.html
 
-# Remove the toggleTestPanel function
+# Remove any remaining panel-content divs
+sed -i '/<div class="panel-content">/,/<\/div>/d' audio.html
+
+# Remove test functions that use the panel
+sed -i '/window.testRecord = /,/};/d' audio.html
+sed -i '/window.testPlayback = /,/};/d' audio.html
 sed -i '/window.toggleTestPanel = /,/};/d' audio.html
 
 # Add logout button CSS to audio-ui-styles.css
@@ -155,63 +160,64 @@ CSS_EOF
 sed -i '/<body>/a\    <button class="logout-button" id="logout-button">Sign Out</button>' audio.html
 
 # Add authentication check script at the end of audio.html before </body>
-sed -i '/<\/body>/i\    <script>\
+# Use hardcoded client ID since config object is not accessible from regular script block
+sed -i "/<\/body>/i\    <script>\
     \/\/ Authentication check for audio.html\
-    window.addEventListener("DOMContentLoaded", function() {\
-        const userPoolClientId = config.userPoolClientId;\
-        const keyPrefix = `CognitoIdentityServiceProvider.${userPoolClientId}`;\
-        const lastAuthUser = localStorage.getItem(`${keyPrefix}.LastAuthUser`);\
+    window.addEventListener('DOMContentLoaded', function() {\
+        const userPoolClientId = '${COGNITO_USER_POOL_CLIENT_ID}';\
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;\
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');\
         \
         if (!lastAuthUser) {\
             \/\/ Not authenticated - redirect to index\
-            window.location.href = "index.html";\
+            window.location.href = 'index.html';\
             return;\
         }\
         \
-        const idToken = localStorage.getItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
+        const idToken = localStorage.getItem(keyPrefix + '.' + lastAuthUser + '.idToken');\
         if (!idToken) {\
-            window.location.href = "index.html";\
+            window.location.href = 'index.html';\
             return;\
         }\
         \
         \/\/ Check token expiry\
         try {\
-            const payload = JSON.parse(atob(idToken.split(".")[1]));\
+            const payload = JSON.parse(atob(idToken.split('.')[1]));\
             const expiry = payload.exp * 1000;\
             if (Date.now() >= expiry) {\
                 \/\/ Token expired\
-                localStorage.removeItem(`${keyPrefix}.LastAuthUser`);\
-                localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
-                localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.accessToken`);\
-                window.location.href = "index.html";\
+                localStorage.removeItem(keyPrefix + '.LastAuthUser');\
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');\
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');\
+                window.location.href = 'index.html';\
                 return;\
             }\
         } catch (error) {\
-            console.error("Token validation error:", error);\
-            window.location.href = "index.html";\
+            console.error('Token validation error:', error);\
+            window.location.href = 'index.html';\
             return;\
         }\
     });\
     \
     \/\/ Logout button handler\
-    document.getElementById("logout-button").addEventListener("click", function() {\
-        const userPoolClientId = config.userPoolClientId;\
-        const keyPrefix = `CognitoIdentityServiceProvider.${userPoolClientId}`;\
-        const lastAuthUser = localStorage.getItem(`${keyPrefix}.LastAuthUser`);\
+    document.getElementById('logout-button').addEventListener('click', function() {\
+        const userPoolClientId = '${COGNITO_USER_POOL_CLIENT_ID}';\
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;\
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');\
         \
         if (lastAuthUser) {\
-            localStorage.removeItem(`${keyPrefix}.LastAuthUser`);\
-            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
-            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.accessToken`);\
-            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.clockDrift`);\
+            localStorage.removeItem(keyPrefix + '.LastAuthUser');\
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');\
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');\
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.clockDrift');\
         }\
         \
-        localStorage.removeItem("id_token");\
-        localStorage.removeItem("access_token");\
+        localStorage.removeItem('id_token');\
+        localStorage.removeItem('access_token');\
         \
-        window.location.href = "index.html";\
+        window.location.href = 'index.html';\
     });\
-    <\/script>' audio.html
+    <\/script>" audio.html
 
 log_success "Removed test panel and added logout button"
 echo ""
