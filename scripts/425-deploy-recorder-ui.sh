@@ -111,6 +111,111 @@ sed -i "s|YOUR_CLOUDFRONT_URL|$COGNITO_CLOUDFRONT_URL|g" audio.html
 log_success "Configuration updated in audio.html"
 echo ""
 
+# Remove test panel and add logout button
+log_info "Step 4b: Customizing audio.html (remove test panel, add logout)"
+
+# Remove the test-panel div and its content
+sed -i '/<div id="test-panel"/,/<\/div>/d' audio.html
+
+# Remove the toggleTestPanel function
+sed -i '/window.toggleTestPanel = /,/};/d' audio.html
+
+# Add logout button CSS to audio-ui-styles.css
+cat >> audio-ui-styles.css << 'CSS_EOF'
+
+/* Logout button */
+.logout-button {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 1000;
+}
+
+.logout-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+}
+
+.logout-button:active {
+    transform: translateY(0);
+}
+CSS_EOF
+
+# Add logout button and authentication check to audio.html after <body>
+sed -i '/<body>/a\    <button class="logout-button" id="logout-button">Sign Out</button>' audio.html
+
+# Add authentication check script at the end of audio.html before </body>
+sed -i '/<\/body>/i\    <script>\
+    \/\/ Authentication check for audio.html\
+    window.addEventListener("DOMContentLoaded", function() {\
+        const userPoolClientId = config.userPoolClientId;\
+        const keyPrefix = `CognitoIdentityServiceProvider.${userPoolClientId}`;\
+        const lastAuthUser = localStorage.getItem(`${keyPrefix}.LastAuthUser`);\
+        \
+        if (!lastAuthUser) {\
+            \/\/ Not authenticated - redirect to index\
+            window.location.href = "index.html";\
+            return;\
+        }\
+        \
+        const idToken = localStorage.getItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
+        if (!idToken) {\
+            window.location.href = "index.html";\
+            return;\
+        }\
+        \
+        \/\/ Check token expiry\
+        try {\
+            const payload = JSON.parse(atob(idToken.split(".")[1]));\
+            const expiry = payload.exp * 1000;\
+            if (Date.now() >= expiry) {\
+                \/\/ Token expired\
+                localStorage.removeItem(`${keyPrefix}.LastAuthUser`);\
+                localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
+                localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.accessToken`);\
+                window.location.href = "index.html";\
+                return;\
+            }\
+        } catch (error) {\
+            console.error("Token validation error:", error);\
+            window.location.href = "index.html";\
+            return;\
+        }\
+    });\
+    \
+    \/\/ Logout button handler\
+    document.getElementById("logout-button").addEventListener("click", function() {\
+        const userPoolClientId = config.userPoolClientId;\
+        const keyPrefix = `CognitoIdentityServiceProvider.${userPoolClientId}`;\
+        const lastAuthUser = localStorage.getItem(`${keyPrefix}.LastAuthUser`);\
+        \
+        if (lastAuthUser) {\
+            localStorage.removeItem(`${keyPrefix}.LastAuthUser`);\
+            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.idToken`);\
+            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.accessToken`);\
+            localStorage.removeItem(`${keyPrefix}.${lastAuthUser}.clockDrift`);\
+        }\
+        \
+        localStorage.removeItem("id_token");\
+        localStorage.removeItem("access_token");\
+        \
+        window.location.href = "index.html";\
+    });\
+    <\/script>' audio.html
+
+log_success "Removed test panel and added logout button"
+echo ""
+
 # Regenerate app.js and callback.html with correct values (already have the fixed versions)
 log_info "Step 5: Regenerating app.js and callback.html"
 
