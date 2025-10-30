@@ -378,7 +378,12 @@ cat > web/callback.html << EOL
             const payload = JSON.parse(atob(idToken.split('.')[1]));
             const username = payload['cognito:username'] || payload['sub'];
 
-            // Store tokens in Cognito SDK format
+            // Store tokens in BOTH formats:
+            // 1. Plain format for React app compatibility
+            localStorage.setItem('id_token', idToken);
+            localStorage.setItem('access_token', accessToken);
+
+            // 2. Cognito SDK format for auth checks
             const keyPrefix = \`CognitoIdentityServiceProvider.\${userPoolClientId}\`;
             const userPrefix = \`\${keyPrefix}.\${username}\`;
 
