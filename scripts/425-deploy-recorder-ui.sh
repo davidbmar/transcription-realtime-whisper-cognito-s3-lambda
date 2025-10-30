@@ -50,10 +50,34 @@ echo ""
 # Validate prerequisites
 log_info "Step 1: Validating prerequisites"
 
-# Check if source UI directory exists
-SOURCE_UI_DIR="/home/ubuntu/event-b/audio-ui-cf-s3-lambda-cognito/web"
-if [ ! -d "$SOURCE_UI_DIR" ]; then
-    log_error "Source UI directory not found: $SOURCE_UI_DIR"
+# Auto-detect source UI directory (look in common locations)
+POSSIBLE_LOCATIONS=(
+    "/home/ubuntu/event-b/audio-ui-cf-s3-lambda-cognito/web"
+    "../audio-ui-cf-s3-lambda-cognito/web"
+    "../../audio-ui-cf-s3-lambda-cognito/web"
+)
+
+SOURCE_UI_DIR=""
+for location in "${POSSIBLE_LOCATIONS[@]}"; do
+    if [ -d "$location" ]; then
+        SOURCE_UI_DIR="$(cd "$location" && pwd)"
+        break
+    fi
+done
+
+if [ -z "$SOURCE_UI_DIR" ]; then
+    log_error "Source UI directory not found. Tried:"
+    for location in "${POSSIBLE_LOCATIONS[@]}"; do
+        log_error "  - $location"
+    done
+    log_error ""
+    log_error "Please clone the UI repo:"
+    log_error "  git clone https://github.com/davidbmar/audio-ui-cf-s3-lambda-cognito.git"
+    log_error ""
+    log_error "Expected directory structure:"
+    log_error "  parent-dir/"
+    log_error "    ├── transcription-realtime-whisper-cognito-s3-lambda-ver4/"
+    log_error "    └── audio-ui-cf-s3-lambda-cognito/"
     exit 1
 fi
 
