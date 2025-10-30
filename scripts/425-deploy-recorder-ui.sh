@@ -90,8 +90,8 @@ cp "$SOURCE_UI_DIR/index.html" ./
 cp "$SOURCE_UI_DIR/audio-ui-styles.css" ./
 cp "$SOURCE_UI_DIR/styles.css" ./
 
-# Use the template version of audio.html for updating
-cp "$SOURCE_UI_DIR/audio.html.template" ./audio.html
+# Use audio.html with WhisperLive integration
+cp "$SOURCE_UI_DIR/audio.html" ./audio.html
 
 log_success "UI files copied"
 echo ""
@@ -114,16 +114,10 @@ sed -i "s|TO_BE_REPLACED_WHISPERLIVE_WS_URL|$WHISPERLIVE_WS_URL|g" audio.html
 log_success "Configuration updated in audio.html"
 echo ""
 
-# Remove test panel and add logout button
-log_info "Step 4b: Customizing audio.html (remove test panel, add logout)"
+# Add logout button
+log_info "Step 4b: Adding logout button to audio.html"
 
-# Remove test panel and test functions using precise line numbers
-# Delete in reverse order so line numbers don't shift
-# After config update:
-#   Lines 816-830: testRecord and testPlayback functions
-#   Lines 61-72: toggleTestPanel function
-#   Lines 16-29: test-panel HTML
-sed -i '816,830d; 61,72d; 16,29d' audio.html
+# Note: Test panel already removed from source audio.html
 
 # Add logout button CSS to audio-ui-styles.css
 cat >> audio-ui-styles.css << 'CSS_EOF'
