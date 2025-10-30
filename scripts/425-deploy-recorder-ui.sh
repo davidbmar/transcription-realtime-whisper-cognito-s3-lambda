@@ -386,11 +386,6 @@ cat > callback.html << EOL
         const userPoolId = '${COGNITO_USER_POOL_ID}';
         const userPoolClientId = '${COGNITO_USER_POOL_CLIENT_ID}';
 
-        // Clear any old tokens first
-        console.log('Clearing old tokens from localStorage...');
-        localStorage.removeItem('id_token');
-        localStorage.removeItem('access_token');
-
         // Parse the URL fragment for tokens (implicit flow)
         const fragment = window.location.hash.substring(1);
         const params = new URLSearchParams(fragment);
@@ -408,7 +403,12 @@ cat > callback.html << EOL
 
                 console.log('Decoded username:', username);
 
-                // Store tokens in Cognito SDK format
+                // Store tokens in BOTH formats:
+                // 1. Plain format for React app compatibility
+                localStorage.setItem('id_token', idToken);
+                localStorage.setItem('access_token', accessToken);
+
+                // 2. Cognito SDK format for auth checks
                 const keyPrefix = \`CognitoIdentityServiceProvider.\${userPoolClientId}\`;
                 const userPrefix = \`\${keyPrefix}.\${username}\`;
 
@@ -418,11 +418,6 @@ cat > callback.html << EOL
                 localStorage.setItem(\`\${userPrefix}.clockDrift\`, '0');
 
                 console.log('Tokens stored successfully for user:', username);
-                console.log('Storage keys:', {
-                    lastAuthUser: \`\${keyPrefix}.LastAuthUser\`,
-                    idToken: \`\${userPrefix}.idToken\`,
-                    accessToken: \`\${userPrefix}.accessToken\`
-                });
             } catch (error) {
                 console.error('Error processing tokens:', error);
             }
@@ -430,10 +425,8 @@ cat > callback.html << EOL
             console.error('No tokens found in URL fragment');
         }
 
-        // Redirect back to the main page
-        setTimeout(() => {
-            window.location.href = 'index.html';
-        }, 500);
+        // Redirect directly to audio page (user is authenticated)
+        window.location.href = 'audio.html';
     </script>
 </body>
 </html>
