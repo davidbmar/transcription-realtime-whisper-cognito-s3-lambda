@@ -296,11 +296,8 @@ window.addEventListener('DOMContentLoaded', function() {
                 console.log('Token expiry:', new Date(expiry), 'Current time:', new Date());
                 
                 if (Date.now() < expiry) {
-                    // Token is valid - redirect to audio.html if on index.html
-                    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
-                        window.location.href = 'audio.html';
-                        return;
-                    }
+                    // Token is valid - user stays on current page
+                    console.log('Token is valid, user authenticated');
                 } else {
                     console.log('Token expired, clearing localStorage');
                     // Clear expired tokens
