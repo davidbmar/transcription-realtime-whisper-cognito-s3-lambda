@@ -446,8 +446,8 @@ cat > callback.html << EOL
             console.error('No tokens found in URL fragment');
         }
 
-        // Redirect directly to audio page (user is authenticated)
-        window.location.href = 'audio.html';
+        // Redirect to dashboard (user is authenticated)
+        window.location.href = 'index.html';
     </script>
 </body>
 </html>
