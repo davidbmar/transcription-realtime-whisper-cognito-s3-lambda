@@ -1,27 +1,31 @@
 # Fresh Checkout Setup Instructions
 
-This project depends on the `audio-ui-cf-s3-lambda-cognito` repository for UI files.
+This project is **fully self-contained** - all UI files and Lambda functions are included in this repository.
 
 ## Directory Structure
 
 ```
-event-b/
-├── transcription-realtime-whisper-cognito-s3-lambda-ver4/  (this repo)
-└── audio-ui-cf-s3-lambda-cognito/                          (UI repo)
+transcription-realtime-whisper-cognito-s3-lambda-ver4/  (this repo - everything you need!)
+├── cognito-stack/
+│   ├── api/                    # Lambda functions (S3, audio, memory)
+│   └── serverless.yml          # Full stack definition
+├── ui-source/                  # UI source files
+│   ├── app.js.template         # File manager frontend
+│   ├── audio.html              # WhisperLive audio recorder
+│   └── index.html              # Dashboard with cards
+└── scripts/                    # Deployment automation
 ```
 
 ## Setup Steps
 
-1. **Clone both repositories:**
+1. **Clone this repository:**
 ```bash
-cd /home/ubuntu/event-b/
 git clone https://github.com/davidbmar/transcription-realtime-whisper-cognito-s3-lambda.git transcription-realtime-whisper-cognito-s3-lambda-ver4
-git clone https://github.com/davidbmar/audio-ui-cf-s3-lambda-cognito.git
+cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 ```
 
 2. **Configure environment:**
 ```bash
-cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 cp .env.template .env
 # Edit .env with your values
 ```
@@ -53,4 +57,11 @@ Key variables that must be set:
 - AWS CLI configured with credentials
 - Node.js and npm (for Serverless Framework)
 - Serverless Framework
-- Both repos checked out in parallel directories
+
+## What's Included
+
+All necessary files are in this single repository:
+- **Lambda Functions:** cognito-stack/api/ (S3, audio, memory operations)
+- **UI Files:** ui-source/ (dashboard, file manager, audio recorder)
+- **Deployment Scripts:** scripts/ (fully automated deployment)
+- **Infrastructure:** cognito-stack/serverless.yml (Cognito, S3, API Gateway, CloudFront)
