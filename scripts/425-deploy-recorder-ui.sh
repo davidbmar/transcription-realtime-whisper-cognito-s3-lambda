@@ -296,8 +296,20 @@ window.addEventListener('DOMContentLoaded', function() {
                 console.log('Token expiry:', new Date(expiry), 'Current time:', new Date());
                 
                 if (Date.now() < expiry) {
-                    // Token is valid - user stays on current page
+                    // Token is valid - show dashboard if on index page
                     console.log('Token is valid, user authenticated');
+                    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
+                        if (document.getElementById('login-section')) {
+                            document.getElementById('login-section').style.display = 'none';
+                        }
+                        if (document.getElementById('dashboard-section')) {
+                            document.getElementById('dashboard-section').style.display = 'block';
+                        }
+                        if (document.getElementById('authenticated-section')) {
+                            document.getElementById('authenticated-section').style.display = 'none';
+                        }
+                    }
+                    return; // Exit early - user is authenticated
                 } else {
                     console.log('Token expired, clearing localStorage');
                     // Clear expired tokens
@@ -317,6 +329,9 @@ window.addEventListener('DOMContentLoaded', function() {
         console.log('User not authenticated, showing login');
         if (document.getElementById('login-section')) {
             document.getElementById('login-section').style.display = 'block';
+        }
+        if (document.getElementById('dashboard-section')) {
+            document.getElementById('dashboard-section').style.display = 'none';
         }
         if (document.getElementById('authenticated-section')) {
             document.getElementById('authenticated-section').style.display = 'none';
