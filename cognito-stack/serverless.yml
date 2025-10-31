@@ -20,10 +20,52 @@ provider:
             - iam:PassRole
           Resource: !GetAtt AuthenticatedRole.Arn
 
+        # S3 PERMISSIONS for listing the bucket
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}"
+
+        # S3 permissions for download URL generation
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:GetObjectVersion
+            - s3:HeadObject
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
+
+        # S3 write permissions for memory storage
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/claude-memory/*"
+
+        # S3 write permissions for user file uploads
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/users/*"
+
+        # S3 delete permissions for user files
+        - Effect: Allow
+          Action:
+            - s3:DeleteObject
+            - s3:DeleteObjects
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/users/*"
+
+        # S3 copy permissions for rename operations
+        - Effect: Allow
+          Action:
+            - s3:CopyObject
+          Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/users/*"
+
 custom:
   s3Bucket: dbm-ts-cog-oct-28-2025
 
 functions:
+  # Test endpoint
   api:
     handler: api/handler.getData
     events:
@@ -35,6 +77,187 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId:
               Ref: ApiGatewayAuthorizer
+
+  # S3 File Manager Functions
+  listS3Files:
+    handler: api/s3.listObjects
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/list
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  getS3DownloadUrl:
+    handler: api/s3.getDownloadUrl
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/download/{key+}
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  getS3UploadUrl:
+    handler: api/s3.getUploadUrl
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/upload
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  deleteS3Object:
+    handler: api/s3.deleteObject
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/delete/{key+}
+          method: delete
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  renameS3Object:
+    handler: api/s3.renameObject
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/rename
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  moveS3Object:
+    handler: api/s3.moveObject
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/s3/move
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  # Audio Recording Functions
+  uploadAudioChunk:
+    handler: api/audio.uploadChunk
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/audio/upload-chunk
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  updateAudioSessionMetadata:
+    handler: api/audio.updateSessionMetadata
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/audio/session-metadata
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  listAudioSessions:
+    handler: api/audio.listSessions
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/audio/sessions
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  getFailedAudioChunks:
+    handler: api/audio.getFailedChunks
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/audio/failed-chunks
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  deleteAudioChunk:
+    handler: api/audio.deleteChunk
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/audio/delete-chunk
+          method: delete
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  # Claude Memory Storage Functions
+  storeClaudeMemory:
+    handler: api/memory.storeMemory
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/memory
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  storeClaudeMemoryPublic:
+    handler: api/memory.storeMemoryPublic
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/memory/public
+          method: post
+          cors: true
 
   # Custom resource function to set identity pool roles
   setIdentityPoolRoles:
@@ -209,8 +432,8 @@ resources:
       Description: Name of the S3 bucket for website hosting
       Value: !Ref WebsiteBucket
     ApiEndpoint:
-      Description: URL of the API Gateway endpoint
-      Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${sls:stage}/data"
+      Description: URL of the API Gateway endpoint (base URL for all API routes)
+      Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${sls:stage}"
     UserPoolId:
       Description: ID of the Cognito User Pool
       Value: !Ref UserPool

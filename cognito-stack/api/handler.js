@@ -15,8 +15,7 @@ module.exports.getData = async (event) => {
       body: JSON.stringify(
         {
           message: 'Hello from Lambda!',
-          user: email,
-          timestamp: new Date().toISOString()
+          user: email
         },
         null,
         2

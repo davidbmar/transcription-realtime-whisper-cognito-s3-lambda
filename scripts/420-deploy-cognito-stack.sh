@@ -126,25 +126,8 @@ API_ENDPOINT=$(aws cloudformation describe-stacks \
     --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
     --output text)
 
-# Check if audio-ui-cf-s3-lambda-cognito stack exists and prefer its API endpoint
-# This stack has the full S3 file manager API (/api/s3/*, /api/audio/*)
-FILE_MANAGER_STACK=$(aws cloudformation list-stacks \
-    --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-    --query "StackSummaries[?contains(StackName, 'dbm-cf-app')].StackName | [0]" \
-    --output text 2>/dev/null || echo "")
-
-if [ -n "$FILE_MANAGER_STACK" ] && [ "$FILE_MANAGER_STACK" != "None" ]; then
-    FILE_MANAGER_ENDPOINT=$(aws cloudformation describe-stacks \
-        --stack-name "$FILE_MANAGER_STACK" \
-        --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
-        --output text 2>/dev/null || echo "")
-
-    if [ -n "$FILE_MANAGER_ENDPOINT" ]; then
-        log_info "Found File Manager stack: $FILE_MANAGER_STACK"
-        log_info "Using File Manager API endpoint instead of test endpoint"
-        API_ENDPOINT="$FILE_MANAGER_ENDPOINT"
-    fi
-fi
+# Note: cognito-stack now includes full S3 file manager API (/api/s3/*, /api/audio/*)
+# No need to look for external file manager stack
 
 WEBSITE_URL=$(aws cloudformation describe-stacks \
     --stack-name "$STACK_NAME" \
