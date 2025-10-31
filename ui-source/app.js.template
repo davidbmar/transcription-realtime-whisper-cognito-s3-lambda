@@ -1,0 +1,2123 @@
+// WARNING: This is a template file that gets modified during deployment
+// DO NOT EDIT app.js directly as changes will be overwritten during deployment
+// Make changes to app.js.template instead
+
+// Configuration - to be updated after deployment
+const config = {
+    userPoolId: 'YOUR_USER_POOL_ID',
+    userPoolClientId: 'YOUR_USER_POOL_CLIENT_ID',
+    identityPoolId: 'YOUR_IDENTITY_POOL_ID',
+    region: 'YOUR_REGION', // Your AWS region
+    apiUrl: 'YOUR_CLOUDFRONT_API_ENDPOINT', // CloudFront API endpoint
+    s3ApiUrl: 'YOUR_CLOUDFRONT_S3_API_ENDPOINT', // CloudFront S3 API endpoint
+    appUrl: 'YOUR_APP_URL'
+};
+
+// DOM elements
+const loginButton = document.getElementById('login-button');
+const logoutButton = document.getElementById('logout-button');
+const getDataButton = document.getElementById('get-data-button');
+const listS3Button = document.getElementById('list-s3-button');
+const userEmailSpan = document.getElementById('user-email');
+const dataOutput = document.getElementById('data-output');
+const loginSection = document.getElementById('login-section');
+const authenticatedSection = document.getElementById('authenticated-section');
+
+// Enhanced checkAuthentication function for modern UI
+function checkAuthentication() {
+    console.log("Checking authentication...");
+    const idToken = localStorage.getItem('id_token');
+    const loginSection = document.getElementById('login-section');
+    const dashboardSection = document.getElementById('dashboard-section');
+    const userInfo = document.getElementById('user-info');
+    const userAvatar = document.getElementById('user-avatar');
+    const userName = document.getElementById('user-name');
+    
+    if (idToken) {
+        console.log("Found ID token, verifying...");
+        try {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            
+            // Check if token is expired
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp && payload.exp < now) {
+                console.log("Token expired, logging out");
+                localStorage.removeItem('id_token');
+                localStorage.removeItem('access_token');
+                showLoginSection();
+                return;
+            }
+            
+            console.log("Token valid, displaying dashboard");
+            
+            // Update user info
+            const email = payload.email || 'User';
+            const initials = email.split('@')[0].substring(0, 2).toUpperCase();
+            
+            userAvatar.textContent = initials;
+            userName.textContent = email;
+            
+            // Show dashboard UI
+            loginSection.style.display = 'none';
+            dashboardSection.style.display = 'block';
+            userInfo.style.display = 'flex';
+            
+        } catch (error) {
+            console.error('Error parsing token:', error);
+            showLoginSection();
+        }
+    } else {
+        console.log("No token found, displaying login section");
+        showLoginSection();
+    }
+}
+
+function showLoginSection() {
+    const loginSection = document.getElementById('login-section');
+    const dashboardSection = document.getElementById('dashboard-section');
+    const authenticatedSection = document.getElementById('authenticated-section');
+    const memorySection = document.getElementById('memory-section');
+    const userInfo = document.getElementById('user-info');
+    
+    loginSection.style.display = 'block';
+    dashboardSection.style.display = 'none';
+    authenticatedSection.style.display = 'none';
+    memorySection.style.display = 'none';
+    userInfo.style.display = 'none';
+}
+
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded, checking authentication");
+    checkAuthentication();
+    
+    // Set up event listeners
+    if (loginButton) loginButton.addEventListener('click', login);
+    if (logoutButton) logoutButton.addEventListener('click', logout);
+    if (getDataButton) getDataButton.addEventListener('click', getData);
+    if (listS3Button) listS3Button.addEventListener('click', listS3Files);
+
+    // View Memory button
+    const viewMemoryBtn = document.getElementById('view-memory');
+    if (viewMemoryBtn) {
+        viewMemoryBtn.addEventListener('click', showMemorySection);
+    }
+    
+    // Back to Files button
+    const backToFilesBtn = document.getElementById('back-to-files');
+    if (backToFilesBtn) {
+        backToFilesBtn.addEventListener('click', showFileSection);
+    }
+    
+    // Refresh Memory button
+    const refreshMemoryBtn = document.getElementById('refresh-memory');
+    if (refreshMemoryBtn) {
+        refreshMemoryBtn.addEventListener('click', function() {
+            const activeTab = document.querySelector('.memory-tab.active');
+            const scope = activeTab ? activeTab.getAttribute('data-scope') : 'public';
+            loadMemoryFiles(scope);
+        });
+    }
+    
+    // Memory tab switching
+    const memoryTabs = document.querySelectorAll('.memory-tab');
+    memoryTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs
+            memoryTabs.forEach(t => t.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Load memory files for the selected scope
+            const scope = this.getAttribute('data-scope');
+            loadMemoryFiles(scope);
+        });
+    });    
+
+
+});
+
+// Login function - this will be replaced during deployment with the correct domain
+function login() {
+    console.log("Login function called");
+    // The domain prefix will be replaced during deployment
+    const authUrl = 'https://YOUR_COGNITO_DOMAIN.auth.YOUR_REGION.amazoncognito.com/login';
+    const redirectUri = `${config.appUrl}/callback.html`;
+    
+    const queryParams = new URLSearchParams({
+        client_id: config.userPoolClientId,
+        response_type: 'token', // Use token for implicit flow
+        scope: 'email openid profile',
+        redirect_uri: redirectUri,
+    });
+    
+    const loginUrl = `${authUrl}?${queryParams.toString()}`;
+    console.log("Redirecting to:", loginUrl);
+    window.location.href = loginUrl;
+}
+
+// Logout function
+function logout() {
+    localStorage.removeItem('id_token');
+    localStorage.removeItem('access_token');
+    checkAuthentication();
+}
+
+// Enhanced getData function for modern UI
+async function getData() {
+    const idToken = localStorage.getItem('id_token');
+    const fileContainer = document.getElementById('file-container');
+    
+    if (!idToken) {
+        fileContainer.innerHTML = '<div class="empty-state"><p>You must be logged in to access the API.</p></div>';
+        return;
+    }
+    
+    try {
+        fileContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <h3>Testing API connection...</h3>
+            </div>
+        `;
+        
+        const response = await fetch(config.apiUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        fileContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-check-circle" style="color: #28a745;"></i>
+                <h3>API Test Successful!</h3>
+                <div class="upload-instructions">
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+                <button class="btn btn-primary" onclick="listS3Files()">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Files
+                </button>
+            </div>
+        `;
+        
+    } catch (error) {
+        fileContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                <h3>API Test Failed</h3>
+                <p>${error.message}</p>
+                <button class="btn btn-primary" onclick="listS3Files()">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Files
+                </button>
+            </div>
+        `;
+    }
+}
+
+
+// File type detection and icon mapping
+function getFileIcon(fileName, isFolder = false) {
+    // Handle folders first
+    if (isFolder || fileName.endsWith('/')) {
+        return { icon: 'fas fa-folder', color: '#ffc107' };
+    }
+    
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    // Define icon mappings by file type
+    const iconMap = {
+        // Documents
+        'pdf': { icon: 'fas fa-file-pdf', color: '#dc3545' },
+        'doc': { icon: 'fas fa-file-word', color: '#2b5797' },
+        'docx': { icon: 'fas fa-file-word', color: '#2b5797' },
+        'txt': { icon: 'fas fa-file-alt', color: '#6c757d' },
+        
+        // Images
+        'jpg': { icon: 'fas fa-file-image', color: '#28a745' },
+        'jpeg': { icon: 'fas fa-file-image', color: '#28a745' },
+        'png': { icon: 'fas fa-file-image', color: '#28a745' },
+        'gif': { icon: 'fas fa-file-image', color: '#28a745' },
+        'svg': { icon: 'fas fa-file-image', color: '#28a745' },
+        
+        // Spreadsheets
+        'xls': { icon: 'fas fa-file-excel', color: '#217346' },
+        'xlsx': { icon: 'fas fa-file-excel', color: '#217346' },
+        'csv': { icon: 'fas fa-file-csv', color: '#217346' },
+        
+        // Archives
+        'zip': { icon: 'fas fa-file-archive', color: '#ffc107' },
+        'rar': { icon: 'fas fa-file-archive', color: '#ffc107' },
+        '7z': { icon: 'fas fa-file-archive', color: '#ffc107' },
+        'tar': { icon: 'fas fa-file-archive', color: '#ffc107' },
+        'gz': { icon: 'fas fa-file-archive', color: '#ffc107' },
+        
+        // Code
+        'js': { icon: 'fas fa-file-code', color: '#563d7c' },
+        'json': { icon: 'fas fa-file-code', color: '#563d7c' },
+        'html': { icon: 'fas fa-file-code', color: '#e34c26' },
+        'css': { icon: 'fas fa-file-code', color: '#1572b6' },
+        'py': { icon: 'fas fa-file-code', color: '#3776ab' },
+        
+        // Audio/Video
+        'mp3': { icon: 'fas fa-file-audio', color: '#9c27b0' },
+        'wav': { icon: 'fas fa-file-audio', color: '#9c27b0' },
+        'mp4': { icon: 'fas fa-file-video', color: '#ff5722' },
+        'avi': { icon: 'fas fa-file-video', color: '#ff5722' },
+        'mov': { icon: 'fas fa-file-video', color: '#ff5722' },
+        
+        // Default
+        'default': { icon: 'fas fa-file', color: '#6c757d' }
+    };
+    
+    return iconMap[extension] || iconMap['default'];
+}
+
+// Simple folder detection and navigation
+let currentPath = '';
+
+function isFolder(fileName) {
+    return fileName.endsWith('/');
+}
+
+function extractFolders(files) {
+    const folders = new Set();
+    const fileList = [];
+    
+    files.forEach(file => {
+        const relativePath = file.displayKey || file.key;
+        
+        // If we're in a subfolder, check if this file belongs to current path
+        if (currentPath && !relativePath.startsWith(currentPath)) {
+            return;
+        }
+        
+        // Remove current path prefix
+        const pathWithoutPrefix = currentPath ? relativePath.replace(currentPath, '') : relativePath;
+        
+        // Split path into parts
+        const pathParts = pathWithoutPrefix.split('/').filter(p => p.length > 0);
+        
+        if (pathParts.length >= 2) {
+            // This file is inside a subfolder
+            const folderName = pathParts[0];
+            const fileName = pathParts[1];
+            
+            // If this is a .folder marker file, extract the folder name
+            if (fileName === '.folder') {
+                folders.add(folderName);
+            } else {
+                // Regular file in subfolder - still add the folder
+                folders.add(folderName);
+            }
+        } else if (pathParts.length === 1) {
+            // This is a file in the current directory
+            const fileName = pathParts[0];
+            if (fileName !== '.folder') {
+                // Only add actual files, skip any stray .folder files
+                fileList.push(file);
+            }
+        }
+    });
+    
+    // Convert folders to file-like objects
+    const folderObjects = Array.from(folders).map(folderName => ({
+        key: currentPath + folderName + '/',
+        displayKey: folderName, // Clean folder name without slashes
+        size: 0,
+        lastModified: new Date(),
+        isFolder: true
+    }));
+    
+    return [...folderObjects, ...fileList];
+}
+
+function navigateToFolder(folderPath) {
+    currentPath = folderPath;
+    updateBreadcrumb();
+    listS3Files();
+}
+
+function navigateUp() {
+    if (currentPath) {
+        // Remove last folder from path
+        const pathParts = currentPath.split('/').filter(p => p.length > 0);
+        pathParts.pop();
+        currentPath = pathParts.length > 0 ? pathParts.join('/') + '/' : '';
+        updateBreadcrumb();
+        listS3Files();
+    }
+}
+
+function updateBreadcrumb() {
+    const breadcrumbNav = document.getElementById('breadcrumb-nav');
+    if (!breadcrumbNav) return;
+    
+    // Start with home - show text when in root, hide when in subdirectories on mobile
+    const isInSubdirectory = currentPath && currentPath.length > 0;
+    let breadcrumbHTML = `
+        <div class="breadcrumb-item" onclick="navigateToFolder('')">
+            <i class="fas fa-home"></i>
+            <span class="breadcrumb-home-text ${isInSubdirectory ? 'hide-on-mobile' : ''}">My Files</span>
+        </div>
+    `;
+    
+    // Add path segments
+    if (currentPath) {
+        const pathParts = currentPath.split('/').filter(p => p.length > 0);
+        let cumulativePath = '';
+        
+        pathParts.forEach((part, index) => {
+            cumulativePath += part + '/';
+            breadcrumbHTML += `
+                <span class="breadcrumb-separator">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+                <div class="breadcrumb-item" onclick="navigateToFolder('${cumulativePath}')">
+                    <i class="fas fa-folder"></i>
+                    <span>${part}</span>
+                </div>
+            `;
+        });
+    }
+    
+    breadcrumbNav.innerHTML = breadcrumbHTML;
+}
+
+// Enhanced listS3Files function for modern UI
+async function listS3Files() {
+    const idToken = localStorage.getItem('id_token');
+    const fileContainer = document.getElementById('file-container');
+    
+    // Update breadcrumb navigation
+    updateBreadcrumb();
+    
+    if (!idToken) {
+        fileContainer.innerHTML = '<div class="empty-state"><p>You must be logged in to access files.</p></div>';
+        return;
+    }
+    
+    try {
+        console.log('Making S3 list API call...');
+        
+        // Show loading state
+        fileContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <h3>Loading your files...</h3>
+            </div>
+        `;
+        
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/list?prefix=`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API request failed: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Clear container
+        fileContainer.innerHTML = '';
+        
+        if (data.files && data.files.length > 0) {
+            // Extract folders and files for current directory
+            const items = extractFolders(data.files);
+            
+            // Create file list
+            const fileList = document.createElement('div');
+            fileList.className = 'file-list';
+            
+            items.forEach((item, index) => {
+                const fullKey = item.key || item;
+                // Calculate clean relative name - remove current path prefix and show just the filename/foldername
+                let displayName = item.displayKey || item.key || item;
+                if (currentPath && displayName.startsWith(currentPath)) {
+                    displayName = displayName.replace(currentPath, '');
+                }
+                // Remove any leading/trailing slashes for clean display
+                displayName = displayName.replace(/^\/+|\/+$/g, '');
+                const isFolder = item.isFolder || false;
+                const fileSize = isFolder ? '' : formatFileSize(item.size);
+                const fileDate = new Date(item.lastModified).toLocaleDateString();
+                const fileTypeInfo = getFileIcon(displayName, isFolder);
+                
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-list-item';
+                fileItem.innerHTML = `
+                    <div class="file-list-icon">
+                        <i class="${fileTypeInfo.icon}" style="color: ${fileTypeInfo.color};"></i>
+                    </div>
+                    <div class="file-list-info">
+                        <div class="file-list-name" title="${displayName}">${displayName}</div>
+                        <div class="file-list-meta">
+                            ${isFolder ? 
+                                '<span><i class="fas fa-folder-open"></i> Folder</span>' : 
+                                `<span><i class="fas fa-hdd"></i> ${fileSize}</span>`
+                            }
+                            <span><i class="fas fa-calendar"></i> ${fileDate}</span>
+                        </div>
+                    </div>
+                    <div class="file-list-actions">
+                        <button class="menu-btn" data-key="${fullKey}" data-name="${displayName}" data-folder="${isFolder}" aria-label="More actions">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            ${isFolder ? 
+                                `<button class="dropdown-item open-btn" data-key="${fullKey}">
+                                    <i class="fas fa-folder-open"></i>
+                                    <span>Open</span>
+                                </button>
+                                <button class="dropdown-item rename-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-edit"></i>
+                                    <span>Rename</span>
+                                </button>
+                                <button class="dropdown-item move-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-arrows-alt"></i>
+                                    <span>Move</span>
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button class="dropdown-item danger delete-btn" data-key="${fullKey}" data-name="${displayName}" data-folder="true">
+                                    <i class="fas fa-trash"></i>
+                                    <span>Delete</span>
+                                </button>` :
+                                `<button class="dropdown-item download-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-download"></i>
+                                    <span>Download</span>
+                                </button>
+                                <button class="dropdown-item rename-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-edit"></i>
+                                    <span>Rename</span>
+                                </button>
+                                <button class="dropdown-item move-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-arrows-alt"></i>
+                                    <span>Move</span>
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button class="dropdown-item danger delete-btn" data-key="${fullKey}" data-name="${displayName}">
+                                    <i class="fas fa-trash"></i>
+                                    <span>Delete</span>
+                                </button>`
+                            }
+                        </div>
+                    </div>
+                `;
+                
+                // Add menu button event listener
+                const menuBtn = fileItem.querySelector('.menu-btn');
+                const dropdownMenu = fileItem.querySelector('.dropdown-menu');
+                
+                menuBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeAllDropdowns();
+                    dropdownMenu.classList.toggle('show');
+                    
+                    if (dropdownMenu.classList.contains('show')) {
+                        // Add class to parent for z-index fix (fallback for browsers without :has())
+                        fileItem.classList.add('dropdown-open');
+                        
+                        // Check if we're on mobile - more comprehensive detection
+                        const isMobile = window.innerWidth <= 768 || 
+                                       /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+                                       ('ontouchstart' in window);
+                        
+                        if (isMobile) {
+                            // For mobile, create a completely separate action sheet
+                            console.log('Mobile detected - creating action sheet');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            dropdownMenu.classList.remove('show'); // Hide the regular dropdown
+                            showMobileActionSheet(fullKey, displayName, isFolder, index);
+                        } else {
+                            // Desktop behavior - check if dropdown would go off-screen and flip if needed
+                            setTimeout(() => {
+                                const rect = dropdownMenu.getBoundingClientRect();
+                                const viewportHeight = window.innerHeight;
+                                const dropdownHeight = 200; // Approximate dropdown height
+                                
+                                if (rect.bottom + dropdownHeight > viewportHeight) {
+                                    dropdownMenu.classList.add('flip-up');
+                                } else {
+                                    dropdownMenu.classList.remove('flip-up');
+                                }
+                            }, 0);
+                        }
+                    } else {
+                        fileItem.classList.remove('dropdown-open');
+                        dropdownMenu.classList.remove('flip-up');
+                        dropdownMenu.classList.remove('mobile-modal');
+                        // Reset positioning styles
+                        dropdownMenu.style.position = '';
+                        dropdownMenu.style.top = '';
+                        dropdownMenu.style.left = '';
+                        dropdownMenu.style.right = '';
+                        // Hide backdrop
+                        const backdrop = document.getElementById('mobile-dropdown-backdrop');
+                        if (backdrop) {
+                            backdrop.classList.remove('show');
+                        }
+                    }
+                });
+                
+                // Add event listeners for dropdown items
+                const deleteBtn = fileItem.querySelector('.delete-btn');
+                const renameBtn = fileItem.querySelector('.rename-btn');
+                const moveBtn = fileItem.querySelector('.move-btn');
+                const downloadBtn = fileItem.querySelector('.download-btn');
+                const openBtn = fileItem.querySelector('.open-btn');
+                
+                deleteBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.remove('show');
+                    deleteFile(fullKey, displayName, isFolder);
+                });
+                
+                renameBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.remove('show');
+                    renameFile(fullKey, displayName, isFolder);
+                });
+                
+                moveBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.remove('show');
+                    moveFile(fullKey, displayName, isFolder);
+                });
+                
+                downloadBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.remove('show');
+                    downloadFile(fullKey, displayName, index);
+                });
+                
+                openBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.classList.remove('show');
+                    navigateToFolder(fullKey);
+                });
+                
+                // Add click handler for row click (mobile/desktop friendly)
+                fileItem.addEventListener('click', (e) => {
+                    // Don't trigger if clicking on menu button or dropdown
+                    if (e.target.closest('.file-list-actions')) return;
+                    
+                    if (isFolder) {
+                        navigateToFolder(fullKey);
+                    } else {
+                        // For files, show a preview or download on click
+                        downloadFile(fullKey, displayName, index);
+                    }
+                });
+                
+                fileList.appendChild(fileItem);
+            });
+            
+            fileContainer.appendChild(fileList);
+            
+        } else {
+            // Show empty state
+            fileContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <h3>No files found</h3>
+                    <p>Your file storage is empty. Upload some files to get started!</p>
+                    <div class="upload-instructions">
+                        <strong>Upload files using AWS CLI:</strong><br>
+                        <code>aws s3 cp &lt;local-file&gt; s3://${data.bucket}/users/${data.userId}/&lt;filename&gt;</code>
+                    </div>
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Error calling S3 API:', error);
+        fileContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                <h3>Error loading files</h3>
+                <p>${error.message}</p>
+                <button class="btn btn-primary" onclick="listS3Files()">
+                    <i class="fas fa-retry"></i>
+                    Try Again
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Enhanced downloadFile function for modern UI
+async function downloadFile(fullKey, displayName, index) {
+    const idToken = localStorage.getItem('id_token');
+    
+    if (!idToken) {
+        alert('You must be logged in to download files.');
+        return;
+    }
+    
+    try {
+        console.log(`Requesting download URL for: ${fullKey}`);
+        
+        const encodedKey = encodeURIComponent(fullKey);
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/download/${encodedKey}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Download request failed: ${response.status}`);
+        }
+        
+        const downloadData = await response.json();
+        
+        // Create and trigger download
+        const downloadLink = document.createElement('a');
+        downloadLink.href = downloadData.downloadUrl;
+        downloadLink.download = displayName;
+        downloadLink.style.display = 'none';
+        
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+        console.log('Download started successfully');
+        
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        alert(`Download failed: ${error.message}`);
+    }
+}
+
+// Helper functions
+function showStatus(statusDiv, message, type) {
+    statusDiv.textContent = message;
+    statusDiv.className = `status-indicator status-${type} show`;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+
+
+// Memory browsing functions - Add these to your app.js.template
+
+function showMemorySection() {
+    const authenticatedSection = document.getElementById('authenticated-section');
+    const memorySection = document.getElementById('memory-section');
+    
+    // Hide file section
+    authenticatedSection.style.display = 'none';
+    
+    // Show memory section and ensure it's visible
+    memorySection.style.display = 'block';
+    memorySection.style.position = 'relative';
+    memorySection.style.zIndex = '1';
+    
+    // Load public memory by default
+    loadMemoryFiles('public');
+}
+
+
+// Show file section and hide memory section
+function showFileSection() {
+    const authenticatedSection = document.getElementById('authenticated-section');
+    const memorySection = document.getElementById('memory-section');
+    
+    authenticatedSection.style.display = 'block';
+    memorySection.style.display = 'none';
+    
+    // Refresh file list
+    if (typeof listS3Files === 'function') {
+        listS3Files();
+    }
+}
+
+// Load memory files based on scope (public or user)
+async function loadMemoryFiles(scope = 'public') {
+    const idToken = localStorage.getItem('id_token');
+    const memoryContainer = document.getElementById('memory-container');
+    
+    if (!idToken) {
+        memoryContainer.innerHTML = '<div class="empty-state"><p>You must be logged in to view memory files.</p></div>';
+        return;
+    }
+    
+    try {
+        console.log(`Loading ${scope} memory files...`);
+        
+        // Show loading state
+        memoryContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <h3>Loading memory files...</h3>
+            </div>
+        `;
+        
+        // Get user ID for user-scoped memory
+        let userId = 'unknown';
+        try {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            userId = payload.sub || 'unknown';
+        } catch (e) {
+            console.error('Error parsing token for user ID:', e);
+        }
+        
+        // Determine the prefix based on scope
+        let prefix;
+        if (scope === 'public') {
+            prefix = 'claude-memory/public/';
+        } else {
+            prefix = `claude-memory/${userId}/`;
+        }
+        
+        // Use the S3 list API with custom prefix and no user scoping
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/list?prefix=${encodeURIComponent(prefix)}&userScope=false`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Memory files response:', data);
+        
+        // Clear container
+        memoryContainer.innerHTML = '';
+        
+        if (data.files && data.files.length > 0) {
+            // Sort files by date (newest first)
+            const sortedFiles = data.files.sort((a, b) => 
+                new Date(b.lastModified) - new Date(a.lastModified)
+            );
+            
+            // Display memory files
+            for (const file of sortedFiles) {
+                if (file.key.endsWith('.json')) {
+                    await displayMemoryFile(file);
+                }
+            }
+        } else {
+            // Show empty state
+            memoryContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-brain"></i>
+                    <h3>No ${scope} memory files found</h3>
+                    <p>Memory files will appear here when Claude stores memories using the Chrome extension.</p>
+                    ${scope === 'public' ? `
+                        <div class="upload-instructions">
+                            <strong>Test the memory system:</strong><br>
+                            Use the Chrome extension to capture Claude's memory outputs, or test with:<br>
+                            <code>curl -X POST ${config.s3ApiUrl}/api/memory/public -H "Content-Type: application/json" -d '{"test": "memory"}'</code>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Error loading memory files:', error);
+        memoryContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                <h3>Error loading memory files</h3>
+                <p>${error.message}</p>
+                <button class="btn btn-primary" onclick="loadMemoryFiles('${scope}')">
+                    <i class="fas fa-retry"></i>
+                    Try Again
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Display a single memory file with content preview
+async function displayMemoryFile(file) {
+    const memoryContainer = document.getElementById('memory-container');
+    const idToken = localStorage.getItem('id_token');
+    
+    // Create memory card
+    const memoryCard = document.createElement('div');
+    memoryCard.className = 'memory-card';
+    
+    // Extract date from file path for grouping
+    const dateParts = file.key.match(/(\d{4}-\d{2}-\d{2})/);
+    const fileDate = dateParts ? dateParts[1] : 'Unknown';
+    const fileSize = formatFileSize(file.size);
+    
+    memoryCard.innerHTML = `
+        <div class="memory-header">
+            <div class="conversation-id">Memory File</div>
+            <div class="memory-meta">
+                <span class="memory-timestamp">
+                    <i class="fas fa-calendar"></i>
+                    ${fileDate}
+                </span>
+                <span>
+                    <i class="fas fa-hdd"></i>
+                    ${fileSize}
+                </span>
+            </div>
+        </div>
+        <div class="memory-content" id="content-${file.key.replace(/[^a-zA-Z0-9]/g, '_')}">
+            <div class="loading-spinner"></div>
+            Loading memory content...
+        </div>
+        <div class="memory-actions">
+            <button class="btn btn-primary btn-sm" onclick="downloadMemoryFile('${file.key}')">
+                <i class="fas fa-download"></i>
+                Download
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleMemoryContent('${file.key.replace(/[^a-zA-Z0-9]/g, '_')}')">
+                <i class="fas fa-eye"></i>
+                Toggle View
+            </button>
+        </div>
+    `;
+    
+    memoryContainer.appendChild(memoryCard);
+    
+    // Load and display memory content
+    try {
+        const encodedKey = encodeURIComponent(file.key);
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/download/${encodedKey}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const downloadData = await response.json();
+            
+            // Fetch the actual memory content
+            const memoryResponse = await fetch(downloadData.downloadUrl);
+            const memoryData = await memoryResponse.json();
+            
+            // Update memory card with actual content
+            const contentDiv = document.getElementById(`content-${file.key.replace(/[^a-zA-Z0-9]/g, '_')}`);
+            const conversationId = memoryData.conversationId || 'Unknown';
+            const source = memoryData.source || 'Unknown';
+            
+            // Update header with conversation info
+            const headerDiv = memoryCard.querySelector('.conversation-id');
+            headerDiv.textContent = `Conversation: ${conversationId}`;
+            
+            // Add source badge
+            const metaDiv = memoryCard.querySelector('.memory-meta');
+            metaDiv.innerHTML += `<span class="memory-source">${source}</span>`;
+            
+            // Display formatted content
+            contentDiv.innerHTML = `<pre>${JSON.stringify(memoryData, null, 2)}</pre>`;
+            
+        } else {
+            throw new Error('Failed to load memory content');
+        }
+        
+    } catch (error) {
+        console.error('Error loading memory content:', error);
+        const contentDiv = document.getElementById(`content-${file.key.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        contentDiv.innerHTML = `<span style="color: #dc3545;">Error loading content: ${error.message}</span>`;
+    }
+}
+
+// Download memory file
+async function downloadMemoryFile(fileKey) {
+    const idToken = localStorage.getItem('id_token');
+    
+    if (!idToken) {
+        alert('You must be logged in to download files.');
+        return;
+    }
+    
+    try {
+        const encodedKey = encodeURIComponent(fileKey);
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/download/${encodedKey}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Download request failed: ${response.status}`);
+        }
+        
+        const downloadData = await response.json();
+        
+        // Create and trigger download
+        const downloadLink = document.createElement('a');
+        downloadLink.href = downloadData.downloadUrl;
+        downloadLink.download = fileKey.split('/').pop();
+        downloadLink.style.display = 'none';
+        
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+    } catch (error) {
+        console.error('Error downloading memory file:', error);
+        alert(`Download failed: ${error.message}`);
+    }
+}
+
+// Toggle memory content visibility
+function toggleMemoryContent(contentId) {
+    const contentDiv = document.getElementById(`content-${contentId}`);
+    if (contentDiv.style.display === 'none') {
+        contentDiv.style.display = 'block';
+    } else {
+        contentDiv.style.display = 'none';
+    }
+}
+
+// File Upload Functionality
+let uploadQueue = [];
+
+// Initialize upload functionality
+function initializeUpload() {
+    const uploadButton = document.getElementById('upload-button');
+    const uploadModal = document.getElementById('upload-modal');
+    const closeUpload = document.getElementById('close-upload');
+    const fileInput = document.getElementById('file-input');
+    const browseFiles = document.getElementById('browse-files');
+    const uploadZone = document.getElementById('upload-zone');
+    const startUpload = document.getElementById('start-upload');
+    const clearQueue = document.getElementById('clear-queue');
+    
+    // Open upload modal
+    uploadButton?.addEventListener('click', () => {
+        uploadModal.style.display = 'flex';
+    });
+    
+    // Close upload modal
+    closeUpload?.addEventListener('click', () => {
+        uploadModal.style.display = 'none';
+    });
+    
+    // Close modal when clicking outside
+    uploadModal?.addEventListener('click', (e) => {
+        if (e.target === uploadModal) {
+            uploadModal.style.display = 'none';
+        }
+    });
+    
+    // Browse files button
+    browseFiles?.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // File input change
+    fileInput?.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files);
+    });
+    
+    // Drag and drop
+    uploadZone?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+    
+    uploadZone?.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+    
+    uploadZone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        handleFileSelect(e.dataTransfer.files);
+    });
+    
+    // Start upload button
+    startUpload?.addEventListener('click', startUploadProcess);
+    
+    // Clear queue button
+    clearQueue?.addEventListener('click', () => {
+        uploadQueue = [];
+        updateUploadQueue();
+    });
+}
+
+// Handle file selection
+function handleFileSelect(files) {
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    
+    for (let file of files) {
+        if (file.size > maxSize) {
+            alert(`File "${file.name}" exceeds maximum size of 100MB`);
+            continue;
+        }
+        
+        // Check if file already in queue
+        if (!uploadQueue.find(f => f.name === file.name)) {
+            uploadQueue.push({
+                file: file,
+                name: file.name,
+                size: file.size,
+                type: file.type || 'application/octet-stream',
+                status: 'pending',
+                progress: 0
+            });
+        }
+    }
+    
+    updateUploadQueue();
+}
+
+// Update upload queue display
+function updateUploadQueue() {
+    const uploadQueueDiv = document.getElementById('upload-queue');
+    const uploadItems = document.getElementById('upload-items');
+    
+    if (uploadQueue.length === 0) {
+        uploadQueueDiv.style.display = 'none';
+        return;
+    }
+    
+    uploadQueueDiv.style.display = 'block';
+    uploadItems.innerHTML = uploadQueue.map((item, index) => `
+        <div class="upload-item" id="upload-item-${index}">
+            <i class="upload-item-icon fas fa-file"></i>
+            <div class="upload-item-info">
+                <div class="upload-item-name">${item.name}</div>
+                <div class="upload-item-size">${formatFileSize(item.size)}</div>
+            </div>
+            <div class="upload-item-status upload-status-${item.status}">
+                ${getStatusText(item.status)}
+            </div>
+            <div class="upload-progress">
+                <div class="upload-progress-bar" style="width: ${item.progress}%"></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Get status text
+function getStatusText(status) {
+    const statusMap = {
+        'pending': 'Pending',
+        'uploading': 'Uploading...',
+        'success': 'Uploaded',
+        'error': 'Failed'
+    };
+    return statusMap[status] || status;
+}
+
+// Start upload process
+async function startUploadProcess() {
+    const idToken = localStorage.getItem('id_token');
+    
+    if (!idToken) {
+        alert('You must be logged in to upload files.');
+        return;
+    }
+    
+    const pendingFiles = uploadQueue.filter(f => f.status === 'pending' || f.status === 'error');
+    
+    for (let i = 0; i < pendingFiles.length; i++) {
+        await uploadFile(pendingFiles[i], uploadQueue.indexOf(pendingFiles[i]));
+    }
+    
+    // Refresh file list after all uploads
+    setTimeout(() => {
+        listS3Files();
+    }, 1000);
+}
+
+// Upload individual file
+async function uploadFile(item, index) {
+    const idToken = localStorage.getItem('id_token');
+    
+    try {
+        // Update status
+        item.status = 'uploading';
+        updateUploadQueue();
+        
+        // Get presigned URL
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/upload`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fileName: currentPath + item.name,
+                contentType: item.type,
+                fileSize: item.size
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to get upload URL: ${response.status}`);
+        }
+        
+        const uploadData = await response.json();
+        
+        // Upload file to S3
+        const uploadResponse = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': item.type
+            },
+            body: item.file,
+            onUploadProgress: (e) => {
+                if (e.lengthComputable) {
+                    item.progress = Math.round((e.loaded / e.total) * 100);
+                    updateUploadQueue();
+                }
+            }
+        });
+        
+        if (!uploadResponse.ok) {
+            throw new Error(`Upload failed: ${uploadResponse.status}`);
+        }
+        
+        // Update status
+        item.status = 'success';
+        item.progress = 100;
+        updateUploadQueue();
+        
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        item.status = 'error';
+        updateUploadQueue();
+        alert(`Failed to upload ${item.name}: ${error.message}`);
+    }
+}
+
+// Folder creation functionality
+function initializeFolderCreation() {
+    const newFolderButton = document.getElementById('new-folder-button');
+    const folderModal = document.getElementById('folder-modal');
+    const closeFolderBtn = document.getElementById('close-folder');
+    const cancelFolderBtn = document.getElementById('cancel-folder');
+    const createFolderBtn = document.getElementById('create-folder');
+    const folderNameInput = document.getElementById('folder-name');
+    
+    // Open folder modal
+    newFolderButton?.addEventListener('click', () => {
+        folderModal.style.display = 'flex';
+        folderNameInput.value = '';
+        folderNameInput.focus();
+    });
+    
+    // Close folder modal
+    const closeFolderModal = () => {
+        folderModal.style.display = 'none';
+        folderNameInput.value = '';
+    };
+    
+    closeFolderBtn?.addEventListener('click', closeFolderModal);
+    cancelFolderBtn?.addEventListener('click', closeFolderModal);
+    
+    // Close modal when clicking outside
+    folderModal?.addEventListener('click', (e) => {
+        if (e.target === folderModal) {
+            closeFolderModal();
+        }
+    });
+    
+    // Handle Enter key in input
+    folderNameInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            createFolder();
+        }
+    });
+    
+    // Create folder button
+    createFolderBtn?.addEventListener('click', createFolder);
+}
+
+async function createFolder() {
+    const folderNameInput = document.getElementById('folder-name');
+    const folderName = folderNameInput.value.trim();
+    
+    if (!folderName) {
+        alert('Please enter a folder name');
+        return;
+    }
+    
+    // Sanitize folder name
+    const sanitizedName = folderName.replace(/[^a-zA-Z0-9\-_\s]/g, '').trim();
+    if (!sanitizedName) {
+        alert('Please enter a valid folder name (letters, numbers, spaces, hyphens, underscores only)');
+        return;
+    }
+    
+    const idToken = localStorage.getItem('id_token');
+    if (!idToken) {
+        alert('You must be logged in to create folders');
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const createBtn = document.getElementById('create-folder');
+        createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        createBtn.disabled = true;
+        
+        // Create folder by uploading a small marker file
+        const folderPath = currentPath + sanitizedName + '/';
+        const markerFileName = folderPath + '.folder';
+        
+        // Get upload URL for marker file
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/upload`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fileName: markerFileName,
+                contentType: 'text/plain',
+                fileSize: 1
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to get upload URL: ${response.status}`);
+        }
+        
+        const uploadData = await response.json();
+        
+        // Upload tiny marker file to create the folder
+        const uploadResponse = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            body: ' ' // Single space character
+        });
+        
+        if (!uploadResponse.ok) {
+            throw new Error(`Failed to create folder: ${uploadResponse.status}`);
+        }
+        
+        console.log('Folder created successfully:', folderPath);
+        
+        // Close modal
+        document.getElementById('folder-modal').style.display = 'none';
+        folderNameInput.value = '';
+        
+        // Refresh file list
+        setTimeout(() => {
+            listS3Files();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error creating folder:', error);
+        alert(`Failed to create folder: ${error.message}`);
+    } finally {
+        // Reset button
+        const createBtn = document.getElementById('create-folder');
+        createBtn.innerHTML = '<i class="fas fa-folder-plus"></i> Create Folder';
+        createBtn.disabled = false;
+    }
+}
+
+// Delete file or folder functionality
+async function deleteFile(fileKey, displayName, isFolder = false) {
+    // Confirm deletion
+    const itemType = isFolder ? 'folder' : 'file';
+    const confirmMessage = isFolder 
+        ? `Are you sure you want to delete the folder "${displayName}" and all its contents?`
+        : `Are you sure you want to delete "${displayName}"?`;
+        
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    const idToken = localStorage.getItem('id_token');
+    if (!idToken) {
+        alert('You must be logged in to delete files');
+        return;
+    }
+    
+    try {
+        console.log(`Deleting ${itemType}: ${fileKey}`);
+        
+        const encodedKey = encodeURIComponent(fileKey);
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/delete/${encodedKey}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Delete failed: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Delete successful:', result);
+        
+        // If deleting a folder, we might need to handle multiple files
+        // For now, we'll just refresh the list
+        setTimeout(() => {
+            listS3Files();
+        }, 300);
+        
+    } catch (error) {
+        console.error('Error deleting file:', error);
+        alert(`Failed to delete ${itemType}: ${error.message}`);
+    }
+}
+
+// Close all dropdown menus
+function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+        menu.classList.remove('show');
+        menu.classList.remove('flip-up');
+        menu.classList.remove('mobile-modal');
+        // Reset positioning styles for mobile
+        menu.style.position = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.right = '';
+    });
+    // Also remove the dropdown-open class from all file items
+    document.querySelectorAll('.file-list-item.dropdown-open').forEach(item => {
+        item.classList.remove('dropdown-open');
+    });
+    // Hide mobile backdrop
+    const backdrop = document.getElementById('mobile-dropdown-backdrop');
+    if (backdrop) {
+        backdrop.classList.remove('show');
+    }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.file-list-actions')) {
+        closeAllDropdowns();
+    }
+});
+
+// Rename file or folder with better UX
+async function renameFile(fileKey, oldName, isFolder) {
+    // Create modal for rename
+    const modal = document.createElement('div');
+    modal.className = 'upload-modal';
+    modal.innerHTML = `
+        <div class="upload-modal-content" style="max-width: 400px;">
+            <div class="upload-modal-header">
+                <h3>Rename ${isFolder ? 'folder' : 'file'}</h3>
+                <button class="close-modal" id="close-rename">&times;</button>
+            </div>
+            <div style="padding: 1.5rem;">
+                <label for="rename-input" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">New name:</label>
+                <input type="text" id="rename-input" value="${oldName}" 
+                       style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="cancel-rename">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-rename">
+                        <i class="fas fa-edit"></i>
+                        Rename
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    
+    const input = modal.querySelector('#rename-input');
+    const closeBtn = modal.querySelector('#close-rename');
+    const cancelBtn = modal.querySelector('#cancel-rename');
+    const confirmBtn = modal.querySelector('#confirm-rename');
+    
+    // Focus and select text
+    input.focus();
+    input.select();
+    
+    const closeModal = () => {
+        document.body.removeChild(modal);
+    };
+    
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    
+    // Handle enter key
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            confirmBtn.click();
+        }
+    });
+    
+    confirmBtn.addEventListener('click', async () => {
+        const newName = input.value.trim();
+        
+        if (!newName || newName === oldName) {
+            closeModal();
+            return;
+        }
+        
+        // Sanitize new name
+        const sanitizedName = newName.replace(/[^a-zA-Z0-9\-_\s\.]/g, '').trim();
+        if (!sanitizedName) {
+            alert('Please enter a valid name (letters, numbers, spaces, hyphens, underscores, and dots only)');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Renaming...';
+        
+        const idToken = localStorage.getItem('id_token');
+        if (!idToken) {
+            alert('You must be logged in to rename files');
+            closeModal();
+            return;
+        }
+        
+        try {
+            console.log(`Renaming ${fileKey} to ${sanitizedName}`);
+            
+            const response = await fetch(`${config.s3ApiUrl}/api/s3/rename`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    oldKey: fileKey,
+                    newName: sanitizedName
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Rename failed: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            console.log('Rename successful:', result);
+            
+            closeModal();
+            
+            // Refresh the file list to show the renamed file
+            setTimeout(() => {
+                listS3Files();
+            }, 300);
+            
+        } catch (error) {
+            console.error('Error renaming file:', error);
+            alert(`Failed to rename ${isFolder ? 'folder' : 'file'}: ${error.message}`);
+            closeModal();
+        }
+    });
+}
+
+// Move file or folder with tree picker
+async function moveFile(fileKey, fileName, isFolder) {
+    showMoveModal(fileKey, fileName, isFolder);
+}
+
+// Build folder tree structure from S3 file list
+function buildFolderTree(files) {
+    const tree = { name: 'My Files', path: '', children: {}, isRoot: true };
+    
+    files.forEach(file => {
+        if (!file.key) return;
+        
+        // Remove user prefix for clean paths
+        let cleanPath = file.key;
+        if (cleanPath.startsWith('users/')) {
+            // Remove users/userId/ prefix completely
+            const pathParts = cleanPath.split('/');
+            if (pathParts.length >= 2) {
+                cleanPath = pathParts.slice(2).join('/'); // Remove "users" and the userId
+            }
+        }
+        
+        // Skip files, only process folders
+        if (!cleanPath.endsWith('/') && !file.isFolder) {
+            // For files, add their parent folders to the tree
+            const pathParts = cleanPath.split('/');
+            pathParts.pop(); // Remove filename
+            if (pathParts.length > 0) {
+                addFolderToTree(tree, pathParts, '');
+            }
+            return;
+        }
+        
+        // Process folder
+        let folderPath = cleanPath;
+        if (folderPath.endsWith('/')) {
+            folderPath = folderPath.slice(0, -1);
+        }
+        
+        if (folderPath) {
+            const pathParts = folderPath.split('/');
+            addFolderToTree(tree, pathParts, '');
+        }
+    });
+    
+    return tree;
+}
+
+function addFolderToTree(tree, pathParts, basePath) {
+    if (pathParts.length === 0) return;
+    
+    const [currentPart, ...remainingParts] = pathParts;
+    const currentPath = basePath ? `${basePath}/${currentPart}` : currentPart;
+    
+    if (!tree.children[currentPart]) {
+        tree.children[currentPart] = {
+            name: currentPart,
+            path: currentPath,
+            children: {},
+            isFolder: true
+        };
+    }
+    
+    if (remainingParts.length > 0) {
+        addFolderToTree(tree.children[currentPart], remainingParts, currentPath);
+    }
+}
+
+// Show move modal with tree selector
+async function showMoveModal(fileKey, fileName, isFolder) {
+    // First, get all files to build the folder tree
+    const idToken = localStorage.getItem('id_token');
+    if (!idToken) {
+        alert('You must be logged in to move files');
+        return;
+    }
+    
+    try {
+        // Fetch all files to build folder structure
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/list?prefix=`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch folders: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const folderTree = buildFolderTree(data.files || []);
+        
+        // Create move modal
+        const modal = document.createElement('div');
+        modal.className = 'move-modal';
+        modal.innerHTML = `
+            <div class="move-modal-content">
+                <div class="move-modal-header">
+                    <h3>Move "${fileName}"</h3>
+                    <button class="close-modal" id="close-move-modal">&times;</button>
+                </div>
+                <div class="move-modal-body">
+                    <div class="move-destination-info">
+                        <strong>Destination:</strong> <span class="move-destination-path" id="selected-path">🏠 My Files</span>
+                    </div>
+                    <div class="tree-view" id="folder-tree"></div>
+                </div>
+                <div class="move-modal-footer">
+                    <button class="btn btn-secondary" id="cancel-move-modal">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-move-modal">
+                        <i class="fas fa-arrows-alt"></i>
+                        Move Here
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Build and render tree
+        const treeContainer = modal.querySelector('#folder-tree');
+        const selectedPathElement = modal.querySelector('#selected-path');
+        let selectedPath = '';
+        
+        renderTreeNode(folderTree, treeContainer, selectedPathElement, (path) => {
+            selectedPath = path;
+        });
+        
+        // Event handlers
+        const closeBtn = modal.querySelector('#close-move-modal');
+        const cancelBtn = modal.querySelector('#cancel-move-modal');
+        const confirmBtn = modal.querySelector('#confirm-move-modal');
+        
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+        
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        confirmBtn.addEventListener('click', async () => {
+            await executeMoveOperation(fileKey, fileName, selectedPath, isFolder);
+            closeModal();
+        });
+        
+    } catch (error) {
+        console.error('Error loading folders:', error);
+        alert(`Failed to load folders: ${error.message}`);
+    }
+}
+
+// Render tree node recursively
+function renderTreeNode(node, container, selectedPathElement, onSelect) {
+    const nodeElement = document.createElement('div');
+    nodeElement.className = 'tree-node';
+    
+    const hasChildren = Object.keys(node.children).length > 0;
+    const isExpanded = node.isRoot; // Root starts expanded
+    
+    nodeElement.innerHTML = `
+        <div class="tree-node-content" data-path="${node.path || ''}">
+            <span class="tree-expand-icon ${hasChildren ? (isExpanded ? 'expanded' : '') : 'empty'}">
+                ${hasChildren ? '▶' : ''}
+            </span>
+            <i class="fas fa-folder tree-folder-icon"></i>
+            <span class="tree-node-label">${node.name}</span>
+        </div>
+        <div class="tree-children ${isExpanded ? 'expanded' : ''}"></div>
+    `;
+    
+    const nodeContent = nodeElement.querySelector('.tree-node-content');
+    const expandIcon = nodeElement.querySelector('.tree-expand-icon');
+    const childrenContainer = nodeElement.querySelector('.tree-children');
+    
+    // Handle node selection
+    nodeContent.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // Update selection
+        container.querySelectorAll('.tree-node-content').forEach(el => 
+            el.classList.remove('selected'));
+        nodeContent.classList.add('selected');
+        
+        // Update selected path display
+        const displayPath = node.path ? `🏠 My Files/${node.path}` : '🏠 My Files';
+        selectedPathElement.textContent = displayPath;
+        
+        // Call selection callback
+        onSelect(node.path || '');
+    });
+    
+    // Handle expand/collapse
+    if (hasChildren) {
+        expandIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            if (childrenContainer.classList.contains('expanded')) {
+                // Collapse
+                expandIcon.classList.remove('expanded');
+                childrenContainer.classList.remove('expanded');
+            } else {
+                // Expand
+                expandIcon.classList.add('expanded');
+                childrenContainer.classList.add('expanded', 'animating');
+                
+                // Remove animation class after animation completes
+                setTimeout(() => {
+                    childrenContainer.classList.remove('animating');
+                }, 200);
+            }
+        });
+        
+        // Render children
+        Object.values(node.children)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .forEach(child => {
+                renderTreeNode(child, childrenContainer, selectedPathElement, onSelect);
+            });
+    }
+    
+    container.appendChild(nodeElement);
+    
+    // Auto-select root on initial render
+    if (node.isRoot) {
+        nodeContent.classList.add('selected');
+    }
+}
+
+// Execute the actual move operation
+async function executeMoveOperation(sourceKey, fileName, destinationPath, isFolder) {
+    const idToken = localStorage.getItem('id_token');
+    
+    try {
+        console.log(`Moving ${sourceKey} to destination: "${destinationPath}"`);
+        console.log('Move request body:', {
+            sourceKey: sourceKey,
+            destinationPath: destinationPath
+        });
+        
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/move`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                sourceKey: sourceKey,
+                destinationPath: destinationPath
+            })
+        });
+        
+        if (!response.ok) {
+            console.log('Move response status:', response.status);
+            console.log('Move response headers:', response.headers);
+            const responseText = await response.text();
+            console.log('Move response text:', responseText);
+            
+            try {
+                const errorData = JSON.parse(responseText);
+                throw new Error(errorData.error || `Move failed: ${response.status}`);
+            } catch (parseError) {
+                throw new Error(`Move failed: ${response.status}. Response: ${responseText.substring(0, 200)}...`);
+            }
+        }
+        
+        const result = await response.json();
+        console.log('Move successful:', result);
+        
+        // Refresh the file list
+        setTimeout(() => {
+            listS3Files();
+        }, 300);
+        
+    } catch (error) {
+        console.error('Error moving file:', error);
+        alert(`Failed to move ${isFolder ? 'folder' : 'file'}: ${error.message}`);
+    }
+}
+
+// Show notification function
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'info' ? '#4285f4' : '#34a853'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 10000;
+        font-size: 14px;
+        max-width: 300px;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Remove after 4 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideIn 0.3s ease reverse';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                document.body.removeChild(notification);
+            }
+            if (style.parentNode) {
+                document.head.removeChild(style);
+            }
+        }, 300);
+    }, 4000);
+}
+
+// Mobile action sheet function
+function showMobileActionSheet(fileKey, fileName, isFolder, index) {
+    console.log('Creating mobile action sheet for:', fileName);
+    
+    // Remove any existing action sheet
+    const existingSheet = document.getElementById('mobile-action-sheet');
+    if (existingSheet) {
+        document.body.removeChild(existingSheet);
+    }
+    
+    // Create action sheet
+    const actionSheet = document.createElement('div');
+    actionSheet.id = 'mobile-action-sheet';
+    actionSheet.innerHTML = `
+        <div class="mobile-action-backdrop"></div>
+        <div class="mobile-action-content">
+            <div class="mobile-action-header">
+                <h3>${fileName}</h3>
+                <button class="mobile-action-close">&times;</button>
+            </div>
+            <div class="mobile-action-buttons">
+                ${isFolder ? 
+                    `<button class="mobile-action-btn" data-action="open">
+                        <i class="fas fa-folder-open"></i>
+                        <span>Open</span>
+                    </button>
+                    <button class="mobile-action-btn" data-action="rename">
+                        <i class="fas fa-edit"></i>
+                        <span>Rename</span>
+                    </button>
+                    <button class="mobile-action-btn" data-action="move">
+                        <i class="fas fa-arrows-alt"></i>
+                        <span>Move</span>
+                    </button>
+                    <button class="mobile-action-btn danger" data-action="delete">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
+                    </button>` :
+                    `<button class="mobile-action-btn" data-action="download">
+                        <i class="fas fa-download"></i>
+                        <span>Download</span>
+                    </button>
+                    <button class="mobile-action-btn" data-action="rename">
+                        <i class="fas fa-edit"></i>
+                        <span>Rename</span>
+                    </button>
+                    <button class="mobile-action-btn" data-action="move">
+                        <i class="fas fa-arrows-alt"></i>
+                        <span>Move</span>
+                    </button>
+                    <button class="mobile-action-btn danger" data-action="delete">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
+                    </button>`
+                }
+            </div>
+        </div>
+    `;
+    
+    // Add CSS styles
+    actionSheet.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 99999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+    
+    document.body.appendChild(actionSheet);
+    
+    // Style the elements
+    const backdrop = actionSheet.querySelector('.mobile-action-backdrop');
+    backdrop.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+    `;
+    
+    const content = actionSheet.querySelector('.mobile-action-content');
+    content.style.cssText = `
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-radius: 16px 16px 0 0;
+        padding: 0;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+        max-height: 50vh;
+        overflow-y: auto;
+    `;
+    
+    const header = actionSheet.querySelector('.mobile-action-header');
+    header.style.cssText = `
+        padding: 16px 20px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    `;
+    
+    const closeBtn = actionSheet.querySelector('.mobile-action-close');
+    closeBtn.style.cssText = `
+        background: none;
+        border: none;
+        font-size: 24px;
+        padding: 4px;
+        color: #666;
+        cursor: pointer;
+    `;
+    
+    const buttons = actionSheet.querySelector('.mobile-action-buttons');
+    buttons.style.cssText = `
+        padding: 8px 0;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    `;
+    
+    // Style individual buttons
+    actionSheet.querySelectorAll('.mobile-action-btn').forEach(btn => {
+        btn.style.cssText = `
+            width: 100%;
+            padding: 16px 20px;
+            border: none;
+            background: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        `;
+        
+        if (btn.classList.contains('danger')) {
+            btn.style.color = '#dc3545';
+        }
+        
+        btn.addEventListener('mousedown', () => {
+            btn.style.backgroundColor = '#f0f0f0';
+        });
+        
+        btn.addEventListener('mouseup', () => {
+            btn.style.backgroundColor = 'transparent';
+        });
+    });
+    
+    // Show the action sheet
+    setTimeout(() => {
+        actionSheet.style.opacity = '1';
+        content.style.transform = 'translateY(0)';
+    }, 10);
+    
+    // Close function
+    const closeActionSheet = () => {
+        content.style.transform = 'translateY(100%)';
+        actionSheet.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(actionSheet)) {
+                document.body.removeChild(actionSheet);
+            }
+        }, 300);
+    };
+    
+    // Event listeners
+    backdrop.addEventListener('click', closeActionSheet);
+    closeBtn.addEventListener('click', closeActionSheet);
+    
+    // Action button listeners
+    actionSheet.querySelectorAll('.mobile-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-action');
+            closeActionSheet();
+            
+            setTimeout(() => {
+                switch (action) {
+                    case 'open':
+                        navigateToFolder(fileKey);
+                        break;
+                    case 'download':
+                        downloadFile(fileKey, fileName, index);
+                        break;
+                    case 'rename':
+                        renameFile(fileKey, fileName, isFolder);
+                        break;
+                    case 'move':
+                        moveFile(fileKey, fileName, isFolder);
+                        break;
+                    case 'delete':
+                        deleteFile(fileKey, fileName, isFolder);
+                        break;
+                }
+            }, 100);
+        });
+    });
+}
+
+// Initialize upload and folder creation when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initializeUpload();
+    initializeFolderCreation();
+});
+
+// Dashboard and File Manager Navigation
+function showDashboard() {
+    const dashboardSection = document.getElementById('dashboard-section');
+    const authenticatedSection = document.getElementById('authenticated-section');
+    const memorySection = document.getElementById('memory-section');
+    
+    // Show dashboard, hide other sections
+    dashboardSection.style.display = 'block';
+    authenticatedSection.style.display = 'none';
+    memorySection.style.display = 'none';
+}
+
+function showFileManager() {
+    const dashboardSection = document.getElementById('dashboard-section');
+    const authenticatedSection = document.getElementById('authenticated-section');
+    const memorySection = document.getElementById('memory-section');
+    
+    // Show file manager, hide other sections
+    dashboardSection.style.display = 'none';
+    authenticatedSection.style.display = 'block';
+    memorySection.style.display = 'none';
+    
+    // Auto-load files when entering file manager
+    setTimeout(() => {
+        if (typeof listS3Files === 'function') {
+            listS3Files();
+        }
+    }, 100);
+}
+
+

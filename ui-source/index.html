@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudDrive - Personal File Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .logo i {
+            margin-right: 0.5rem;
+            font-size: 1.8rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-height: 600px;
+        }
+        
+        /* Allow dropdowns to escape on mobile */
+        @media (max-width: 768px) {
+            .main-content {
+                overflow: visible;
+            }
+            
+            .file-manager {
+                overflow: visible;
+            }
+        }
+
+        .login-section {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+
+        .login-section h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .login-section p {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 2px solid #e9ecef;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .file-manager {
+            padding: 2rem;
+            padding-bottom: 3rem; /* Extra space for bottom dropdowns */
+        }
+
+        .file-manager-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8f9fa;
+        }
+        
+        .file-manager-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .breadcrumb-row {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-manager h2 {
+            font-size: 1.8rem;
+            color: #333;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .file-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+
+        .file-icon {
+            font-size: 2.5rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .file-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .file-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .file-actions-card {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-indicator.show {
+            opacity: 1;
+        }
+
+        .status-loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status-success {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #666;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #dee2e6;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .upload-instructions {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            color: #666;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            max-width: 100%;
+        }
+
+        .breadcrumb::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .breadcrumb::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .breadcrumb::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 2px;
+        }
+
+        .breadcrumb i {
+            color: #667eea;
+        }
+
+        .breadcrumb-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .breadcrumb-item:hover {
+            background: #f8f9fa;
+            color: #667eea;
+        }
+
+        .breadcrumb-separator {
+            color: #dee2e6;
+            margin: 0 0.125rem;
+            flex-shrink: 0;
+        }
+
+        /* Enhanced mobile styles */
+        @media (max-width: 768px) {
+            .header {
+                padding: 0.75rem 1rem;
+                flex-direction: row;
+                gap: 0.5rem;
+            }
+
+            .logo {
+                font-size: 1.2rem;
+            }
+
+            .logo i {
+                font-size: 1.4rem;
+                margin-right: 0.25rem;
+            }
+
+            .user-info {
+                gap: 0.5rem;
+            }
+
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 0.875rem;
+            }
+
+            #user-name {
+                display: none;
+            }
+
+            .container {
+                padding: 0 0.5rem;
+                margin: 1rem auto;
+            }
+
+            .main-content {
+                border-radius: 15px;
+                min-height: calc(100vh - 120px);
+            }
+
+            .file-manager {
+                padding: 1rem;
+                padding-bottom: 2rem; /* Extra space for bottom dropdowns on mobile */
+            }
+
+            .file-manager-header-row {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+                margin-bottom: 1rem;
+            }
+
+            .file-manager h2 {
+                font-size: 1.4rem;
+            }
+
+            .file-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem;
+            }
+
+            .file-actions .btn {
+                font-size: 0.875rem;
+                padding: 0.75rem 0.5rem;
+                justify-content: center;
+            }
+
+            .file-actions .btn i {
+                margin-right: 0.25rem;
+            }
+
+            /* Hide less important buttons on mobile */
+            #get-data-button, #view-memory {
+                display: none;
+            }
+
+            .breadcrumb {
+                font-size: 0.875rem;
+                padding: 0.5rem 0;
+                gap: 0.25rem;
+            }
+
+            .breadcrumb-item {
+                padding: 0.25rem 0.375rem;
+                gap: 0.125rem;
+            }
+            
+            /* Hide "My Files" text on mobile only when in subdirectories */
+            .breadcrumb-home-text.hide-on-mobile {
+                display: none;
+            }
+            
+            .breadcrumb-separator {
+                margin: 0 0.0625rem;
+            }
+
+            .breadcrumb-item span {
+                max-width: 100px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            /* Upload modal mobile */
+            .upload-modal-content {
+                width: 95%;
+                margin: 1rem;
+                border-radius: 15px;
+            }
+
+            .upload-zone {
+                padding: 2rem 1rem;
+                margin: 1rem;
+            }
+
+            /* Mobile dropdown menu adjustments */
+            .dropdown-menu {
+                min-width: 180px;
+                right: -10px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .dropdown-item {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+
+            .menu-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 1.3rem;
+            }
+
+            /* Empty state mobile */
+            .empty-state {
+                padding: 2rem 1rem;
+            }
+
+            .empty-state i {
+                font-size: 3rem;
+            }
+
+            .empty-state h3 {
+                font-size: 1.25rem;
+            }
+
+            .upload-instructions {
+                font-size: 0.875rem;
+                padding: 0.75rem;
+            }
+
+            /* Button group for mobile */
+            .btn-group-mobile {
+                display: flex;
+                gap: 0.5rem;
+                width: 100%;
+            }
+
+            .btn-group-mobile .btn {
+                flex: 1;
+            }
+        }
+
+        /* Small mobile devices */
+        @media (max-width: 375px) {
+            .file-list-item {
+                padding: 0.75rem;
+            }
+
+            .file-list-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.5rem;
+            }
+
+            .file-list-name {
+                font-size: 0.875rem;
+            }
+
+            .file-list-meta {
+                font-size: 0.75rem;
+            }
+
+            .file-list-actions .btn-sm {
+                padding: 0.375rem 0.75rem;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Animation for file cards appearing */
+        .file-card {
+            animation: fadeInUp 0.5s ease forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .file-card:nth-child(1) { animation-delay: 0.1s; }
+        .file-card:nth-child(2) { animation-delay: 0.2s; }
+        .file-card:nth-child(3) { animation-delay: 0.3s; }
+        .file-card:nth-child(4) { animation-delay: 0.4s; }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* List View Styles - Mobile First */
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0.5rem;
+        }
+
+        .file-list-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+            min-height: 80px;
+            isolation: isolate;
+        }
+
+        .file-list-item:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        .file-list-icon {
+            font-size: 2rem;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .file-list-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .file-list-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #333;
+            line-height: 1.4;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .file-list-meta {
+            font-size: 0.875rem;
+            color: #666;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .file-list-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            white-space: nowrap;
+        }
+
+        .file-list-actions {
+            position: relative;
+            margin-left: auto;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        /* Google Drive-style three dots menu */
+        .menu-btn {
+            background: transparent;
+            border: none;
+            padding: 0.5rem;
+            cursor: pointer;
+            color: #5f6368;
+            font-size: 1.1rem;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+            opacity: 0.7;
+        }
+
+        .menu-btn:hover {
+            background: rgba(60, 64, 67, 0.08);
+            opacity: 1;
+        }
+
+        .menu-btn:focus {
+            background: rgba(26, 115, 232, 0.12);
+            outline: none;
+        }
+
+        .menu-btn:active {
+            background: rgba(60, 64, 67, 0.12);
+        }
+
+        /* Google Drive-style dropdown menu */
+        .dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            background: #ffffff;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+            min-width: 160px;
+            max-width: 240px;
+            z-index: 99999;
+            display: none;
+            overflow: hidden;
+            animation: fadeInScale 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transform-origin: top right;
+        }
+
+        /* Dropdown positioned above when near bottom */
+        .dropdown-menu.flip-up {
+            top: auto;
+            bottom: calc(100% + 4px);
+            transform-origin: bottom right;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        /* Ensure parent has higher z-index when dropdown is shown */
+        .file-list-item:has(.dropdown-menu.show) {
+            z-index: 1000;
+        }
+        
+        /* Fallback for browsers that don't support :has() */
+        .file-list-item.dropdown-open {
+            z-index: 1000;
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .dropdown-item {
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: background-color 0.1s cubic-bezier(0.4, 0.0, 0.2, 1);
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-size: 14px;
+            color: #3c4043;
+            font-family: 'Google Sans', Roboto, Arial, sans-serif;
+            font-weight: 400;
+            line-height: 20px;
+            min-height: 36px;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .dropdown-item:focus {
+            background-color: #e8f0fe;
+            outline: none;
+        }
+
+        .dropdown-item i {
+            width: 20px;
+            height: 20px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #5f6368;
+            flex-shrink: 0;
+        }
+
+        .dropdown-item span {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: #e8eaed;
+            margin: 4px 0;
+        }
+
+        .dropdown-item.danger {
+            color: #d93025;
+        }
+
+        .dropdown-item.danger i {
+            color: #d93025;
+        }
+
+        .dropdown-item.danger:hover {
+            background-color: #fce8e6;
+        }
+
+        /* Mobile specific dropdown adjustments */
+        @media (max-width: 768px) {
+            /* Ensure all containers allow overflow on mobile */
+            .container, .main-content, .file-manager, #authenticated-section, #file-container {
+                overflow: visible !important;
+            }
+            
+            /* Mobile modal-style dropdown */
+            .dropdown-menu.mobile-modal {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: auto !important;
+                min-width: 100% !important;
+                max-width: none !important;
+                border-radius: 16px 16px 0 0 !important;
+                margin: 0 !important;
+                background: white !important;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25) !important;
+                z-index: 99999 !important;
+                transform: translateY(100%) !important;
+                transition: transform 0.3s ease !important;
+            }
+            
+            .dropdown-menu.mobile-modal.show {
+                transform: translateY(0) !important;
+            }
+            
+            .dropdown-menu.mobile-modal .dropdown-item {
+                padding: 16px 20px !important;
+                font-size: 16px !important;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            
+            .dropdown-menu.mobile-modal .dropdown-item:last-child {
+                border-bottom: none;
+                padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            }
+            
+            /* Mobile backdrop */
+            .mobile-dropdown-backdrop {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.3);
+                z-index: 99998;
+            }
+            
+            .mobile-dropdown-backdrop.show {
+                display: block;
+            }
+            
+            .dropdown-menu {
+                min-width: 140px;
+                right: -8px;
+                box-shadow: 0 2px 4px 0 rgba(60, 64, 67, 0.3), 0 4px 12px 4px rgba(60, 64, 67, 0.15);
+                position: absolute;
+                z-index: 99999;
+            }
+
+            .dropdown-item {
+                padding: 12px 16px;
+                min-height: 44px;
+                font-size: 16px;
+            }
+
+            .dropdown-item i {
+                font-size: 18px;
+            }
+
+            .menu-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 1.2rem;
+            }
+        }
+
+        /* Swipe to delete hint (mobile only) */
+        @media (max-width: 768px) {
+            .file-list-item {
+                position: relative;
+                overflow: hidden;
+            }
+
+            .file-list-item.swipe-active {
+                transform: translateX(-80px);
+                transition: transform 0.3s ease;
+            }
+
+            .swipe-delete {
+                position: absolute;
+                right: -80px;
+                top: 0;
+                bottom: 0;
+                width: 80px;
+                background: #dc3545;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 1.5rem;
+            }
+        }
+
+        /* Desktop responsive */
+        @media (min-width: 769px) {
+            .file-list {
+                gap: 0.5rem;
+                padding: 0;
+            }
+
+            .file-list-item {
+                padding: 1rem 1.5rem;
+                min-height: auto;
+            }
+
+            .file-list-item:hover {
+                transform: translateX(5px);
+            }
+
+            .file-list-icon {
+                font-size: 1.8rem;
+                width: 40px;
+                height: 40px;
+                background: transparent;
+            }
+
+            .file-list-info {
+                flex-direction: row;
+                align-items: center;
+                gap: 2rem;
+            }
+
+            .file-list-name {
+                flex: 1;
+                margin-bottom: 0;
+                -webkit-line-clamp: 1;
+            }
+
+            .file-list-meta {
+                flex: 0 0 auto;
+                gap: 1.5rem;
+            }
+
+            .file-list-actions {
+                flex-direction: row;
+                opacity: 1;
+                transition: opacity 0.2s ease;
+            }
+
+            .file-list-item:hover .file-list-actions {
+                opacity: 1;
+            }
+
+            .file-list-actions .btn-sm {
+                padding: 0.5rem 1rem;
+                min-height: auto;
+            }
+        }
+
+        /* Ultra-wide screens */
+        @media (min-width: 1200px) {
+            .file-list-item {
+                padding: 1.25rem 2rem;
+            }
+        }
+
+        /* Upload Modal Styles */
+        .upload-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .upload-modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .upload-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: #666;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
+        .upload-zone {
+            padding: 3rem;
+            text-align: center;
+            border: 2px dashed #667eea;
+            border-radius: 15px;
+            margin: 1.5rem;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+        }
+
+        .upload-zone.drag-over {
+            background: #e8ecff;
+            border-color: #5568d9;
+            transform: scale(1.02);
+        }
+
+        .upload-zone p {
+            margin: 1rem 0;
+            color: #666;
+        }
+
+        .upload-queue {
+            padding: 1.5rem;
+        }
+
+        .upload-queue h4 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .upload-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .upload-item-icon {
+            font-size: 1.5rem;
+            color: #667eea;
+            margin-right: 1rem;
+        }
+
+        .upload-item-info {
+            flex: 1;
+        }
+
+        .upload-item-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-item-size {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .upload-item-status {
+            margin-left: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .upload-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #e9ecef;
+            border-radius: 0 0 10px 10px;
+            overflow: hidden;
+        }
+
+        .upload-progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .upload-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            justify-content: center;
+        }
+
+        .upload-status-pending {
+            color: #666;
+        }
+
+        .upload-status-uploading {
+            color: #1976d2;
+        }
+
+        .upload-status-success {
+            color: #2e7d32;
+        }
+
+        .upload-status-error {
+            color: #c62828;
+        }
+
+        .memory-section {
+            padding: 2rem;
+        }
+
+        .memory-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .memory-tab {
+            border-radius: 8px;
+        }
+
+        .memory-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        /* Tree View Styles for Move Modal */
+        .tree-view {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #f8f9fa;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .tree-node {
+            margin: 0.25rem 0;
+            user-select: none;
+        }
+
+        .tree-node-content {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .tree-node-content:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .tree-node-content.selected {
+            background: #667eea;
+            color: white;
+        }
+
+        .tree-node-content.selected:hover {
+            background: #5568d9;
+        }
+
+        .tree-expand-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.25rem;
+            font-size: 0.75rem;
+            color: #666;
+            transition: transform 0.2s ease;
+        }
+
+        .tree-expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .tree-expand-icon.empty {
+            visibility: hidden;
+        }
+
+        .tree-folder-icon {
+            margin-right: 0.5rem;
+            color: #667eea;
+            font-size: 1rem;
+        }
+
+        .tree-node-content.selected .tree-folder-icon {
+            color: white;
+        }
+
+        .tree-node-label {
+            flex: 1;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .tree-children {
+            margin-left: 1.5rem;
+            border-left: 1px solid #dee2e6;
+            padding-left: 0.5rem;
+            display: none;
+        }
+
+        .tree-children.expanded {
+            display: block;
+        }
+
+        .tree-children.animating {
+            display: block;
+            animation: treeSlideDown 0.2s ease;
+        }
+
+        @keyframes treeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tree-view::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .tree-view::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .tree-view::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .tree-view::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* Move Modal Specific Styles */
+        .move-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000; /* Higher than dropdown */
+        }
+
+        .move-modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .move-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+
+        .move-modal-body {
+            padding: 1.5rem;
+        }
+
+        .move-destination-info {
+            background: #e8f4fd;
+            border: 1px solid #b8daff;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .move-destination-path {
+            font-weight: 600;
+            color: #0056b3;
+            font-family: 'SF Mono', Consolas, monospace;
+        }
+
+        .move-modal-footer {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            padding: 1.5rem;
+            border-top: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+
+        /* Mobile adjustments for tree view */
+        @media (max-width: 768px) {
+            .move-modal-content {
+                width: 95%;
+                margin: 1rem;
+                border-radius: 15px;
+            }
+            
+            .tree-view {
+                max-height: 300px;
+                font-size: 0.9rem;
+            }
+            
+            .tree-node-content {
+                padding: 0.75rem 0.5rem;
+            }
+            
+            .tree-expand-icon {
+                width: 24px;
+                height: 24px;
+            }
+        }
+
+        /* Dashboard Card Styles */
+        .dashboard-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 20px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .dashboard-card-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            color: white;
+            font-size: 2rem;
+        }
+
+        .dashboard-card h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 0.75rem;
+        }
+
+        .dashboard-card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .dashboard-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem 0;
+        }
+
+        .dashboard-features li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .dashboard-features li i {
+            color: #28a745;
+            font-size: 0.8rem;
+        }
+
+        .dashboard-card-action {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-top: auto;
+        }
+
+        .dashboard-card:hover .dashboard-card-action {
+            color: #5568d9;
+        }
+
+        .dashboard-card:hover .dashboard-card-action i {
+            transform: translateX(5px);
+        }
+
+        .dashboard-card-action i {
+            transition: transform 0.3s ease;
+        }
+
+        /* Mobile dashboard adjustments */
+        @media (max-width: 768px) {
+            .dashboard-card {
+                padding: 1.5rem;
+            }
+
+            .dashboard-card-icon {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .dashboard-card h3 {
+                font-size: 1.25rem;
+            }
+
+            .dashboard-features li {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <i class="fas fa-cloud"></i>
+            CloudDrive
+        </div>
+        <div class="user-info" id="user-info" style="display: none;">
+            <div class="user-avatar" id="user-avatar"></div>
+            <span id="user-name"></span>
+            <button class="btn btn-danger btn-sm" id="logout-button">
+                <i class="fas fa-sign-out-alt"></i>
+                Sign Out
+            </button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <!-- Login Section -->
+            <div id="login-section" class="login-section">
+                <i class="fas fa-cloud-upload-alt" style="font-size: 4rem; color: #667eea; margin-bottom: 1rem;"></i>
+                <h1>Welcome to CloudDrive</h1>
+                <p>Your personal secure file storage in the cloud</p>
+                <button class="btn btn-primary" id="login-button">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In to Continue
+                </button>
+                <div style="margin-top: 2rem;">
+                    <button class="btn btn-secondary" id="show-debug">
+                        <i class="fas fa-bug"></i>
+                        Show Debug Info
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="file-manager" style="display: none;">
+                <div class="file-manager-header">
+                    <div class="file-manager-header-row">
+                        <div>
+                            <h2>CloudDrive Dashboard</h2>
+                            <p style="color: #666; margin-top: 0.5rem;">Choose how you'd like to get started</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 2rem 0;">
+                    <!-- File Manager Card -->
+                    <div class="dashboard-card" onclick="showFileManager()">
+                        <div class="dashboard-card-icon">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <h3>File Manager</h3>
+                        <p>Upload, organize, and manage your files in secure cloud storage</p>
+                        <ul class="dashboard-features">
+                            <li><i class="fas fa-check"></i> Upload and download files</li>
+                            <li><i class="fas fa-check"></i> Create and manage folders</li>
+                            <li><i class="fas fa-check"></i> Secure user-isolated storage</li>
+                        </ul>
+                        <div class="dashboard-card-action">
+                            <i class="fas fa-arrow-right"></i>
+                            Browse Files
+                        </div>
+                    </div>
+
+                    <!-- Audio Recorder Card -->
+                    <div class="dashboard-card" onclick="window.location.href='audio.html'">
+                        <div class="dashboard-card-icon">
+                            <i class="fas fa-microphone"></i>
+                        </div>
+                        <h3>Audio Recorder</h3>
+                        <p>Record high-quality audio with automatic chunking and cloud upload</p>
+                        <ul class="dashboard-features">
+                            <li><i class="fas fa-check"></i> Real-time audio recording</li>
+                            <li><i class="fas fa-check"></i> Automatic S3 upload</li>
+                            <li><i class="fas fa-check"></i> Mobile-optimized interface</li>
+                        </ul>
+                        <div class="dashboard-card-action">
+                            <i class="fas fa-arrow-right"></i>
+                            Start Recording
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Manager Section -->
+            <div id="authenticated-section" class="file-manager" style="display: none;">
+                <div class="file-manager-header">
+                    <div class="breadcrumb-row">
+                        <div class="breadcrumb" id="breadcrumb-nav">
+                            <div class="breadcrumb-item" onclick="navigateToFolder('')">
+                                <i class="fas fa-home"></i>
+                                <span>My Files</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-manager-header-row">
+                        <div>
+                            <h2>File Manager</h2>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="btn btn-secondary" onclick="showDashboard()">
+                                <i class="fas fa-arrow-left"></i>
+                                Back to Dashboard
+                            </button>
+                        </div>
+                        <div class="file-actions">
+                        <button class="btn btn-primary" id="upload-button">
+                            <i class="fas fa-upload"></i>
+                            Upload Files
+                        </button>
+                        <button class="btn btn-secondary" id="new-folder-button">
+                            <i class="fas fa-folder-plus"></i>
+                            New Folder
+                        </button>
+                        <button class="btn btn-primary" id="refresh-files">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                        <button class="btn btn-secondary" id="get-data-button">
+                            <i class="fas fa-server"></i>
+                            Test API
+                        </button>
+                        <button class="btn btn-secondary" id="view-memory">
+                            <i class="fas fa-brain"></i>
+                            View Memory
+                        </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="file-container">
+                    <!-- Files will be loaded here -->
+                </div>
+                
+                <!-- File Upload Modal -->
+                <div id="upload-modal" class="upload-modal" style="display: none;">
+                    <div class="upload-modal-content">
+                        <div class="upload-modal-header">
+                            <h3>Upload Files</h3>
+                            <button class="close-modal" id="close-upload">&times;</button>
+                        </div>
+                        <div class="upload-zone" id="upload-zone">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #667eea;"></i>
+                            <p>Drag and drop files here or click to browse</p>
+                            <input type="file" id="file-input" multiple style="display: none;">
+                            <button class="btn btn-primary" id="browse-files">
+                                <i class="fas fa-folder-open"></i>
+                                Browse Files
+                            </button>
+                        </div>
+                        <div id="upload-queue" class="upload-queue" style="display: none;">
+                            <h4>Upload Queue</h4>
+                            <div id="upload-items"></div>
+                            <div class="upload-actions">
+                                <button class="btn btn-primary" id="start-upload">
+                                    <i class="fas fa-upload"></i>
+                                    Start Upload
+                                </button>
+                                <button class="btn btn-secondary" id="clear-queue">
+                                    <i class="fas fa-times"></i>
+                                    Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- New Folder Modal -->
+                <div id="folder-modal" class="upload-modal" style="display: none;">
+                    <div class="upload-modal-content" style="max-width: 400px;">
+                        <div class="upload-modal-header">
+                            <h3>Create New Folder</h3>
+                            <button class="close-modal" id="close-folder">&times;</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <label for="folder-name" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Folder Name:</label>
+                            <input type="text" id="folder-name" placeholder="Enter folder name..." 
+                                   style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                                <button class="btn btn-secondary" id="cancel-folder">Cancel</button>
+                                <button class="btn btn-primary" id="create-folder">
+                                    <i class="fas fa-folder-plus"></i>
+                                    Create Folder
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Section - MOVED TO BE SIBLING OF AUTHENTICATED-SECTION -->
+            <div id="memory-section" class="memory-section" style="display: none;">
+                <div class="file-manager-header">
+                    <div>
+                        <div class="breadcrumb">
+                            <i class="fas fa-brain"></i>
+                            <span>Claude Memory</span>
+                        </div>
+                        <h2>Memory Storage</h2>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn btn-primary" id="refresh-memory">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh Memory
+                        </button>
+                        <button class="btn btn-secondary" id="back-to-files">
+                            <i class="fas fa-arrow-left"></i>
+                            Back to Files
+                        </button>
+                    </div>
+                </div>
+
+                <div class="memory-tabs">
+                    <button class="btn btn-secondary memory-tab active" data-scope="public">
+                        <i class="fas fa-globe"></i>
+                        Public Memory
+                    </button>
+                    <button class="btn btn-secondary memory-tab" data-scope="user">
+                        <i class="fas fa-user"></i>
+                        My Memory
+                    </button>
+                </div>
+
+                <div id="memory-container">
+                    <!-- Memory files will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Section -->
+        <div id="debug" style="background-color: #f0f0f0; padding: 20px; margin-top: 20px; border-radius: 10px; display: none;">
+            <h3>Debug Information</h3>
+            <pre id="debug-info"></pre>
+            <button class="btn btn-secondary btn-sm" id="toggle-debug">Hide Debug Info</button>
+        </div>
+    </div>
+
+    <!-- Mobile dropdown backdrop -->
+    <div class="mobile-dropdown-backdrop" id="mobile-dropdown-backdrop"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
+    <script src="app.js"></script>
+    
+    <script>
+        // Enhanced UI interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.getElementById('refresh-files');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    const icon = this.querySelector('i');
+                    icon.style.animation = 'spin 1s linear infinite';
+                    setTimeout(() => {
+                        icon.style.animation = '';
+                        if (typeof listS3Files === 'function') {
+                            listS3Files();
+                        }
+                    }, 500);
+                });
+            }
+
+            // Debug functionality
+            const debugSection = document.getElementById('debug');
+            const debugInfo = document.getElementById('debug-info');
+            const showDebugBtn = document.getElementById('show-debug');
+            const toggleDebugBtn = document.getElementById('toggle-debug');
+            
+            function updateDebugInfo() {
+                const idToken = localStorage.getItem('id_token');
+                const accessToken = localStorage.getItem('access_token');
+                
+                let debugText = 'LOCAL STORAGE:\n';
+                debugText += `- ID Token: ${idToken ? 'Present' : 'Not found'}\n`;
+                debugText += `- Access Token: ${accessToken ? 'Present' : 'Not found'}\n\n`;
+                
+                debugText += 'APP CONFIG:\n';
+                try {
+                    if (typeof config !== 'undefined') {
+                        debugText += JSON.stringify(config, null, 2) + '\n\n';
+                    }
+                } catch (e) {
+                    debugText += `Error getting config: ${e.message}\n\n`;
+                }
+                
+                if (idToken) {
+                    debugText += 'TOKEN PAYLOAD:\n';
+                    try {
+                        const payload = JSON.parse(atob(idToken.split('.')[1]));
+                        debugText += JSON.stringify(payload, null, 2);
+                    } catch (e) {
+                        debugText += `Error parsing token: ${e.message}`;
+                    }
+                }
+                
+                debugInfo.textContent = debugText;
+            }
+            
+            if (showDebugBtn) {
+                showDebugBtn.addEventListener('click', function() {
+                    debugSection.style.display = 'block';
+                    this.style.display = 'none';
+                    updateDebugInfo();
+                });
+            }
+            
+            if (toggleDebugBtn) {
+                toggleDebugBtn.addEventListener('click', function() {
+                    if (debugSection.style.display === 'none') {
+                        debugSection.style.display = 'block';
+                        this.textContent = 'Hide Debug Info';
+                        updateDebugInfo();
+                    } else {
+                        debugSection.style.display = 'none';
+                        this.textContent = 'Show Debug Info';
+                        showDebugBtn.style.display = 'inline-flex';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

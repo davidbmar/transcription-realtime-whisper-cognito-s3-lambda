@@ -1,0 +1,154 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    margin-top: 50px;
+}
+
+h1 {
+    color: #333;
+}
+
+button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 10px 2px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+#logout-button {
+    background-color: #f44336;
+}
+
+#logout-button:hover {
+    background-color: #d32f2f;
+}
+
+#data-output {
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 20px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    min-height: 100px;
+}
+
+/* Add this CSS to your web/index.html in the <style> section */
+
+.memory-section {
+    padding: 2rem;
+}
+
+.memory-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #f8f9fa;
+    padding-bottom: 1rem;
+}
+
+.memory-tab {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.memory-tab.active {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    color: white;
+    border-color: #667eea;
+}
+
+.memory-tab:hover {
+    background: #e9ecef;
+}
+
+.memory-tab.active:hover {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+}
+
+.memory-card {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.memory-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    border-color: #667eea;
+}
+
+.memory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.memory-meta {
+    display: flex;
+    gap: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.memory-content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid #667eea;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.memory-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.conversation-id {
+    font-weight: bold;
+    color: #667eea;
+}
+
+.memory-timestamp {
+    color: #999;
+}
+
+.memory-source {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}

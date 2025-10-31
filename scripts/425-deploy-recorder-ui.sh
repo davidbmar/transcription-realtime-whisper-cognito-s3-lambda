@@ -51,7 +51,9 @@ echo ""
 log_info "Step 1: Validating prerequisites"
 
 # Auto-detect source UI directory (look in common locations)
+# Prefer local ui-source directory for self-contained deployment
 POSSIBLE_LOCATIONS=(
+    "$(dirname "$0")/../ui-source"
     "/home/ubuntu/event-b/audio-ui-cf-s3-lambda-cognito/web"
     "../audio-ui-cf-s3-lambda-cognito/web"
     "../../audio-ui-cf-s3-lambda-cognito/web"

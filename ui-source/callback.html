@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Callback</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Processing Authentication...</h1>
+        <p>Please wait while we process your sign-in.</p>
+        <div id="status"></div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
+    
+    <script>
+        // Display status messages for debugging
+        const statusEl = document.createElement('div');
+        statusEl.style.backgroundColor = '#f0f0f0';
+        statusEl.style.padding = '10px';
+        statusEl.style.margin = '10px 0';
+        statusEl.style.borderRadius = '5px';
+        document.querySelector('.container').appendChild(statusEl);
+        
+        function log(message) {
+            console.log(message);
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.style.margin = '5px 0';
+            statusEl.appendChild(p);
+        }
+        
+        // Get app configuration
+        const config = {
+            userPoolId: 'us-east-2_aV8xwqtOX',
+            userPoolClientId: '3m4ba0e4dbev99f3gqglrgitl0',
+            region: 'us-east-2',
+            appUrl: 'https://d2d046gfjrrwhb.cloudfront.net'
+        };
+        
+        // Parse the URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const error = urlParams.get('error');
+        const fragment = window.location.hash.substring(1);
+        const fragmentParams = new URLSearchParams(fragment);
+        
+        // Function to extract JWT payload
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                log('Error parsing JWT: ' + e.message);
+                return null;
+            }
+        }
+        
+        // Check for errors first
+        if (error) {
+            log(`Authentication error: ${error}`);
+            log('Redirecting to home page in 3 seconds...');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 3000);
+        }
+        // Check for authorization code flow
+        else if (code) {
+            log(`Received authorization code`);
+            
+            // IMPORTANT: We can't exchange the code on the client side because this requires a client secret
+            // In a real app, you'd send this code to your backend
+            // For this demo, we'll create a temporary token to simulate login
+            
+            // Store the code for reference
+            localStorage.setItem('auth_code', code);
+            
+            // Create a simulated token since we can't exchange the code client-side
+            const fakePayload = {
+                sub: 'simulated-user',
+                email: 'user@example.com',
+                exp: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+            };
+            
+            // Base64 encode a simple JWT structure
+            const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+            const payload = btoa(JSON.stringify(fakePayload));
+            const simulatedToken = `${header}.${payload}.simulatedsignature`;
+            
+            // Store the simulated token
+            localStorage.setItem('id_token', simulatedToken);
+            localStorage.setItem('access_token', simulatedToken);
+            
+            log('Created temporary authentication token');
+            log('Redirecting to home page...');
+            
+            // Redirect back to the main page
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1500);
+        }
+        // Check for implicit flow tokens
+        else if (fragmentParams.get('id_token')) {
+            log('Received ID token via implicit flow');
+            
+            const idToken = fragmentParams.get('id_token');
+            const accessToken = fragmentParams.get('access_token');
+            
+            // Store tokens
+            localStorage.setItem('id_token', idToken);
+            if (accessToken) {
+                localStorage.setItem('access_token', accessToken);
+            }
+            
+            // Parse and log token info
+            const tokenInfo = parseJwt(idToken);
+            if (tokenInfo) {
+                log(`Token is for user: ${tokenInfo.email || 'Unknown'}`);
+                log(`Token expires: ${new Date(tokenInfo.exp * 1000).toLocaleString()}`);
+            }
+            
+            log('Authentication successful!');
+            log('Redirecting to home page...');
+            
+            // Redirect back to the main page
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1500);
+        }
+        // No authentication information found
+        else {
+            log('No authentication information found in URL');
+            log('Redirecting to home page in 3 seconds...');
+            
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
