@@ -325,11 +325,12 @@
   </style>
 </head>
 <body>
+    <button class="logout-button" id="logout-button">Sign Out</button>
   <div class="app-shell">
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.2.1-session-timestamps</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.2.2-s3-upload</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1128,6 +1129,143 @@
         }
       }
 
+      // S3 Upload Configuration
+      const API_CONFIG = {
+        // Set during deployment - DO NOT CHANGE THIS PLACEHOLDER
+        apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+        getApiUrl: function() {
+          // If placeholder wasn't replaced, try to get from window.config
+          if (!this.apiUrl || this.apiUrl.startsWith('TO_BE_REPLACED')) {
+            if (window.config) {
+              this.apiUrl = window.config.s3ApiUrl || window.config.apiUrl || '';
+              if (this.apiUrl) {
+                console.log('📡 API URL configured from window.config:', this.apiUrl);
+              }
+            }
+          } else {
+            console.log('📡 API URL configured from deployment:', this.apiUrl);
+          }
+
+          if (!this.apiUrl || this.apiUrl.startsWith('TO_BE_REPLACED')) {
+            console.warn('⚠️ API URL not configured. window.config available:', !!window.config);
+            if (window.config) {
+              console.log('window.config contents:', window.config);
+            }
+            return '';
+          }
+          return this.apiUrl;
+        }
+      };
+
+      // Get authentication token
+      function getAuthToken() {
+        // First try the simple format
+        let token = localStorage.getItem('id_token');
+        if (token) return token;
+
+        // Try Cognito SDK format (used by the auth system)
+        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (lastAuthUser) {
+          token = localStorage.getItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+          if (token) return token;
+        }
+
+        return null;
+      }
+
+      // Upload chunk to S3
+      async function uploadChunkToS3(sessionId, chunkNumber, blob, statusIconEl) {
+        const idToken = getAuthToken();
+        if (!idToken) {
+          log('⚠️ No auth token found, skipping S3 upload');
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '⚠️';
+            statusIconEl.title = 'Not authenticated - chunk not uploaded';
+            statusIconEl.style.color = '#ff6b6b';
+          }
+          return false;
+        }
+
+        const apiUrl = API_CONFIG.getApiUrl();
+        if (!apiUrl) {
+          log('⚠️ API URL not configured, skipping S3 upload');
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '⚠️';
+            statusIconEl.title = 'API not configured';
+            statusIconEl.style.color = '#ff6b6b';
+          }
+          return false;
+        }
+
+        try {
+          // Step 1: Get pre-signed upload URL from API
+          log(`📤 Requesting upload URL for chunk ${chunkNumber}...`);
+
+          const uploadUrlResponse = await fetch(`${apiUrl}/api/audio/upload-chunk`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              chunkNumber: chunkNumber,
+              contentType: blob.type || 'audio/webm',
+              duration: 0 // Will be filled in by metadata
+            })
+          });
+
+          if (!uploadUrlResponse.ok) {
+            const errorText = await uploadUrlResponse.text();
+            throw new Error(`Failed to get upload URL: ${uploadUrlResponse.status} - ${errorText}`);
+          }
+
+          const uploadData = await uploadUrlResponse.json();
+          log(`✅ Got upload URL for chunk ${chunkNumber}`);
+
+          // Step 2: Upload blob to S3 using pre-signed URL
+          log(`📤 Uploading chunk ${chunkNumber} to S3 (${Math.round(blob.size / 1024)} KB)...`);
+
+          const s3UploadResponse = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': blob.type || 'audio/webm'
+            },
+            body: blob
+          });
+
+          if (!s3UploadResponse.ok) {
+            throw new Error(`S3 upload failed: ${s3UploadResponse.status}`);
+          }
+
+          log(`✅ Chunk ${chunkNumber} uploaded successfully to S3: ${uploadData.s3Key}`);
+
+          // Update status icon to show success - cloud with green checkmark overlay
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '<span style="position:relative;display:inline-block;">☁️<span style="position:absolute;top:-2px;right:-2px;color:#3be38a;font-size:14px;font-weight:bold;text-shadow:0 0 2px #000;">✓</span></span>';
+            statusIconEl.title = `Uploaded to S3: ${uploadData.s3Key}`;
+            statusIconEl.style.color = '#9aa6b2'; // Keep cloud its normal color
+          }
+
+          return true;
+        } catch (error) {
+          log(`❌ Error uploading chunk ${chunkNumber} to S3:`, error.message);
+
+          // Update status icon to show error
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '❌';
+            statusIconEl.title = `Upload failed: ${error.message}`;
+            statusIconEl.style.color = '#ff6b6b';
+          }
+
+          return false;
+        }
+      }
+
       // UI refs
       var timesliceInput = $('timeslice');
       var overlapInput = $('overlap');
@@ -1321,6 +1459,13 @@
         var top = document.createElement('div');
         top.className = 'chunk-header';
 
+        // Create upload status icon (initially pending)
+        var statusIcon = document.createElement('span');
+        statusIcon.className = 'upload-status-icon';
+        statusIcon.innerHTML = '⏳';
+        statusIcon.title = 'Pending upload to S3';
+        statusIcon.style.cssText = 'font-size:20px;margin-right:8px;color:var(--muted);';
+
         var meta = document.createElement('div');
         meta.className = 'meta';
 
@@ -1347,6 +1492,7 @@
           log('seg-' + pad3(idx) + ' loadedmetadata duration=' + (audioEl.duration || 0));
         });
 
+        top.appendChild(statusIcon);
         top.appendChild(meta);
         top.appendChild(audioEl);
 
@@ -1407,6 +1553,13 @@
           } catch (error) {
             log('Error saving chunk:', error.message);
           }
+        }
+
+        // Upload chunk to S3 (async, non-blocking)
+        if (currentSession) {
+          uploadChunkToS3(currentSession.id, idx, blob, statusIcon).catch(err => {
+            log('Error in S3 upload:', err.message);
+          });
         }
       }
 
@@ -1623,8 +1776,7 @@
         try {
           log('Connecting to WhisperLive...');
 
-          const WHISPERLIVE_WS_URL = 'TO_BE_REPLACED_WHISPERLIVE_WS_URL';
-          const wsUrl = WHISPERLIVE_WS_URL;
+          const wsUrl = window.config?.whisperLiveWsUrl || 'wss://your-edge-box.com/ws';
           ws = new WebSocket(wsUrl);
 
           ws.onopen = async () => {
@@ -2496,13 +2648,20 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.2.1-session-timestamps', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.2.2-s3-upload', 'font-size:16px;font-weight:bold;color:#3be38a;');
       console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
+      console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
       console.log('%c🔧 Server patches: word_timestamps enabled + word extraction', 'font-size:12px;color:#ff9500;');
-      console.log('%c🔧 CRITICAL FIX: Word timestamps are segment-relative! Now converting to absolute.', 'font-size:14px;font-weight:bold;color:#fbbf24;');
-      console.log('%c⚠️  OLD SESSIONS HAVE WRONG DATA - Record a NEW session to see fix!', 'font-size:13px;font-weight:bold;color:#ff6b6b;background:#1a0000;padding:4px;');
       console.log('✅ Word-level highlighting enabled');
-      console.log('📖 Features: IndexedDB persistence, color-coded timing, karaoke highlighting');
+      console.log('📖 Features: IndexedDB persistence, S3 upload, color-coded timing, karaoke highlighting');
+
+      // Check API configuration
+      if (window.config) {
+        console.log('✅ API Config loaded:', window.config.s3ApiUrl || window.config.apiUrl);
+      } else {
+        console.warn('⚠️ window.config not found - S3 upload may not work');
+      }
+
       log('UI ready');
 
       if (window.audioStorage) {
@@ -2524,6 +2683,9 @@
     })();
   </script>
 
+  <!-- Include app.js for config -->
+  <script src="app.js"></script>
+
   <!-- Logout Handler -->
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -2539,5 +2701,62 @@
       }
     });
   </script>
+    <script>
+    // Authentication check for audio.html
+    window.addEventListener('DOMContentLoaded', function() {
+        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (!lastAuthUser) {
+            // Not authenticated - redirect to index
+            window.location.href = 'index.html';
+            return;
+        }
+
+        const idToken = localStorage.getItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+        if (!idToken) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Check token expiry
+        try {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            const expiry = payload.exp * 1000;
+            if (Date.now() >= expiry) {
+                // Token expired
+                localStorage.removeItem(keyPrefix + '.LastAuthUser');
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');
+                window.location.href = 'index.html';
+                return;
+            }
+        } catch (error) {
+            console.error('Token validation error:', error);
+            window.location.href = 'index.html';
+            return;
+        }
+    });
+
+    // Logout button handler
+    document.getElementById('logout-button').addEventListener('click', function() {
+        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (lastAuthUser) {
+            localStorage.removeItem(keyPrefix + '.LastAuthUser');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.clockDrift');
+        }
+
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('access_token');
+
+        window.location.href = 'index.html';
+    });
+    </script>
 </body>
 </html>

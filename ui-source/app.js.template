@@ -10,7 +10,8 @@ const config = {
     region: 'YOUR_REGION', // Your AWS region
     apiUrl: 'YOUR_CLOUDFRONT_API_ENDPOINT', // CloudFront API endpoint
     s3ApiUrl: 'YOUR_CLOUDFRONT_S3_API_ENDPOINT', // CloudFront S3 API endpoint
-    appUrl: 'YOUR_APP_URL'
+    appUrl: 'YOUR_APP_URL',
+    whisperLiveWsUrl: 'YOUR_WHISPERLIVE_WS_URL' // WhisperLive WebSocket endpoint
 };
 
 // DOM elements
