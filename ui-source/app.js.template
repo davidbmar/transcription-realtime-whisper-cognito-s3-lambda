@@ -3,7 +3,7 @@
 // Make changes to app.js.template instead
 
 // Configuration - to be updated after deployment
-const config = {
+window.config = {
     userPoolId: 'YOUR_USER_POOL_ID',
     userPoolClientId: 'YOUR_USER_POOL_CLIENT_ID',
     identityPoolId: 'YOUR_IDENTITY_POOL_ID',

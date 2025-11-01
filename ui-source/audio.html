@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <title>Real-Time Audio Recording & Transcription</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <script src="app.js"></script>
   <style>
     /* Step 4 IndexDB UI Styles */
     :root{
@@ -330,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.2.2-s3-upload</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.3.0-consciousness</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1164,7 +1166,8 @@
         if (token) return token;
 
         // Try Cognito SDK format (used by the auth system)
-        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
         const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
         const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
 
@@ -1776,7 +1779,18 @@
         try {
           log('Connecting to WhisperLive...');
 
-          const wsUrl = window.config?.whisperLiveWsUrl || 'wss://your-edge-box.com/ws';
+          // Get authentication token for WebSocket
+          const authToken = getAuthToken();
+          if (!authToken) {
+            log('⚠️ Warning: No authentication token found. WebSocket connection may be refused.');
+          }
+
+          // Append token to WebSocket URL for authentication
+          let wsUrl = window.config?.whisperLiveWsUrl || 'wss://your-edge-box.com/ws';
+          if (authToken) {
+            wsUrl += (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(authToken);
+          }
+
           ws = new WebSocket(wsUrl);
 
           ws.onopen = async () => {
@@ -2648,12 +2662,13 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.2.2-s3-upload', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.3.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
       console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
       console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
-      console.log('%c🔧 Server patches: word_timestamps enabled + word extraction', 'font-size:12px;color:#ff9500;');
+      console.log('%c🎧 Real-time transcription via WhisperLive WebSocket', 'font-size:12px;color:#fbbf24;');
+      console.log('%c🧠 Consciousness: Temporal audio processing enabled', 'font-size:12px;color:#a78bfa;');
       console.log('✅ Word-level highlighting enabled');
-      console.log('📖 Features: IndexedDB persistence, S3 upload, color-coded timing, karaoke highlighting');
+      console.log('📖 Features: IndexedDB, S3 upload, real-time transcription, word timestamps');
 
       // Check API configuration
       if (window.config) {
@@ -2704,7 +2719,8 @@
     <script>
     // Authentication check for audio.html
     window.addEventListener('DOMContentLoaded', function() {
-        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
         const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
         const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
 
@@ -2741,7 +2757,8 @@
 
     // Logout button handler
     document.getElementById('logout-button').addEventListener('click', function() {
-        const userPoolClientId = window.config?.userPoolClientId || 'MISSING_CONFIG';
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
         const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
         const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
 
