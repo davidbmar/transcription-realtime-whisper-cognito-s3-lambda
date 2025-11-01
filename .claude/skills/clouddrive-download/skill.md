@@ -18,8 +18,8 @@ This skill provides file download and search capabilities for the CloudDrive S3 
 ## Configuration
 
 The skill uses configuration from the project's `.env` file:
-- **S3 Bucket**: `COGNITO_S3_BUCKET` (dbm-ts-cog-oct-28-2025)
-- **Region**: `AWS_REGION` (us-east-2)
+- **S3 Bucket**: `COGNITO_S3_BUCKET` (from .env)
+- **Region**: `AWS_REGION` (from .env)
 
 **AWS Credentials:**
 Ensure your AWS credentials are configured via:

@@ -25,14 +25,25 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
     source "$PROJECT_ROOT/.env"
 fi
 
-# Configuration
-USER_POOL_ID="${COGNITO_USER_POOL_ID:-us-east-2_MREOwTQNv}"
-CLIENT_ID="${COGNITO_USER_POOL_CLIENT_ID:-43ocivrrit30vs0l0ujaj4qsj5}"
-REGION="${AWS_REGION:-us-east-2}"
+# Configuration - all from .env, no hardcoded defaults
+USER_POOL_ID="${COGNITO_USER_POOL_ID}"
+CLIENT_ID="${COGNITO_USER_POOL_CLIENT_ID}"
+REGION="${AWS_REGION}"
 TOKEN_DIR="$HOME/.clouddrive"
 TOKEN_FILE="$TOKEN_DIR/token"
 REFRESH_TOKEN_FILE="$TOKEN_DIR/refresh_token"
 USER_INFO_FILE="$TOKEN_DIR/user_info"
+
+# Validate required environment variables
+if [[ -z "$USER_POOL_ID" ]] || [[ -z "$CLIENT_ID" ]] || [[ -z "$REGION" ]]; then
+    log_error "Missing required environment variables in .env:"
+    [[ -z "$USER_POOL_ID" ]] && echo "  - COGNITO_USER_POOL_ID"
+    [[ -z "$CLIENT_ID" ]] && echo "  - COGNITO_USER_POOL_CLIENT_ID"
+    [[ -z "$REGION" ]] && echo "  - AWS_REGION"
+    echo ""
+    echo "Copy .env.example to .env and fill in your deployment values"
+    exit 1
+fi
 
 # Create token directory
 mkdir -p "$TOKEN_DIR"

@@ -1,0 +1,23 @@
+{
+  "name": "clouddrive-browser-skill",
+  "version": "1.0.0",
+  "description": "CloudDrive browser automation skill using Playwright",
+  "main": "browser-test.js",
+  "scripts": {
+    "test": "node browser-test.js test-workflow",
+    "login": "node browser-test.js login",
+    "test:headed": "HEADLESS=false node browser-test.js test-workflow"
+  },
+  "keywords": [
+    "clouddrive",
+    "playwright",
+    "browser-automation",
+    "testing"
+  ],
+  "author": "CloudDrive Team",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.56.1",
+    "dotenv": "^16.0.0"
+  }
+}

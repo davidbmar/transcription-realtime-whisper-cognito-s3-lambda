@@ -27,9 +27,19 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
     source "$PROJECT_ROOT/.env"
 fi
 
-# Configuration
-BUCKET="${COGNITO_S3_BUCKET:-dbm-ts-cog-oct-28-2025}"
-REGION="${AWS_REGION:-us-east-2}"
+# Configuration - all from .env, no hardcoded defaults
+BUCKET="${COGNITO_S3_BUCKET}"
+REGION="${AWS_REGION}"
+
+# Validate required environment variables
+if [[ -z "$BUCKET" ]] || [[ -z "$REGION" ]]; then
+    echo -e "${RED}[ERROR]${NC} Missing required environment variables in .env:"
+    [[ -z "$BUCKET" ]] && echo "  - COGNITO_S3_BUCKET"
+    [[ -z "$REGION" ]] && echo "  - AWS_REGION"
+    echo ""
+    echo "Copy .env.example to .env and fill in your deployment values"
+    exit 1
+fi
 
 # Functions
 log_info() {

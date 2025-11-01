@@ -97,20 +97,22 @@ Currently not used by the skill. This would enable authentication via Cognito AP
 The skill uses configuration from the project's `.env` file:
 
 ```bash
-COGNITO_S3_BUCKET=dbm-ts-cog-oct-28-2025
-COGNITO_API_ENDPOINT=https://j6y4v7wt11.execute-api.us-east-2.amazonaws.com/dev
-COGNITO_USER_POOL_ID=us-east-2_MREOwTQNv
-COGNITO_USER_POOL_CLIENT_ID=43ocivrrit30vs0l0ujaj4qsj5
+COGNITO_S3_BUCKET=your-s3-bucket-name
+COGNITO_API_ENDPOINT=https://xxxxxxxxxx.execute-api.us-east-2.amazonaws.com/dev
+COGNITO_USER_POOL_ID=us-east-2_XXXXXXXXX
+COGNITO_USER_POOL_CLIENT_ID=xxxxxxxxxxxxxxxxxx
 AWS_REGION=us-east-2
 ```
+
+Copy `.env.example` to `.env` and fill in your deployment values.
 
 ## How It Works
 
 The skill uses AWS CLI to directly access S3:
 
 ```bash
-# Verify AWS CLI works
-aws s3 ls s3://dbm-ts-cog-oct-28-2025/
+# Verify AWS CLI works (replace with your bucket from .env)
+aws s3 ls s3://$COGNITO_S3_BUCKET/
 
 # Check configured credentials
 aws configure list
@@ -179,7 +181,7 @@ clouddrive-downloads/     # Downloaded files (auto-created)
 ## Troubleshooting
 
 ### "No files found"
-- Check that files exist in S3: `aws s3 ls s3://dbm-ts-cog-oct-28-2025/users/{userId}/ --recursive`
+- Check that files exist in S3: `aws s3 ls s3://$COGNITO_S3_BUCKET/users/{userId}/ --recursive`
 - Verify user ID is correct
 - Check file search pattern
 
@@ -202,9 +204,9 @@ clouddrive-downloads/     # Downloaded files (auto-created)
 Test the skill with a sample file:
 
 ```bash
-# Upload test file
+# Upload test file (replace {userId} with your user ID)
 echo "Test content" > /tmp/test.txt
-aws s3 cp /tmp/test.txt s3://dbm-ts-cog-oct-28-2025/users/{userId}/test.txt
+aws s3 cp /tmp/test.txt s3://$COGNITO_S3_BUCKET/users/{userId}/test.txt
 
 # Search for it
 ./file-search.sh "test"
@@ -233,7 +235,7 @@ Potential improvements:
 
 ### S3 Bucket Structure
 ```
-s3://dbm-ts-cog-oct-28-2025/
+s3://{COGNITO_S3_BUCKET}/
 ├── users/
 │   └── {userId}/           # User-specific files
 │       ├── file1.pdf
