@@ -320,7 +320,7 @@ module.exports.finalizeTranscription = async (event) => {
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { documentId, liveStartIndex, text } = body;
+    const { documentId, liveStartIndex, text, paragraph_break } = body;
 
     if (!documentId || !text) {
       return {
@@ -328,6 +328,11 @@ module.exports.finalizeTranscription = async (event) => {
         headers: getSecurityHeaders(event.headers?.origin),
         body: JSON.stringify({ error: 'documentId and text are required' })
       };
+    }
+
+    // Log paragraph break info
+    if (paragraph_break) {
+      console.log(`📄 Paragraph break requested for segment: "${text.substring(0, 50)}..."`);
     }
 
     const docs = getDocsClient();
@@ -391,7 +396,9 @@ module.exports.finalizeTranscription = async (event) => {
     console.log(`Found session at ${lastSessionStart}, live section at ${liveStart}`);
     console.log(`Inserting finalized text: "${text.substring(0, 50)}..."`);
 
-    const finalizedText = text + ' ';
+    // Use paragraph break (\n\n) if pause exceeded threshold, otherwise just space
+    const separator = paragraph_break ? '\n\n' : ' ';
+    const finalizedText = text + separator;
     const resetText = '[Listening...]\n';
 
     // CORRECT order: Delete first, then insert

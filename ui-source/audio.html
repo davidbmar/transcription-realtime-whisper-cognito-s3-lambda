@@ -332,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v6.4.0</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v6.5.0</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1338,6 +1338,7 @@
       var googleDocsLiveStartIndex = null;  // Where the 🔴 LIVE section starts
       var googleDocsUpdateThrottle = null;
       var googleDocsCurrentText = '';  // Current text showing in live section
+      var GOOGLE_DOCS_PARAGRAPH_THRESHOLD = 2.0;  // Pause duration (seconds) to trigger paragraph break
 
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
@@ -1418,20 +1419,22 @@
           return;
         }
 
-        // Extract text and is_final flag
+        // Extract text, is_final flag, and paragraph_break flag
         const text = segment?.text || segment;  // Handle both object and string
         const isFinal = segment?.is_final || false;
+        const paragraphBreak = segment?.paragraph_break || false;
 
         console.log('🔍 [GOOGLE-DOCS-UPDATE] Received segment:', {
           textLength: text.length,
           isFinal,
+          paragraphBreak,
           textPreview: text.substring(0, 50)
         });
 
         // If finalized, call finalize endpoint (moves to permanent section)
         if (isFinal) {
           console.log('✅ [GOOGLE-DOCS-UPDATE] Segment is final, calling finalize endpoint');
-          await finalizeGoogleDocsSegment(text);
+          await finalizeGoogleDocsSegment(text, paragraphBreak);
           return;
         }
 
@@ -1486,9 +1489,10 @@
       }
 
       // Finalize a segment - move from live to permanent section
-      async function finalizeGoogleDocsSegment(text) {
+      async function finalizeGoogleDocsSegment(text, paragraphBreak = false) {
         try {
           console.log('📤 [GOOGLE-DOCS-FINALIZE] Finalizing segment...');
+          console.log('📤 [GOOGLE-DOCS-FINALIZE] Paragraph break:', paragraphBreak);
 
           const idToken = await getIdToken();
           if (!idToken) {
@@ -1506,7 +1510,8 @@
             body: JSON.stringify({
               documentId: googleDocsId,
               liveStartIndex: googleDocsLiveStartIndex,
-              text: text
+              text: text,
+              paragraph_break: paragraphBreak
             })
           });
 
@@ -2257,8 +2262,22 @@
           // Update all existing chunks with new transcription
           updateChunkTranscriptions();
 
+          // Detect paragraph breaks based on pause duration
+          let paragraphBreak = false;
+          if (transcriptionSegments.length > 1 && start !== undefined) {
+            const previousSegment = transcriptionSegments[transcriptionSegments.length - 2];
+            if (previousSegment.end !== undefined) {
+              const pauseDuration = start - previousSegment.end;
+              paragraphBreak = pauseDuration >= GOOGLE_DOCS_PARAGRAPH_THRESHOLD;
+
+              if (paragraphBreak) {
+                console.log(`📄 [GOOGLE-DOCS] Paragraph break detected: ${pauseDuration.toFixed(2)}s pause`);
+              }
+            }
+          }
+
           // Send finalized segment to Google Docs (inline formatting - will be normal text)
-          updateGoogleDocsLive({ text, is_final: true });
+          updateGoogleDocsLive({ text, is_final: true, paragraph_break: paragraphBreak });
         } else {
           const result = transcriptAccumulator.ingestPartial(text);
 
