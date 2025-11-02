@@ -90,18 +90,31 @@ module.exports.initializeLiveSection = async (event) => {
 
     const headerText = `\n\n─────────────────────────────────────\n🎤 Live Transcription Started: ${timestamp}\n─────────────────────────────────────\n\n`;
 
-    const requests = [
-      {
-        insertText: {
-          text: headerText,
-          location: { index: endIndex - 1 }
-        }
-      }
-    ];
-
+    const headerInsertIndex = endIndex - 1;
     await docs.documents.batchUpdate({
       documentId,
-      requestBody: { requests }
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              text: headerText,
+              location: { index: headerInsertIndex }
+            }
+          },
+          {
+            updateTextStyle: {
+              textStyle: {
+                italic: false
+              },
+              range: {
+                startIndex: headerInsertIndex,
+                endIndex: headerInsertIndex + headerText.length
+              },
+              fields: 'italic'
+            }
+          }
+        ]
+      }
     });
 
     // Add italic placeholder for live section
@@ -274,16 +287,31 @@ module.exports.finalizeTranscription = async (event) => {
     // Phase 1: Insert finalized text BEFORE the live section
     // Phase 2: Clear and reset the live section as italic
 
-    // Phase 1: Insert finalized text at liveStartIndex position
+    // Phase 1: Insert finalized text at liveStartIndex position with normal formatting
+    const finalizedText = text + ' ';
     await docs.documents.batchUpdate({
       documentId,
       requestBody: {
-        requests: [{
-          insertText: {
-            text: text + ' ',
-            location: { index: liveStartIndex }
+        requests: [
+          {
+            insertText: {
+              text: finalizedText,
+              location: { index: liveStartIndex }
+            }
+          },
+          {
+            updateTextStyle: {
+              textStyle: {
+                italic: false
+              },
+              range: {
+                startIndex: liveStartIndex,
+                endIndex: liveStartIndex + finalizedText.length
+              },
+              fields: 'italic'
+            }
           }
-        }]
+        ]
       }
     });
 
@@ -292,14 +320,13 @@ module.exports.finalizeTranscription = async (event) => {
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
     // Calculate new live start position (shifted by the length of finalized text)
-    const finalizedLength = (text + ' ').length;
-    const newLiveStart = liveStartIndex + finalizedLength;
+    const newLiveStart = liveStartIndex + finalizedText.length;
 
     const resetText = '[Listening...]\n';
     const requests = [];
 
-    // Delete current live section
-    if (docEnd - 1 > newLiveStart) {
+    // Delete current live section (if there's anything after the finalized text)
+    if (newLiveStart < docEnd - 1) {
       requests.push({
         deleteContentRange: {
           range: {
