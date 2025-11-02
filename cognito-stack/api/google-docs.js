@@ -198,15 +198,64 @@ module.exports.updateLiveTranscription = async (event) => {
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Use the liveStartIndex passed from frontend
-    // Delete everything from liveStartIndex to end, then insert new italic text
+    // IGNORE stale frontend index - find live section dynamically!
+    // Same strategy as finalize: find last session, then first italic after it
+
+    let lastSessionStart = null;
+    const content = doc.data.body.content;
+
+    // Find the last "🎤 Live Transcription Started:" header
+    for (let i = content.length - 1; i >= 0; i--) {
+      const element = content[i];
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun && textElement.textRun.content.includes('🎤 Live Transcription Started:')) {
+            lastSessionStart = element.startIndex;
+            break;
+          }
+        }
+        if (lastSessionStart !== null) break;
+      }
+    }
+
+    if (lastSessionStart === null) {
+      throw new Error('Could not find session header for live update');
+    }
+
+    // Find the first italic text AFTER the last session header
+    let actualLiveStart = null;
+    for (let i = 0; i < content.length; i++) {
+      const element = content[i];
+      if (element.startIndex && element.startIndex < lastSessionStart) continue;
+
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun) {
+            const isItalic = textElement.textRun.textStyle?.italic === true;
+            if (isItalic && textElement.textRun.content.trim() && textElement.startIndex > lastSessionStart) {
+              actualLiveStart = textElement.startIndex;
+              break;
+            }
+          }
+        }
+        if (actualLiveStart !== null) break;
+      }
+    }
+
+    if (actualLiveStart === null) {
+      throw new Error('Could not find italic live section for update');
+    }
+
+    console.log(`Update: Found session at ${lastSessionStart}, live at ${actualLiveStart}`);
+
+    // Delete and replace the live section
     const newText = text + '\n';
     const requests = [
       // Delete current live section content
       {
         deleteContentRange: {
           range: {
-            startIndex: liveStartIndex,
+            startIndex: actualLiveStart,
             endIndex: docEnd - 1
           }
         }
@@ -215,7 +264,7 @@ module.exports.updateLiveTranscription = async (event) => {
       {
         insertText: {
           text: newText,
-          location: { index: liveStartIndex }
+          location: { index: actualLiveStart }
         }
       },
       // Make it italic
@@ -225,8 +274,8 @@ module.exports.updateLiveTranscription = async (event) => {
             italic: true
           },
           range: {
-            startIndex: liveStartIndex,
-            endIndex: liveStartIndex + newText.length
+            startIndex: actualLiveStart,
+            endIndex: actualLiveStart + newText.length
           },
           fields: 'italic'
         }
@@ -290,18 +339,42 @@ module.exports.finalizeTranscription = async (event) => {
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Find the last italic text section (working backwards from end)
-    let liveStart = null;
+    // Strategy: Find the LAST session header, then find italic text AFTER it
+    // This ensures we're working with the current session only
+
+    let lastSessionStart = null;
     const content = doc.data.body.content;
+
+    // First, find the last "🎤 Live Transcription Started:" header
     for (let i = content.length - 1; i >= 0; i--) {
       const element = content[i];
       if (element.paragraph && element.paragraph.elements) {
-        for (let j = element.paragraph.elements.length - 1; j >= 0; j--) {
-          const textElement = element.paragraph.elements[j];
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun && textElement.textRun.content.includes('🎤 Live Transcription Started:')) {
+            lastSessionStart = element.startIndex;
+            break;
+          }
+        }
+        if (lastSessionStart !== null) break;
+      }
+    }
+
+    if (lastSessionStart === null) {
+      throw new Error('Could not find session header in document');
+    }
+
+    // Now find the first italic text AFTER the last session header
+    let liveStart = null;
+    for (let i = 0; i < content.length; i++) {
+      const element = content[i];
+      if (element.startIndex && element.startIndex < lastSessionStart) continue; // Skip elements before last session
+
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
           if (textElement.textRun) {
             const isItalic = textElement.textRun.textStyle?.italic === true;
-            if (isItalic && textElement.textRun.content.trim()) {
-              // Found it - this is where live section starts
+            if (isItalic && textElement.textRun.content.trim() && textElement.startIndex > lastSessionStart) {
+              // Found it - this is where live section starts in the current session
               liveStart = textElement.startIndex;
               break;
             }
@@ -312,50 +385,56 @@ module.exports.finalizeTranscription = async (event) => {
     }
 
     if (liveStart === null) {
-      throw new Error('Could not find italic live section in document');
+      throw new Error('Could not find italic live section after session header');
     }
+
+    console.log(`Found session at ${lastSessionStart}, live section at ${liveStart}`);
+    console.log(`Inserting finalized text: "${text.substring(0, 50)}..."`);
 
     const finalizedText = text + ' ';
     const resetText = '[Listening...]\n';
 
-    // Single atomic operation: insert finalized, delete live, re-insert placeholder
-    const requests = [
-      // 1. Insert finalized text BEFORE live section
-      {
-        insertText: {
-          text: finalizedText,
-          location: { index: liveStart }
-        }
-      },
-      // 2. Format it as normal (not italic)
-      {
-        updateTextStyle: {
-          textStyle: {
-            italic: false
-          },
-          range: {
-            startIndex: liveStart,
-            endIndex: liveStart + finalizedText.length
-          },
-          fields: 'italic'
-        }
-      }
-    ];
+    // CORRECT order: Delete first, then insert
+    // Google Docs processes requests in reverse order for inserts/deletes
+    const requests = [];
 
-    // 3. Delete old live section (only if it has content)
-    const newLiveStart = liveStart + finalizedText.length;
-    if (newLiveStart < docEnd - 1) {
+    // 1. Delete old live section first (if it has content)
+    if (liveStart < docEnd - 1) {
       requests.push({
         deleteContentRange: {
           range: {
-            startIndex: newLiveStart,
+            startIndex: liveStart,
             endIndex: docEnd - 1
           }
         }
       });
     }
 
-    // 4. Insert new italic placeholder
+    // 2. Insert finalized text at where live section WAS
+    requests.push({
+      insertText: {
+        text: finalizedText,
+        location: { index: liveStart }
+      }
+    });
+
+    // 3. Format finalized text as normal (explicitly reset italic)
+    requests.push({
+      updateTextStyle: {
+        textStyle: {
+          italic: false,
+          bold: false
+        },
+        range: {
+          startIndex: liveStart,
+          endIndex: liveStart + finalizedText.length
+        },
+        fields: 'italic,bold'
+      }
+    });
+
+    // 4. Insert new italic placeholder after finalized text
+    const newLiveStart = liveStart + finalizedText.length;
     requests.push({
       insertText: {
         text: resetText,
@@ -363,7 +442,7 @@ module.exports.finalizeTranscription = async (event) => {
       }
     });
 
-    // 5. Format it as italic
+    // 5. Format placeholder as italic
     requests.push({
       updateTextStyle: {
         textStyle: {
