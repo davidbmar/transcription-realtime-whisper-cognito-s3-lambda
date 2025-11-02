@@ -156,17 +156,39 @@ module.exports.updateLiveTranscription = async (event) => {
 
     const docs = getDocsClient();
 
-    // Get current document
+    // Get current document and dynamically find the live marker
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Simple approach: Delete everything in live section and replace with new text
+    // Search for "🔴 LIVE:\n" marker in the document
+    let foundLiveStart = null;
+    for (const element of doc.data.body.content) {
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun && textElement.textRun.content) {
+            const content = textElement.textRun.content;
+            const liveIndex = content.indexOf('🔴 LIVE:\n');
+            if (liveIndex >= 0) {
+              foundLiveStart = textElement.startIndex + liveIndex + '🔴 LIVE:\n'.length;
+              break;
+            }
+          }
+        }
+        if (foundLiveStart) break;
+      }
+    }
+
+    if (!foundLiveStart) {
+      throw new Error('Could not find 🔴 LIVE: marker in document for live update');
+    }
+
+    // Delete everything from after the marker to the end, then insert new text
     const requests = [
       // Delete current live section content
       {
         deleteContentRange: {
           range: {
-            startIndex: liveStartIndex,
+            startIndex: foundLiveStart,
             endIndex: docEnd - 1
           }
         }
@@ -175,7 +197,7 @@ module.exports.updateLiveTranscription = async (event) => {
       {
         insertText: {
           text: text + '\n',
-          location: { index: liveStartIndex }
+          location: { index: foundLiveStart }
         }
       }
     ];
