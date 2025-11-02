@@ -273,91 +273,103 @@ module.exports.finalizeTranscription = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { documentId, liveStartIndex, text } = body;
 
-    if (!documentId || liveStartIndex === undefined || !text) {
+    if (!documentId || !text) {
       return {
         statusCode: 400,
         headers: getSecurityHeaders(event.headers?.origin),
-        body: JSON.stringify({ error: 'documentId, liveStartIndex, and text are required' })
+        body: JSON.stringify({ error: 'documentId and text are required' })
       };
     }
 
     const docs = getDocsClient();
 
-    // Strategy: Two-phase approach to avoid race conditions
-    // Phase 1: Insert finalized text BEFORE the live section
-    // Phase 2: Clear and reset the live section as italic
+    // NEW STRATEGY: Ignore frontend indices entirely
+    // Find the LAST italic section in the document (that's the live section)
+    // Insert finalized text before it, then reset the live section
 
-    // Phase 1: Insert finalized text at liveStartIndex position with normal formatting
-    const finalizedText = text + ' ';
-    await docs.documents.batchUpdate({
-      documentId,
-      requestBody: {
-        requests: [
-          {
-            insertText: {
-              text: finalizedText,
-              location: { index: liveStartIndex }
-            }
-          },
-          {
-            updateTextStyle: {
-              textStyle: {
-                italic: false
-              },
-              range: {
-                startIndex: liveStartIndex,
-                endIndex: liveStartIndex + finalizedText.length
-              },
-              fields: 'italic'
-            }
-          }
-        ]
-      }
-    });
-
-    // Phase 2: Fetch fresh document state and reset live section
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Calculate new live start position (shifted by the length of finalized text)
-    const newLiveStart = liveStartIndex + finalizedText.length;
+    // Find the last italic text section (working backwards from end)
+    let liveStart = null;
+    const content = doc.data.body.content;
+    for (let i = content.length - 1; i >= 0; i--) {
+      const element = content[i];
+      if (element.paragraph && element.paragraph.elements) {
+        for (let j = element.paragraph.elements.length - 1; j >= 0; j--) {
+          const textElement = element.paragraph.elements[j];
+          if (textElement.textRun) {
+            const isItalic = textElement.textRun.textStyle?.italic === true;
+            if (isItalic && textElement.textRun.content.trim()) {
+              // Found it - this is where live section starts
+              liveStart = textElement.startIndex;
+              break;
+            }
+          }
+        }
+        if (liveStart !== null) break;
+      }
+    }
 
+    if (liveStart === null) {
+      throw new Error('Could not find italic live section in document');
+    }
+
+    const finalizedText = text + ' ';
     const resetText = '[Listening...]\n';
-    const requests = [];
 
-    // Delete current live section (if there's anything after the finalized text)
-    if (newLiveStart < docEnd - 1) {
-      requests.push({
+    // Single atomic operation: insert finalized, delete live, re-insert placeholder
+    const requests = [
+      // 1. Insert finalized text BEFORE live section
+      {
+        insertText: {
+          text: finalizedText,
+          location: { index: liveStart }
+        }
+      },
+      // 2. Format it as normal (not italic)
+      {
+        updateTextStyle: {
+          textStyle: {
+            italic: false
+          },
+          range: {
+            startIndex: liveStart,
+            endIndex: liveStart + finalizedText.length
+          },
+          fields: 'italic'
+        }
+      },
+      // 3. Delete old live section (now shifted by finalizedText.length)
+      {
         deleteContentRange: {
           range: {
-            startIndex: newLiveStart,
+            startIndex: liveStart + finalizedText.length,
             endIndex: docEnd - 1
           }
         }
-      });
-    }
-
-    // Re-insert italic placeholder
-    requests.push({
-      insertText: {
-        text: resetText,
-        location: { index: newLiveStart }
+      },
+      // 4. Insert new italic placeholder
+      {
+        insertText: {
+          text: resetText,
+          location: { index: liveStart + finalizedText.length }
+        }
+      },
+      // 5. Format it as italic
+      {
+        updateTextStyle: {
+          textStyle: {
+            italic: true
+          },
+          range: {
+            startIndex: liveStart + finalizedText.length,
+            endIndex: liveStart + finalizedText.length + resetText.length
+          },
+          fields: 'italic'
+        }
       }
-    });
-
-    // Make it italic
-    requests.push({
-      updateTextStyle: {
-        textStyle: {
-          italic: true
-        },
-        range: {
-          startIndex: newLiveStart,
-          endIndex: newLiveStart + resetText.length
-        },
-        fields: 'italic'
-      }
-    });
+    ];
 
     await docs.documents.batchUpdate({
       documentId,
