@@ -1332,14 +1332,12 @@
       var lastCommittedTimestamp = 0;
       var transcriptionSegments = [];  // Store all final segments with timestamps
 
-      // Google Docs Integration
+      // Google Docs Integration - Two Section Model
       var googleDocsEnabled = false;
       var googleDocsId = null;
-      var googleDocsFinalizedEndIndex = null;  // Changed from liveStartIndex - tracks where finalized text ends
+      var googleDocsLiveStartIndex = null;  // Where the 🔴 LIVE section starts
       var googleDocsUpdateThrottle = null;
-      var googleDocsFinalizedText = '';  // Accumulated finalized segments (batched)
-      var googleDocsInProgressText = '';  // Current in-progress segment
-      var googleDocsMaxBatchSize = 500;  // Max characters to batch before forcing send (avoid API limits)
+      var googleDocsCurrentText = '';  // Current text showing in live section
 
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
@@ -1394,16 +1392,15 @@
           const result = await response.json();
           console.log('🔍 [GOOGLE-DOCS] API response:', result);
 
-          googleDocsFinalizedEndIndex = result.finalizedEndIndex;
+          googleDocsLiveStartIndex = result.liveStartIndex;
           googleDocsEnabled = true;
-          googleDocsFinalizedText = '';  // Reset
-          googleDocsInProgressText = '';  // Reset
+          googleDocsCurrentText = '';  // Reset
 
           console.log('✅ [GOOGLE-DOCS] Live section initialized');
           console.log('📄 [GOOGLE-DOCS] Document URL:', result.documentUrl);
-          console.log('📄 [GOOGLE-DOCS] Finalized end index:', googleDocsFinalizedEndIndex);
+          console.log('📄 [GOOGLE-DOCS] Live start index:', googleDocsLiveStartIndex);
           console.log('✅ [GOOGLE-DOCS] googleDocsEnabled = true');
-          console.log('ℹ️  [GOOGLE-DOCS] Using inline formatting: finalized=normal, in-progress=italic+gray');
+          console.log('ℹ️  [GOOGLE-DOCS] Two-section model: live updates + finalized chunks');
 
           return true;
         } catch (error) {
@@ -1414,13 +1411,14 @@
       }
 
       // Update Google Docs with inline formatting (finalized=normal, in-progress=italic+gray)
+      // Update Google Docs live section - simple two-section model
       async function updateGoogleDocsLive(segment) {
         if (!googleDocsEnabled || !googleDocsId) {
           console.log('🔍 [GOOGLE-DOCS-UPDATE] Skipped - googleDocsEnabled:', googleDocsEnabled, 'googleDocsId:', googleDocsId);
           return;
         }
 
-        // segment should have: { text, is_final }
+        // Extract text and is_final flag
         const text = segment?.text || segment;  // Handle both object and string
         const isFinal = segment?.is_final || false;
 
@@ -1430,37 +1428,25 @@
           textPreview: text.substring(0, 50)
         });
 
-        // If this segment is finalized, move it to finalized text
+        // If finalized, call finalize endpoint (moves to permanent section)
         if (isFinal) {
-          googleDocsFinalizedText += text + ' ';
-          googleDocsInProgressText = '';  // Clear in-progress
-          console.log('✅ [GOOGLE-DOCS-UPDATE] Segment finalized. Total finalized length:', googleDocsFinalizedText.length);
-        } else {
-          // In-progress segment - update the current buffer
-          googleDocsInProgressText = text;
-          console.log('📝 [GOOGLE-DOCS-UPDATE] In-progress segment. Length:', googleDocsInProgressText.length);
+          console.log('✅ [GOOGLE-DOCS-UPDATE] Segment is final, calling finalize endpoint');
+          await finalizeGoogleDocsSegment(text);
+          return;
         }
 
-        // Check if we should force send (hit batch size limit)
-        const shouldForceSend = googleDocsFinalizedText.length >= googleDocsMaxBatchSize;
-        const throttleDelay = shouldForceSend ? 100 : 1000;  // Send faster when batch is full
-
-        if (shouldForceSend) {
-          console.log('⚡ [GOOGLE-DOCS-UPDATE] Batch size limit reached, forcing send');
-        }
+        // Otherwise, update the live section with in-progress text
+        googleDocsCurrentText = text;
 
         // Throttle updates to respect Google Docs API rate limits (60/min = 1/sec)
-        // But send faster when batch is full to avoid accumulating too much
         if (googleDocsUpdateThrottle) {
           clearTimeout(googleDocsUpdateThrottle);
         }
 
         googleDocsUpdateThrottle = setTimeout(async () => {
           try {
-            console.log('📤 [GOOGLE-DOCS-UPDATE] Sending update to Google Docs...');
-            console.log('📤 [GOOGLE-DOCS-UPDATE] Finalized text length:', googleDocsFinalizedText.length);
-            console.log('📤 [GOOGLE-DOCS-UPDATE] In-progress text length:', googleDocsInProgressText.length);
-            console.log('📤 [GOOGLE-DOCS-UPDATE] Finalized end index:', googleDocsFinalizedEndIndex);
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Updating live section...');
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Text length:', googleDocsCurrentText.length);
 
             const idToken = await getIdToken();
             if (!idToken) {
@@ -1470,30 +1456,17 @@
 
             const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
 
-            // NEW API FORMAT: Send finalized and in-progress separately
-            const payload = {
-              documentId: googleDocsId,
-              finalizedEndIndex: googleDocsFinalizedEndIndex,
-              finalizedText: googleDocsFinalizedText,  // Gets appended with normal formatting
-              inProgressText: googleDocsInProgressText,  // Gets added with italic+gray
-              isFinal: isFinal
-            };
-
-            console.log('📤 [GOOGLE-DOCS-UPDATE] Payload:', {
-              documentId: payload.documentId,
-              finalizedEndIndex: payload.finalizedEndIndex,
-              finalizedTextLength: payload.finalizedText.length,
-              inProgressTextLength: payload.inProgressText.length,
-              isFinal: payload.isFinal
-            });
-
             const response = await fetch(`${apiUrl}/api/google-docs/update`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({
+                documentId: googleDocsId,
+                liveStartIndex: googleDocsLiveStartIndex,
+                text: googleDocsCurrentText
+              })
             });
 
             console.log('📥 [GOOGLE-DOCS-UPDATE] Response status:', response.status);
@@ -1503,22 +1476,50 @@
               console.error('❌ [GOOGLE-DOCS-UPDATE] Failed to update Google Docs:', error);
             } else {
               const result = await response.json();
-              console.log('✅ [GOOGLE-DOCS-UPDATE] Successfully updated Google Docs:', result);
-
-              // Update finalizedEndIndex if server sent it back
-              if (result.finalizedEndIndex !== undefined) {
-                googleDocsFinalizedEndIndex = result.finalizedEndIndex;
-                console.log('📄 [GOOGLE-DOCS-UPDATE] Updated finalized end index:', googleDocsFinalizedEndIndex);
-
-                // Clear finalized text buffer since it's now in the document
-                googleDocsFinalizedText = '';
-              }
+              console.log('✅ [GOOGLE-DOCS-UPDATE] Successfully updated live section:', result);
             }
           } catch (error) {
             console.error('❌ [GOOGLE-DOCS-UPDATE] Error updating Google Docs:', error);
             console.error('❌ [GOOGLE-DOCS-UPDATE] Error stack:', error.stack);
           }
-        }, throttleDelay); // Dynamic delay: 100ms when batch full, 1000ms otherwise
+        }, 1000); // Update at most once per second
+      }
+
+      // Finalize a segment - move from live to permanent section
+      async function finalizeGoogleDocsSegment(text) {
+        try {
+          console.log('📤 [GOOGLE-DOCS-FINALIZE] Finalizing segment...');
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/google-docs/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              documentId: googleDocsId,
+              liveStartIndex: googleDocsLiveStartIndex,
+              text: text
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] Failed to finalize:', error);
+          } else {
+            const result = await response.json();
+            console.log('✅ [GOOGLE-DOCS-FINALIZE] Segment finalized:', result);
+          }
+        } catch (error) {
+          console.error('❌ [GOOGLE-DOCS-FINALIZE] Error finalizing:', error);
+        }
       }
 
       async function finalizeGoogleDocsTranscription() {
