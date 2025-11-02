@@ -332,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.4.0-consciousness</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.5.0-consciousness</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1038,6 +1038,21 @@
   </script>
 
   <script>
+    // ============================================================
+    // CONFIGURATION - Replaces window.config from app.js
+    // ============================================================
+    window.config = {
+      userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+      userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+      identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
+      region: 'TO_BE_REPLACED_REGION',
+      apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+      s3ApiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+      appUrl: 'TO_BE_REPLACED_APP_URL',
+      whisperLiveWsUrl: 'TO_BE_REPLACED_WHISPERLIVE_WS_URL',
+      googleDocId: 'TO_BE_REPLACED_GOOGLE_DOC_ID'
+    };
+
     // ============================================================
     // MAIN APPLICATION - Merged Recording + Transcription
     // ============================================================
@@ -2839,7 +2854,7 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.4.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.5.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
       console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
       console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
       console.log('%c🎧 Real-time transcription via WhisperLive WebSocket', 'font-size:12px;color:#fbbf24;');
