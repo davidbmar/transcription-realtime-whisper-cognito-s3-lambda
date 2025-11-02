@@ -339,37 +339,43 @@ module.exports.finalizeTranscription = async (event) => {
           },
           fields: 'italic'
         }
-      },
-      // 3. Delete old live section (now shifted by finalizedText.length)
-      {
+      }
+    ];
+
+    // 3. Delete old live section (only if it has content)
+    const newLiveStart = liveStart + finalizedText.length;
+    if (newLiveStart < docEnd - 1) {
+      requests.push({
         deleteContentRange: {
           range: {
-            startIndex: liveStart + finalizedText.length,
+            startIndex: newLiveStart,
             endIndex: docEnd - 1
           }
         }
-      },
-      // 4. Insert new italic placeholder
-      {
-        insertText: {
-          text: resetText,
-          location: { index: liveStart + finalizedText.length }
-        }
-      },
-      // 5. Format it as italic
-      {
-        updateTextStyle: {
-          textStyle: {
-            italic: true
-          },
-          range: {
-            startIndex: liveStart + finalizedText.length,
-            endIndex: liveStart + finalizedText.length + resetText.length
-          },
-          fields: 'italic'
-        }
+      });
+    }
+
+    // 4. Insert new italic placeholder
+    requests.push({
+      insertText: {
+        text: resetText,
+        location: { index: newLiveStart }
       }
-    ];
+    });
+
+    // 5. Format it as italic
+    requests.push({
+      updateTextStyle: {
+        textStyle: {
+          italic: true
+        },
+        range: {
+          startIndex: newLiveStart,
+          endIndex: newLiveStart + resetText.length
+        },
+        fields: 'italic'
+      }
+    });
 
     await docs.documents.batchUpdate({
       documentId,
