@@ -1337,8 +1337,9 @@
       var googleDocsId = null;
       var googleDocsFinalizedEndIndex = null;  // Changed from liveStartIndex - tracks where finalized text ends
       var googleDocsUpdateThrottle = null;
-      var googleDocsFinalizedText = '';  // Accumulated finalized segments
+      var googleDocsFinalizedText = '';  // Accumulated finalized segments (batched)
       var googleDocsInProgressText = '';  // Current in-progress segment
+      var googleDocsMaxBatchSize = 500;  // Max characters to batch before forcing send (avoid API limits)
 
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
@@ -1440,7 +1441,16 @@
           console.log('📝 [GOOGLE-DOCS-UPDATE] In-progress segment. Length:', googleDocsInProgressText.length);
         }
 
+        // Check if we should force send (hit batch size limit)
+        const shouldForceSend = googleDocsFinalizedText.length >= googleDocsMaxBatchSize;
+        const throttleDelay = shouldForceSend ? 100 : 1000;  // Send faster when batch is full
+
+        if (shouldForceSend) {
+          console.log('⚡ [GOOGLE-DOCS-UPDATE] Batch size limit reached, forcing send');
+        }
+
         // Throttle updates to respect Google Docs API rate limits (60/min = 1/sec)
+        // But send faster when batch is full to avoid accumulating too much
         if (googleDocsUpdateThrottle) {
           clearTimeout(googleDocsUpdateThrottle);
         }
@@ -1508,7 +1518,7 @@
             console.error('❌ [GOOGLE-DOCS-UPDATE] Error updating Google Docs:', error);
             console.error('❌ [GOOGLE-DOCS-UPDATE] Error stack:', error.stack);
           }
-        }, 1000); // Update at most once per second
+        }, throttleDelay); // Dynamic delay: 100ms when batch full, 1000ms otherwise
       }
 
       async function finalizeGoogleDocsTranscription() {
