@@ -230,34 +230,49 @@ module.exports.finalizeTranscription = async (event) => {
 
     const docs = getDocsClient();
 
-    // Get current document
+    // Strategy: Two-phase approach to avoid race conditions
+    // Phase 1: Insert finalized text BEFORE "🔴 LIVE:" marker
+    // Phase 2: Fetch fresh document, then clear live section
+
+    // The "🔴 LIVE:\n" marker is at index (liveStartIndex - 10)
+    const liveMarkerStart = liveStartIndex - '🔴 LIVE:\n'.length;
+
+    // Phase 1: Insert finalized text BEFORE the "🔴 LIVE:" marker
+    await docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [{
+          insertText: {
+            text: text + ' ',
+            location: { index: liveMarkerStart }
+          }
+        }]
+      }
+    });
+
+    // Phase 2: Fetch fresh document state
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
+    // Calculate new live section start (shifted by inserted text)
+    const newLiveStart = liveStartIndex + text.length + 1;
+
+    // Clear the live section content and insert "[Listening...]"
     const requests = [];
 
-    // Step 1: Add finalized text to the permanent section (before live section)
-    // Find the "🔴 LIVE:" marker
-    const liveSectionStart = liveStartIndex - '🔴 LIVE:\n'.length;
-
-    requests.push({
-      insertText: {
-        text: text + ' ',
-        location: { index: liveSectionStart }
-      }
-    });
-
-    // Step 2: Clear the live section (replace with "[Listening...]")
-    const newLiveStart = liveSectionStart + text.length + 1 + '🔴 LIVE:\n'.length;
-    requests.push({
-      deleteContentRange: {
-        range: {
-          startIndex: newLiveStart,
-          endIndex: docEnd - 1
+    // Only delete if there's content to delete
+    if (docEnd - 1 > newLiveStart) {
+      requests.push({
+        deleteContentRange: {
+          range: {
+            startIndex: newLiveStart,
+            endIndex: docEnd - 1
+          }
         }
-      }
-    });
+      });
+    }
 
+    // Insert "[Listening...]" in the live section
     requests.push({
       insertText: {
         text: '[Listening...]\n',
