@@ -88,7 +88,7 @@ module.exports.initializeLiveSection = async (event) => {
       minute: '2-digit'
     });
 
-    const headerText = `\n\n─────────────────────────────────────\n🎤 Live Transcription Started: ${timestamp}\n─────────────────────────────────────\n\n[Transcription will appear here as it's finalized]\n\n🔴 LIVE:\n[Listening...]\n`;
+    const headerText = `\n\n─────────────────────────────────────\n🎤 Live Transcription Started: ${timestamp}\n─────────────────────────────────────\n\n`;
 
     const requests = [
       {
@@ -104,8 +104,33 @@ module.exports.initializeLiveSection = async (event) => {
       requestBody: { requests }
     });
 
-    // Calculate where the live section starts
-    const liveStartIndex = endIndex - 1 + headerText.lastIndexOf('🔴 LIVE:\n') + '🔴 LIVE:\n'.length;
+    // Add italic placeholder for live section
+    const liveStartIndex = endIndex - 1 + headerText.length;
+    await docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              text: '[Listening...]\n',
+              location: { index: liveStartIndex }
+            }
+          },
+          {
+            updateTextStyle: {
+              textStyle: {
+                italic: true
+              },
+              range: {
+                startIndex: liveStartIndex,
+                endIndex: liveStartIndex + '[Listening...]\n'.length
+              },
+              fields: 'italic'
+            }
+          }
+        ]
+      }
+    });
 
     return {
       statusCode: 200,
@@ -156,39 +181,19 @@ module.exports.updateLiveTranscription = async (event) => {
 
     const docs = getDocsClient();
 
-    // Get current document and dynamically find the live marker
+    // Get current document
     const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Search for "🔴 LIVE:\n" marker in the document
-    let foundLiveStart = null;
-    for (const element of doc.data.body.content) {
-      if (element.paragraph && element.paragraph.elements) {
-        for (const textElement of element.paragraph.elements) {
-          if (textElement.textRun && textElement.textRun.content) {
-            const content = textElement.textRun.content;
-            const liveIndex = content.indexOf('🔴 LIVE:\n');
-            if (liveIndex >= 0) {
-              foundLiveStart = textElement.startIndex + liveIndex + '🔴 LIVE:\n'.length;
-              break;
-            }
-          }
-        }
-        if (foundLiveStart) break;
-      }
-    }
-
-    if (!foundLiveStart) {
-      throw new Error('Could not find 🔴 LIVE: marker in document for live update');
-    }
-
-    // Delete everything from after the marker to the end, then insert new text
+    // Use the liveStartIndex passed from frontend
+    // Delete everything from liveStartIndex to end, then insert new italic text
+    const newText = text + '\n';
     const requests = [
       // Delete current live section content
       {
         deleteContentRange: {
           range: {
-            startIndex: foundLiveStart,
+            startIndex: liveStartIndex,
             endIndex: docEnd - 1
           }
         }
@@ -196,8 +201,21 @@ module.exports.updateLiveTranscription = async (event) => {
       // Insert new live text
       {
         insertText: {
-          text: text + '\n',
-          location: { index: foundLiveStart }
+          text: newText,
+          location: { index: liveStartIndex }
+        }
+      },
+      // Make it italic
+      {
+        updateTextStyle: {
+          textStyle: {
+            italic: true
+          },
+          range: {
+            startIndex: liveStartIndex,
+            endIndex: liveStartIndex + newText.length
+          },
+          fields: 'italic'
         }
       }
     ];
@@ -253,96 +271,64 @@ module.exports.finalizeTranscription = async (event) => {
     const docs = getDocsClient();
 
     // Strategy: Two-phase approach to avoid race conditions
-    // Phase 1: Find live marker and insert finalized text BEFORE it
-    // Phase 2: Fetch fresh document, then clear live section
+    // Phase 1: Insert finalized text BEFORE the live section
+    // Phase 2: Clear and reset the live section as italic
 
-    // Phase 1: Fetch document and find the "🔴 LIVE:\n" marker
-    let doc = await docs.documents.get({ documentId });
-
-    // Search for "🔴 LIVE:\n" marker in the document
-    let liveMarkerStart = null;
-    for (const element of doc.data.body.content) {
-      if (element.paragraph && element.paragraph.elements) {
-        for (const textElement of element.paragraph.elements) {
-          if (textElement.textRun && textElement.textRun.content) {
-            const content = textElement.textRun.content;
-            const liveIndex = content.indexOf('🔴 LIVE:\n');
-            if (liveIndex >= 0) {
-              liveMarkerStart = textElement.startIndex + liveIndex;
-              break;
-            }
-          }
-        }
-        if (liveMarkerStart !== null) break;
-      }
-    }
-
-    if (liveMarkerStart === null) {
-      throw new Error('Could not find 🔴 LIVE: marker in document for Phase 1');
-    }
-
-    // Insert finalized text BEFORE the "🔴 LIVE:" marker
+    // Phase 1: Insert finalized text at liveStartIndex position
     await docs.documents.batchUpdate({
       documentId,
       requestBody: {
         requests: [{
           insertText: {
             text: text + ' ',
-            location: { index: liveMarkerStart }
+            location: { index: liveStartIndex }
           }
         }]
       }
     });
 
-    // Phase 2: Fetch fresh document state and find the live marker
-    doc = await docs.documents.get({ documentId });
+    // Phase 2: Fetch fresh document state and reset live section
+    const doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Search for "🔴 LIVE:\n" marker in the document
-    let foundLiveStart = null;
-    for (const element of doc.data.body.content) {
-      if (element.paragraph && element.paragraph.elements) {
-        for (const textElement of element.paragraph.elements) {
-          if (textElement.textRun && textElement.textRun.content) {
-            const content = textElement.textRun.content;
-            const liveIndex = content.indexOf('🔴 LIVE:\n');
-            if (liveIndex >= 0) {
-              foundLiveStart = textElement.startIndex + liveIndex + '🔴 LIVE:\n'.length;
-              break;
-            }
-          }
-        }
-        if (foundLiveStart) break;
-      }
-    }
+    // Calculate new live start position (shifted by the length of finalized text)
+    const finalizedLength = (text + ' ').length;
+    const newLiveStart = liveStartIndex + finalizedLength;
 
-    if (!foundLiveStart) {
-      throw new Error('Could not find 🔴 LIVE: marker in document');
-    }
-
-    // Clear the live section and reset it
-    // Strategy: Delete everything from live marker to end, then re-insert the full live section
-    const liveMarkerIndex = foundLiveStart - '🔴 LIVE:\n'.length;
-
+    const resetText = '[Listening...]\n';
     const requests = [];
 
-    // Delete from the "🔴 LIVE:" marker to the end
-    if (docEnd - 1 > liveMarkerIndex) {
+    // Delete current live section
+    if (docEnd - 1 > newLiveStart) {
       requests.push({
         deleteContentRange: {
           range: {
-            startIndex: liveMarkerIndex,
+            startIndex: newLiveStart,
             endIndex: docEnd - 1
           }
         }
       });
     }
 
-    // Re-insert the full live section structure
+    // Re-insert italic placeholder
     requests.push({
       insertText: {
-        text: '🔴 LIVE:\n[Listening...]\n',
-        location: { index: liveMarkerIndex }
+        text: resetText,
+        location: { index: newLiveStart }
+      }
+    });
+
+    // Make it italic
+    requests.push({
+      updateTextStyle: {
+        textStyle: {
+          italic: true
+        },
+        range: {
+          startIndex: newLiveStart,
+          endIndex: newLiveStart + resetText.length
+        },
+        fields: 'italic'
       }
     });
 
