@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <title>Real-Time Audio Recording & Transcription</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
-  <script src="app.js"></script>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <!-- app.js only needed on index.html, not audio.html -->
   <style>
     /* Step 4 IndexDB UI Styles */
     :root{
@@ -332,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.3.0-consciousness</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.4.0-consciousness</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1306,6 +1306,7 @@
       var completedChunks = 0;
       var activeRecorders = [];
       var decodeCtx = null;
+      var transcriptionTimeOffset = null;  // Offset between recording time and WhisperLive time
 
       // WhisperLive state
       var ws = null;
@@ -1315,6 +1316,152 @@
       var transcriptDisplay = null;
       var lastCommittedTimestamp = 0;
       var transcriptionSegments = [];  // Store all final segments with timestamps
+
+      // Google Docs Integration
+      var googleDocsEnabled = false;
+      var googleDocsId = null;
+      var googleDocsLiveStartIndex = null;
+      var googleDocsUpdateThrottle = null;
+      var googleDocsCurrentText = '';
+
+      // Google Docs Helper Functions
+      async function initializeGoogleDocs() {
+        // Check if Google Docs integration is configured
+        const docId = window.config?.googleDocId || localStorage.getItem('googleDocId');
+        if (!docId) {
+          console.log('ℹ️ Google Docs integration not configured');
+          return false;
+        }
+
+        googleDocsId = docId;
+        console.log('📄 Initializing Google Docs integration:', googleDocsId);
+
+        try {
+          // Get ID token for authentication
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ Failed to get ID token for Google Docs');
+            return false;
+          }
+
+          // Initialize live section
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/google-docs/initialize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ documentId: googleDocsId })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ Failed to initialize Google Docs:', error);
+            return false;
+          }
+
+          const result = await response.json();
+          googleDocsLiveStartIndex = result.liveStartIndex;
+          googleDocsEnabled = true;
+
+          console.log('✅ Google Docs live section initialized');
+          console.log('📄 Document URL:', result.documentUrl);
+
+          return true;
+        } catch (error) {
+          console.error('❌ Error initializing Google Docs:', error);
+          return false;
+        }
+      }
+
+      async function updateGoogleDocsLive(text) {
+        if (!googleDocsEnabled || !googleDocsId) return;
+
+        // Throttle updates to respect Google Docs API rate limits (60/min = 1/sec)
+        if (googleDocsUpdateThrottle) {
+          clearTimeout(googleDocsUpdateThrottle);
+        }
+
+        googleDocsCurrentText = text;
+
+        googleDocsUpdateThrottle = setTimeout(async () => {
+          try {
+            const idToken = await getIdToken();
+            if (!idToken) return;
+
+            const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+            const response = await fetch(`${apiUrl}/api/google-docs/update`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({
+                documentId: googleDocsId,
+                liveStartIndex: googleDocsLiveStartIndex,
+                text: googleDocsCurrentText
+              })
+            });
+
+            if (!response.ok) {
+              console.error('❌ Failed to update Google Docs');
+            }
+          } catch (error) {
+            console.error('❌ Error updating Google Docs:', error);
+          }
+        }, 1000); // Update at most once per second
+      }
+
+      async function finalizeGoogleDocsTranscription(text) {
+        if (!googleDocsEnabled || !googleDocsId) return;
+
+        try {
+          const idToken = await getIdToken();
+          if (!idToken) return;
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/google-docs/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              documentId: googleDocsId,
+              liveStartIndex: googleDocsLiveStartIndex,
+              text: text
+            })
+          });
+
+          if (!response.ok) {
+            console.error('❌ Failed to finalize Google Docs transcription');
+          } else {
+            console.log('✅ Finalized transcription to Google Docs');
+          }
+        } catch (error) {
+          console.error('❌ Error finalizing Google Docs:', error);
+        }
+      }
+
+      // Helper to get ID token
+      async function getIdToken() {
+        try {
+          const userPoolId = 'TO_BE_REPLACED_USER_POOL_ID';
+          const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
+
+          // Get username from localStorage
+          const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${userPoolClientId}.LastAuthUser`);
+          if (!lastAuthUser) return null;
+
+          // Get ID token
+          const idToken = localStorage.getItem(`CognitoIdentityServiceProvider.${userPoolClientId}.${lastAuthUser}.idToken`);
+          return idToken;
+        } catch (error) {
+          console.error('Error getting ID token:', error);
+          return null;
+        }
+      }
 
       function chooseMime(){
         var c = ['audio/ogg;codecs=opus','audio/ogg','audio/webm;codecs=opus','audio/webm'];
@@ -1927,6 +2074,21 @@
 
           // Store in global array for chunk association
           if (start !== undefined && end !== undefined) {
+            // Calculate time offset on first transcription segment
+            if (transcriptionTimeOffset === null && start !== undefined) {
+              // WhisperLive timestamps start from when it receives first audio
+              // Recording timestamps start from when recording button was clicked
+              // Calculate the offset: recording_start = whisper_start + offset
+              const firstChunkRecordTime = (chunkStartTimes[0] - startedAt) / 1000;  // In seconds
+              transcriptionTimeOffset = firstChunkRecordTime - start;
+              console.log('%c⏱️ TIME OFFSET DETECTED', 'font-weight:bold;color:#FF6B00;background:#0b1220;padding:4px;', {
+                whisperLiveFirstSegmentStart: start.toFixed(3) + 's',
+                recordingFirstChunkTime: firstChunkRecordTime.toFixed(3) + 's',
+                calculatedOffset: transcriptionTimeOffset.toFixed(3) + 's',
+                explanation: 'All word timestamps will be adjusted by this offset for correct highlighting'
+              });
+            }
+
             transcriptionSegments.push({
               text: text,
               start: start,
@@ -1980,8 +2142,14 @@
 
           // Update all existing chunks with new transcription
           updateChunkTranscriptions();
+
+          // Finalize to Google Docs if enabled
+          finalizeGoogleDocsTranscription(text);
         } else {
           const result = transcriptAccumulator.ingestPartial(text);
+
+          // Update Google Docs live section with partial text
+          updateGoogleDocsLive(text);
 
           // Update partial section (always visible at top)
           const partialSection = document.getElementById('partial-section');
@@ -2063,7 +2231,8 @@
         console.log('[WORD-HIGHLIGHT] Setup called for chunk', {
           chunkIndex: chunk.dataset.chunkIndex,
           chunkStartTime: chunkStartTime,
-          hasAudioElement: !!audioEl
+          hasAudioElement: !!audioEl,
+          timeOffsetApplied: transcriptionTimeOffset !== null ? transcriptionTimeOffset.toFixed(3) + 's' : 'none'
         });
 
         function updateWordHighlights() {
@@ -2176,11 +2345,13 @@
         console.log('[WRAP-WORDS] Wrapping words:', {
           wordCount: segment.words.length,
           segmentTime: segment.start.toFixed(2) + 's → ' + segment.end.toFixed(2) + 's',
-          chunkTime: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's'
+          chunkTime: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's',
+          timeOffset: transcriptionTimeOffset !== null ? transcriptionTimeOffset.toFixed(3) + 's' : 'not calculated yet'
         });
 
         // IMPORTANT: Word timestamps from server are ALREADY ABSOLUTE (server adds segment offset)
-        // DO NOT add segment start time again or we'll double-count!
+        // BUT they're in WhisperLive's timeline. We need to adjust them to recording timeline.
+        // Apply the calculated offset to align WhisperLive time → Recording time
 
         // Filter and wrap only words that fall within chunk boundaries (with small tolerance)
         var WORD_TOLERANCE = 0.5; // Allow words up to 0.5s outside chunk boundaries
@@ -2188,9 +2359,14 @@
         var wrappedParts = segment.words.map(function(word) {
           var wordText = word.word || word.text || '';
 
-          // Word timestamps are already absolute from the server
-          var wordStartAbsolute = parseFloat(word.start) || 0;
-          var wordEndAbsolute = parseFloat(word.end) || 0;
+          // Word timestamps are absolute in WhisperLive timeline, adjust to recording timeline
+          var wordStartWhisper = parseFloat(word.start) || 0;
+          var wordEndWhisper = parseFloat(word.end) || 0;
+
+          // Apply time offset to convert WhisperLive time → Recording time
+          var offset = transcriptionTimeOffset || 0;
+          var wordStartAbsolute = wordStartWhisper + offset;
+          var wordEndAbsolute = wordEndWhisper + offset;
 
           // Check if this word falls within the chunk's time range
           var wordMidpoint = (wordStartAbsolute + wordEndAbsolute) / 2;
@@ -2339,6 +2515,7 @@
           transcriptAccumulator.reset();
           lastCommittedTimestamp = 0;
           transcriptionSegments = [];
+          transcriptionTimeOffset = null;  // Reset offset for new session
 
           startUI();
           setupLiveWaveform(stream);
@@ -2662,20 +2839,13 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.3.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.4.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
       console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
       console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
       console.log('%c🎧 Real-time transcription via WhisperLive WebSocket', 'font-size:12px;color:#fbbf24;');
       console.log('%c🧠 Consciousness: Temporal audio processing enabled', 'font-size:12px;color:#a78bfa;');
       console.log('✅ Word-level highlighting enabled');
       console.log('📖 Features: IndexedDB, S3 upload, real-time transcription, word timestamps');
-
-      // Check API configuration
-      if (window.config) {
-        console.log('✅ API Config loaded:', window.config.s3ApiUrl || window.config.apiUrl);
-      } else {
-        console.warn('⚠️ window.config not found - S3 upload may not work');
-      }
 
       log('UI ready');
 
@@ -2699,7 +2869,8 @@
   </script>
 
   <!-- Include app.js for config -->
-  <script src="app.js"></script>
+  <!-- app.js only needed on index.html, not audio.html -->
+  <!-- <script src="app.js"></script> -->
 
   <!-- Logout Handler -->
   <script>
@@ -2753,6 +2924,16 @@
             window.location.href = 'index.html';
             return;
         }
+
+        // Initialize Google Docs integration if configured
+        // TODO: Implement Google Docs integration
+        // initializeGoogleDocs().then(success => {
+        //     if (success) {
+        //         console.log('📄 Google Docs integration ready');
+        //     }
+        // }).catch(err => {
+        //     console.log('ℹ️ Google Docs not configured:', err.message);
+        // });
     });
 
     // Logout button handler
