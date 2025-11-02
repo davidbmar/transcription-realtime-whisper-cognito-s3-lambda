@@ -3,6 +3,26 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 
+// Secure CORS helper - only allow specific origins
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    process.env.CLOUDFRONT_URL
+  ].filter(Boolean);
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+};
+
+const getSecurityHeaders = (requestOrigin) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(requestOrigin),
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, Content-Length',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+});
+
 // Generate pre-signed URL for audio chunk upload
 module.exports.uploadChunk = async (event) => {
   try {
@@ -28,7 +48,7 @@ module.exports.uploadChunk = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'sessionId and chunkNumber are required' }),
@@ -40,7 +60,7 @@ module.exports.uploadChunk = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'Invalid chunk number' }),
@@ -53,7 +73,7 @@ module.exports.uploadChunk = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'Invalid session ID' }),
@@ -82,7 +102,7 @@ module.exports.uploadChunk = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -101,7 +121,7 @@ module.exports.uploadChunk = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -136,7 +156,7 @@ module.exports.updateSessionMetadata = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'sessionId and metadata are required' }),
@@ -184,7 +204,7 @@ module.exports.updateSessionMetadata = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -199,7 +219,7 @@ module.exports.updateSessionMetadata = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -276,7 +296,7 @@ module.exports.listSessions = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -293,7 +313,7 @@ module.exports.listSessions = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -317,7 +337,7 @@ module.exports.getFailedChunks = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'sessionId is required' }),
@@ -368,7 +388,7 @@ module.exports.getFailedChunks = async (event) => {
       return {
         statusCode: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({
@@ -384,7 +404,7 @@ module.exports.getFailedChunks = async (event) => {
       return {
         statusCode: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({
@@ -401,7 +421,7 @@ module.exports.getFailedChunks = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -437,7 +457,7 @@ module.exports.deleteChunk = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'sessionId and chunkNumber are required' }),
@@ -465,7 +485,7 @@ module.exports.deleteChunk = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -481,7 +501,7 @@ module.exports.deleteChunk = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({

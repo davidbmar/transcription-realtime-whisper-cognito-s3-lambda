@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Deployment Context
+
+**IMPORTANT: Claude Code is running on the Edge Box (3.16.164.228)**
+- This instance acts as the HTTPS proxy for WhisperLive GPU connections
+- All scripts should be written to work "out of the box" after a fresh git clone
+- Never hardcode IPs, credentials, or deployment-specific values
+- Always use `.env` for configuration and script parameters for instance-specific values
+- Scripts must be idempotent and safe to re-run
+
 ## Quick Orientation
 
 **Before you start coding:**
@@ -287,6 +296,10 @@ The repository includes numbered deployment scripts (000-999) that automate the 
 
 # 6. Create test user
 ./scripts/430-create-cognito-user.sh
+
+# 7. (Optional) Setup Google Docs Integration
+./scripts/505-google-docs-live-transcription-demo.sh  # Test locally with Python (optional)
+./scripts/510-setup-google-docs-integration.sh        # Deploy to Lambda (calls 425 automatically)
 ```
 
 **Deployment Order is Critical:**
@@ -295,11 +308,14 @@ The repository includes numbered deployment scripts (000-999) that automate the 
 3. Security lockdown (030, 031) - configures firewalls
 4. UI deployment (425) - injects correct WebSocket URL
 5. User creation (430) - creates test account
+6. (Optional) Google Docs integration (505, 510) - enables live transcription to Google Docs
 
 **Script Categories:**
 - **000-099**: Initial setup and configuration
 - **300-399**: WhisperLive Edge/GPU setup
 - **400-499**: Cognito/S3/Lambda backend deployment
+- **500-599**: Google Docs integration and optional features
+- **800-899**: Operations and maintenance (startup, IP changes, diagnostics)
 
 **Key Scripts Explained:**
 
@@ -332,6 +348,35 @@ The repository includes numbered deployment scripts (000-999) that automate the 
 - Creates test user in Cognito User Pool
 - Sets permanent password (no force change)
 - Useful for testing authentication flow
+
+**820-startup-restore.sh**
+- Starts GPU EC2 instance and restores WhisperLive
+- Auto-detects GPU IP changes after stop/start
+- Updates .env, .env-http, and security groups
+- Recreates Docker containers with new GPU IP
+- Similar to 825 but for GPU instead of edge box
+
+**825-update-edge-box-ip.sh** (NEW)
+- Detects edge box public IP changes
+- Updates .env (EDGE_BOX_DNS, WHISPERLIVE_WS_URL)
+- Regenerates SSL certificate for new IP
+- Restarts Caddy container
+- Redeploys UI with new WebSocket URL
+- Run after edge box stop/start or when WebSocket fails
+
+**826-diagnose-edge-connection.sh** (NEW)
+- Comprehensive diagnostic tool for edge box issues
+- Checks: IP detection, SSL certificate, Caddy status, GPU connectivity
+- Tests: HTTPS endpoints, WebSocket availability
+- Reports issues and suggests fixes
+- Run when troubleshooting WebSocket connection failures
+
+**827-setup-edge-ip-autodetect.sh** (NEW)
+- Sets up systemd service for automatic IP detection on boot
+- Service runs on every edge box startup
+- Eliminates manual intervention after EC2 stop/start
+- Only needs browser certificate acceptance after IP changes
+- Run once to enable automatic edge box IP handling
 
 **Script Library System:**
 All deployment scripts use shared functions from `scripts/lib/common-functions.sh`:
@@ -565,4 +610,96 @@ curl http://<GPU_IP>:9090
 # 4. Test edge box proxy
 curl -k https://<EDGE_BOX_IP>/healthz
 # Should return: OK
+```
+
+### Edge Box IP Changed / WebSocket Connection Fails with Error 1006
+
+**Symptom:** WebSocket connection fails after edge box restart. Browser console shows:
+```
+WebSocket connection to 'wss://3.16.164.228/ws' failed: Error 1006
+WhisperLive WebSocket closed: 1006
+```
+
+**Cause:** Edge box EC2 instance IP changed (happens after stop/start), and:
+1. SSL certificate still has old IP
+2. Browser doesn't trust new certificate
+3. `.env` configuration points to old IP
+
+**Quick Fix:**
+```bash
+# Run on edge box:
+./scripts/825-update-edge-box-ip.sh      # Auto-detects and fixes everything
+./scripts/826-diagnose-edge-connection.sh  # Diagnose issues
+
+# Then in browser:
+1. Visit https://NEW_IP/healthz
+2. Accept certificate warning (Advanced → Proceed)
+3. Hard refresh audio recorder: Ctrl+Shift+R
+```
+
+**Automatic Fix (Recommended):**
+```bash
+# Run once on edge box to enable automatic IP detection on boot:
+./scripts/827-setup-edge-ip-autodetect.sh
+
+# Now edge box will auto-update IP, cert, and config on every boot
+# You only need to accept the new certificate in browser
+```
+
+**What script 825 does:**
+- Detects current edge box public IP
+- Updates `.env` (EDGE_BOX_DNS, WHISPERLIVE_WS_URL)
+- Regenerates SSL certificate for new IP
+- Restarts Caddy container
+- Redeploys UI with new WebSocket URL
+
+**Manual Steps (if scripts unavailable):**
+1. Get new IP: `curl http://checkip.amazonaws.com`
+2. Update `.env`:
+   ```bash
+   EDGE_BOX_DNS=NEW_IP
+   WHISPERLIVE_WS_URL=wss://NEW_IP/ws
+   ```
+3. Regenerate certificate:
+   ```bash
+   cd /opt/riva/certs
+   sudo openssl req -x509 -newkey rsa:4096 -nodes \
+     -keyout server.key -out server.crt -days 365 \
+     -subj "/CN=NEW_IP" -addext "subjectAltName=IP:NEW_IP"
+   sudo chmod 600 server.key && sudo chmod 644 server.crt
+   ```
+4. Restart Caddy:
+   ```bash
+   cd ~/event-b/whisper-live-test
+   docker stop whisperlive-edge && docker rm whisperlive-edge
+   docker compose up -d
+   ```
+5. Redeploy UI: `./scripts/425-deploy-recorder-ui.sh`
+6. Accept cert in browser: https://NEW_IP/healthz
+
+### Audio Playback and Word Highlighting Not Working
+
+**Symptom:** Transcription works, but audio chunks won't play and words don't highlight during playback.
+
+**Browser console shows:**
+```
+Refused to load media from 'blob:...' because it violates the following Content Security Policy directive: "default-src 'self'"
+```
+
+**Cause:** Content Security Policy (CSP) blocking blob URLs needed for audio playback from IndexedDB.
+
+**Fix:**
+1. Check CSP in `ui-source/audio.html` includes `media-src 'self' blob:;` directive
+2. The CSP meta tag should look like:
+   ```html
+   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; ... media-src 'self' blob:; ..." />
+   ```
+3. If missing, add `media-src 'self' blob:;` to the CSP directive
+4. Redeploy: `./scripts/425-deploy-recorder-ui.sh`
+5. Hard refresh browser: Ctrl+Shift+R (Cmd+Shift+R on Mac)
+
+**Verify fix:**
+```bash
+curl -s https://de70by05kq678.cloudfront.net/audio.html | grep -A1 "Content-Security-Policy"
+# Should include: media-src 'self' blob:
 ```

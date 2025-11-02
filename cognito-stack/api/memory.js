@@ -3,6 +3,26 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 
+// Secure CORS helper - only allow specific origins
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    process.env.CLOUDFRONT_URL
+  ].filter(Boolean);
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+};
+
+const getSecurityHeaders = (requestOrigin) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(requestOrigin),
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, Content-Length',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+});
+
 // Authenticated memory storage
 module.exports.storeMemory = async (event) => {
   try {
@@ -61,7 +81,7 @@ module.exports.storeMemory = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -80,7 +100,7 @@ module.exports.storeMemory = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -143,7 +163,7 @@ module.exports.storeMemoryPublic = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -160,7 +180,7 @@ module.exports.storeMemoryPublic = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 

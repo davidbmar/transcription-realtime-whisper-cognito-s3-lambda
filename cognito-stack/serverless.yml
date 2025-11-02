@@ -75,6 +75,7 @@ functions:
     handler: api/s3.listObjects
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/list
@@ -89,6 +90,7 @@ functions:
     handler: api/s3.getDownloadUrl
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/download/{key+}
@@ -103,6 +105,7 @@ functions:
     handler: api/s3.getUploadUrl
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/upload
@@ -117,6 +120,7 @@ functions:
     handler: api/s3.deleteObject
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/delete/{key+}
@@ -131,6 +135,7 @@ functions:
     handler: api/s3.renameObject
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/rename
@@ -145,6 +150,7 @@ functions:
     handler: api/s3.moveObject
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/s3/move
@@ -160,6 +166,7 @@ functions:
     handler: api/audio.uploadChunk
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/audio/upload-chunk
@@ -174,6 +181,7 @@ functions:
     handler: api/audio.updateSessionMetadata
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/audio/session-metadata
@@ -188,6 +196,7 @@ functions:
     handler: api/audio.listSessions
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/audio/sessions
@@ -202,6 +211,7 @@ functions:
     handler: api/audio.getFailedChunks
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/audio/failed-chunks
@@ -216,6 +226,7 @@ functions:
     handler: api/audio.deleteChunk
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/audio/delete-chunk
@@ -231,6 +242,7 @@ functions:
     handler: api/memory.storeMemory
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/memory
@@ -245,11 +257,62 @@ functions:
     handler: api/memory.storeMemoryPublic
     environment:
       S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
     events:
       - http:
           path: api/memory/public
           method: post
           cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  # Google Docs Integration Functions
+  initializeGoogleDocsLiveSection:
+    handler: api/google-docs.initializeLiveSection
+    environment:
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+      GOOGLE_CREDENTIALS_BASE64: ${env:GOOGLE_CREDENTIALS_BASE64}
+    events:
+      - http:
+          path: api/google-docs/initialize
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  updateGoogleDocsLiveTranscription:
+    handler: api/google-docs.updateLiveTranscription
+    environment:
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+      GOOGLE_CREDENTIALS_BASE64: ${env:GOOGLE_CREDENTIALS_BASE64}
+    events:
+      - http:
+          path: api/google-docs/update
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  finalizeGoogleDocsTranscription:
+    handler: api/google-docs.finalizeTranscription
+    environment:
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+      GOOGLE_CREDENTIALS_BASE64: ${env:GOOGLE_CREDENTIALS_BASE64}
+    events:
+      - http:
+          path: api/google-docs/finalize
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
 
 resources:
   Resources:
@@ -265,21 +328,45 @@ resources:
         ProviderARNs:
           - !GetAtt UserPool.Arn
 
+    # Gateway Responses for CORS on errors
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
+    GatewayResponseDefault5XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
     # S3 bucket for website hosting with public access
     WebsiteBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:custom.s3Bucket}
         PublicAccessBlockConfiguration:
-          BlockPublicAcls: false
-          BlockPublicPolicy: false
-          IgnorePublicAcls: false
-          RestrictPublicBuckets: false
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
         CorsConfiguration:
           CorsRules:
-            - AllowedHeaders: ['*']
+            - AllowedHeaders: ['Authorization', 'Content-Type', 'Content-Length', 'x-amz-date', 'x-amz-security-token']
               AllowedMethods: [GET, HEAD, PUT]
-              AllowedOrigins: ['*']
+              AllowedOrigins:
+                - ${env:COGNITO_CLOUDFRONT_URL}
               MaxAge: 3000
 
     # Cognito user pool

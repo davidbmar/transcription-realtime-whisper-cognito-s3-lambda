@@ -3,6 +3,28 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 
+// Secure CORS helper - only allow specific origins
+const getAllowedOrigin = (requestOrigin) => {
+  const allowedOrigins = [
+    process.env.CLOUDFRONT_URL
+  ].filter(Boolean); // Remove undefined values
+
+  return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+};
+
+// Standard security headers
+const getSecurityHeaders = (requestOrigin) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(requestOrigin),
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, Content-Length',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+});
+
 module.exports.listObjects = async (event) => {
   try {
     // Get user claims from the authorizer
@@ -85,7 +107,7 @@ module.exports.listObjects = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -106,7 +128,7 @@ module.exports.listObjects = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -139,7 +161,7 @@ module.exports.getDownloadUrl = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'File key is required' }),
@@ -162,7 +184,7 @@ module.exports.getDownloadUrl = async (event) => {
       return {
         statusCode: 403,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -179,7 +201,7 @@ module.exports.getDownloadUrl = async (event) => {
         return {
           statusCode: 404,
           headers: {
-            'Access-Control-Allow-Origin': '*',
+            ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
             'Access-Control-Allow-Credentials': true,
           },
           body: JSON.stringify({ error: 'File not found' }),
@@ -205,7 +227,7 @@ module.exports.getDownloadUrl = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -223,7 +245,7 @@ module.exports.getDownloadUrl = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -261,7 +283,7 @@ module.exports.getUploadUrl = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'fileName is required' }),
@@ -274,7 +296,7 @@ module.exports.getUploadUrl = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -304,7 +326,7 @@ module.exports.getUploadUrl = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -324,7 +346,7 @@ module.exports.getUploadUrl = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -362,7 +384,7 @@ module.exports.deleteObject = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'File key is required' }),
@@ -378,7 +400,7 @@ module.exports.deleteObject = async (event) => {
       return {
         statusCode: 403,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -400,7 +422,7 @@ module.exports.deleteObject = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -416,7 +438,7 @@ module.exports.deleteObject = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -452,7 +474,7 @@ module.exports.renameObject = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'oldKey and newName are required' }),
@@ -468,7 +490,7 @@ module.exports.renameObject = async (event) => {
       return {
         statusCode: 403,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -483,7 +505,7 @@ module.exports.renameObject = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -512,7 +534,7 @@ module.exports.renameObject = async (event) => {
       return {
         statusCode: 403,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -531,7 +553,7 @@ module.exports.renameObject = async (event) => {
         return {
           statusCode: 404,
           headers: {
-            'Access-Control-Allow-Origin': '*',
+            ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
             'Access-Control-Allow-Credentials': true,
           },
           body: JSON.stringify({ error: 'Source file not found' }),
@@ -546,7 +568,7 @@ module.exports.renameObject = async (event) => {
       return {
         statusCode: 409,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'A file with that name already exists' }),
@@ -609,7 +631,7 @@ module.exports.renameObject = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -626,7 +648,7 @@ module.exports.renameObject = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 
@@ -662,7 +684,7 @@ module.exports.moveObject = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'sourceKey is required' }),
@@ -678,7 +700,7 @@ module.exports.moveObject = async (event) => {
       return {
         statusCode: 403,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ 
@@ -709,7 +731,7 @@ module.exports.moveObject = async (event) => {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'Source and destination are the same' }),
@@ -726,7 +748,7 @@ module.exports.moveObject = async (event) => {
         return {
           statusCode: 404,
           headers: {
-            'Access-Control-Allow-Origin': '*',
+            ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
             'Access-Control-Allow-Credentials': true,
           },
           body: JSON.stringify({ error: 'Source file not found' }),
@@ -741,7 +763,7 @@ module.exports.moveObject = async (event) => {
       return {
         statusCode: 409,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
           'Access-Control-Allow-Credentials': true,
         },
         body: JSON.stringify({ error: 'A file with that name already exists at the destination' }),
@@ -804,7 +826,7 @@ module.exports.moveObject = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({
@@ -821,7 +843,7 @@ module.exports.moveObject = async (event) => {
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
       body: JSON.stringify({ 

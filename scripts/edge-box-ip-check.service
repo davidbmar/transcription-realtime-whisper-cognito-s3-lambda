@@ -1,0 +1,16 @@
+[Unit]
+Description=Edge Box IP Change Detection
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4
+ExecStart=/home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4/scripts/825-update-edge-box-ip.sh
+StandardOutput=journal
+StandardError=journal
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

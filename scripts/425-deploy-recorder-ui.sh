@@ -137,6 +137,15 @@ sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" audio.html
 WHISPERLIVE_WS_URL="${WHISPERLIVE_WS_URL:-wss://${EDGE_BOX_DNS:-localhost}/ws}"
 sed -i "s|TO_BE_REPLACED_WHISPERLIVE_WS_URL|$WHISPERLIVE_WS_URL|g" audio.html
 
+# Replace Google Doc ID (optional - only if configured)
+if [ -n "${GOOGLE_DOC_ID:-}" ]; then
+    sed -i "s|TO_BE_REPLACED_GOOGLE_DOC_ID|$GOOGLE_DOC_ID|g" audio.html
+    log_info "  - Google Doc ID configured: $GOOGLE_DOC_ID"
+else
+    # Leave placeholder if not configured (will be detected as not configured in browser)
+    log_info "  - Google Doc ID not configured (feature disabled)"
+fi
+
 log_success "Configuration updated in audio.html"
 echo ""
 
@@ -217,25 +226,24 @@ sed -i "/<\/body>/i\    <script>\
             window.location.href = 'index.html';\
             return;\
         }\
-    });\
-    \
-    \/\/ Logout button handler\
-    document.getElementById('logout-button').addEventListener('click', function() {\
-        const userPoolClientId = '${COGNITO_USER_POOL_CLIENT_ID}';\
-        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;\
-        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');\
         \
-        if (lastAuthUser) {\
-            localStorage.removeItem(keyPrefix + '.LastAuthUser');\
-            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');\
-            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');\
-            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.clockDrift');\
+        \/\/ Logout button handler (MOVED INSIDE DOMContentLoaded)\
+        const logoutButton = document.getElementById('logout-button');\
+        if (logoutButton) {\
+            logoutButton.addEventListener('click', function() {\
+                if (lastAuthUser) {\
+                    localStorage.removeItem(keyPrefix + '.LastAuthUser');\
+                    localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');\
+                    localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');\
+                    localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.clockDrift');\
+                }\
+                \
+                localStorage.removeItem('id_token');\
+                localStorage.removeItem('access_token');\
+                \
+                window.location.href = 'index.html';\
+            });\
         }\
-        \
-        localStorage.removeItem('id_token');\
-        localStorage.removeItem('access_token');\
-        \
-        window.location.href = 'index.html';\
     });\
     <\/script>" audio.html
 
@@ -267,6 +275,13 @@ sed -i "s|YOUR_CLOUDFRONT_API_ENDPOINT|${COGNITO_API_ENDPOINT}|g" app.js
 sed -i "s|YOUR_CLOUDFRONT_S3_API_ENDPOINT|${COGNITO_API_ENDPOINT}|g" app.js
 sed -i "s|YOUR_APP_URL|${COGNITO_CLOUDFRONT_URL}|g" app.js
 sed -i "s|YOUR_API_ENDPOINT|${COGNITO_API_ENDPOINT}|g" app.js
+sed -i "s|YOUR_WHISPERLIVE_WS_URL|${WHISPERLIVE_WS_URL}|g" app.js
+sed -i "s|YOUR_GOOGLE_DOC_ID|${GOOGLE_DOC_ID:-}|g" app.js
+
+log_info "  - WhisperLive WebSocket URL: ${WHISPERLIVE_WS_URL}"
+if [ -n "${GOOGLE_DOC_ID:-}" ]; then
+    log_info "  - Google Doc ID: ${GOOGLE_DOC_ID}"
+fi
 
 # Note: app.js.template already has:
 # - checkAuthentication() that shows dashboard-section when user is authenticated

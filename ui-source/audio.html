@@ -332,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v5.5.0-consciousness</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v5.5.1-gdocs</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1341,26 +1341,36 @@
 
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
+        console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() called');
+        console.log('🔍 [GOOGLE-DOCS] window.config:', window.config);
+
         // Check if Google Docs integration is configured
         const docId = window.config?.googleDocId || localStorage.getItem('googleDocId');
-        if (!docId) {
-          console.log('ℹ️ Google Docs integration not configured');
+        console.log('🔍 [GOOGLE-DOCS] Extracted docId:', docId);
+
+        if (!docId || docId.startsWith('TO_BE_REPLACED_')) {
+          console.log('ℹ️ [GOOGLE-DOCS] Integration not configured (no docId or placeholder not replaced)');
           return false;
         }
 
         googleDocsId = docId;
-        console.log('📄 Initializing Google Docs integration:', googleDocsId);
+        console.log('📄 [GOOGLE-DOCS] Initializing with docId:', googleDocsId);
 
         try {
           // Get ID token for authentication
+          console.log('🔍 [GOOGLE-DOCS] Getting ID token...');
           const idToken = await getIdToken();
           if (!idToken) {
-            console.error('❌ Failed to get ID token for Google Docs');
+            console.error('❌ [GOOGLE-DOCS] Failed to get ID token');
             return false;
           }
+          console.log('✅ [GOOGLE-DOCS] Got ID token');
 
           // Initialize live section
           const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          console.log('🔍 [GOOGLE-DOCS] API URL:', apiUrl);
+          console.log('🔍 [GOOGLE-DOCS] Calling initialize endpoint...');
+
           const response = await fetch(`${apiUrl}/api/google-docs/initialize`, {
             method: 'POST',
             headers: {
@@ -1370,28 +1380,39 @@
             body: JSON.stringify({ documentId: googleDocsId })
           });
 
+          console.log('🔍 [GOOGLE-DOCS] Response status:', response.status);
+
           if (!response.ok) {
             const error = await response.json();
-            console.error('❌ Failed to initialize Google Docs:', error);
+            console.error('❌ [GOOGLE-DOCS] API returned error:', error);
+            console.error('❌ [GOOGLE-DOCS] Response status:', response.status);
             return false;
           }
 
           const result = await response.json();
+          console.log('🔍 [GOOGLE-DOCS] API response:', result);
+
           googleDocsLiveStartIndex = result.liveStartIndex;
           googleDocsEnabled = true;
 
-          console.log('✅ Google Docs live section initialized');
-          console.log('📄 Document URL:', result.documentUrl);
+          console.log('✅ [GOOGLE-DOCS] Live section initialized');
+          console.log('📄 [GOOGLE-DOCS] Document URL:', result.documentUrl);
+          console.log('📄 [GOOGLE-DOCS] Live start index:', googleDocsLiveStartIndex);
+          console.log('✅ [GOOGLE-DOCS] googleDocsEnabled = true');
 
           return true;
         } catch (error) {
-          console.error('❌ Error initializing Google Docs:', error);
+          console.error('❌ [GOOGLE-DOCS] Exception during initialization:', error);
+          console.error('❌ [GOOGLE-DOCS] Error stack:', error.stack);
           return false;
         }
       }
 
       async function updateGoogleDocsLive(text) {
-        if (!googleDocsEnabled || !googleDocsId) return;
+        if (!googleDocsEnabled || !googleDocsId) {
+          console.log('🔍 [GOOGLE-DOCS-UPDATE] Skipped - googleDocsEnabled:', googleDocsEnabled, 'googleDocsId:', googleDocsId);
+          return;
+        }
 
         // Throttle updates to respect Google Docs API rate limits (60/min = 1/sec)
         if (googleDocsUpdateThrottle) {
@@ -1399,31 +1420,51 @@
         }
 
         googleDocsCurrentText = text;
+        console.log('🔍 [GOOGLE-DOCS-UPDATE] Throttling update, will send in 1s. Text length:', text.length);
 
         googleDocsUpdateThrottle = setTimeout(async () => {
           try {
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Sending update to Google Docs...');
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Document ID:', googleDocsId);
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Live start index:', googleDocsLiveStartIndex);
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Text (first 100 chars):', googleDocsCurrentText.substring(0, 100));
+
             const idToken = await getIdToken();
-            if (!idToken) return;
+            if (!idToken) {
+              console.error('❌ [GOOGLE-DOCS-UPDATE] No ID token');
+              return;
+            }
 
             const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+            const payload = {
+              documentId: googleDocsId,
+              liveStartIndex: googleDocsLiveStartIndex,
+              text: googleDocsCurrentText
+            };
+            console.log('📤 [GOOGLE-DOCS-UPDATE] API URL:', `${apiUrl}/api/google-docs/update`);
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Payload:', payload);
+
             const response = await fetch(`${apiUrl}/api/google-docs/update`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({
-                documentId: googleDocsId,
-                liveStartIndex: googleDocsLiveStartIndex,
-                text: googleDocsCurrentText
-              })
+              body: JSON.stringify(payload)
             });
 
+            console.log('📥 [GOOGLE-DOCS-UPDATE] Response status:', response.status);
+
             if (!response.ok) {
-              console.error('❌ Failed to update Google Docs');
+              const error = await response.json();
+              console.error('❌ [GOOGLE-DOCS-UPDATE] Failed to update Google Docs:', error);
+            } else {
+              const result = await response.json();
+              console.log('✅ [GOOGLE-DOCS-UPDATE] Successfully updated Google Docs:', result);
             }
           } catch (error) {
-            console.error('❌ Error updating Google Docs:', error);
+            console.error('❌ [GOOGLE-DOCS-UPDATE] Error updating Google Docs:', error);
+            console.error('❌ [GOOGLE-DOCS-UPDATE] Error stack:', error.stack);
           }
         }, 1000); // Update at most once per second
       }
@@ -2854,7 +2895,7 @@
         }
       }
 
-      console.log('%c🎤 Audio Recorder v5.5.0-consciousness', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c🎤 Audio Recorder v5.5.1-gdocs', 'font-size:16px;font-weight:bold;color:#3be38a;');
       console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
       console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
       console.log('%c🎧 Real-time transcription via WhisperLive WebSocket', 'font-size:12px;color:#fbbf24;');
@@ -2880,6 +2921,27 @@
         log('Storage not available');
         storageStatus.textContent = 'Storage: Not available';
       }
+
+      // Initialize Google Docs integration (INSIDE main script scope)
+      console.log('📍 [SCOPE-CHECK] ✅ Inside main IIFE - initializeGoogleDocs should be defined');
+      console.log('📍 [SCOPE-CHECK] typeof initializeGoogleDocs:', typeof initializeGoogleDocs);
+      console.log('📍 [SCOPE-CHECK] typeof window.config:', typeof window.config);
+      console.log('🚀 [GOOGLE-DOCS] Starting Google Docs initialization...');
+      initializeGoogleDocs().then(success => {
+        console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() returned:', success);
+        if (success) {
+          console.log('✅ [GOOGLE-DOCS] ✅✅✅ Google Docs integration ready! ✅✅✅');
+          log('📄 Google Docs live transcription enabled');
+        } else {
+          console.log('⚠️ [GOOGLE-DOCS] initializeGoogleDocs() returned false');
+          log('ℹ️ Google Docs integration not configured');
+        }
+      }).catch(err => {
+        console.error('❌ [GOOGLE-DOCS] Caught exception during init:', err);
+        console.error('❌ [GOOGLE-DOCS] Error message:', err.message);
+        console.error('❌ [GOOGLE-DOCS] Error stack:', err.stack);
+        log('❌ Google Docs initialization failed: ' + err.message);
+      });
     })();
   </script>
 
@@ -2939,16 +3001,6 @@
             window.location.href = 'index.html';
             return;
         }
-
-        // Initialize Google Docs integration if configured
-        // TODO: Implement Google Docs integration
-        // initializeGoogleDocs().then(success => {
-        //     if (success) {
-        //         console.log('📄 Google Docs integration ready');
-        //     }
-        // }).catch(err => {
-        //     console.log('ℹ️ Google Docs not configured:', err.message);
-        // });
     });
 
     // Logout button handler
