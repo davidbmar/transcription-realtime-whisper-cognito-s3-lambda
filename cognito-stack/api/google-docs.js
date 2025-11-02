@@ -231,13 +231,35 @@ module.exports.finalizeTranscription = async (event) => {
     const docs = getDocsClient();
 
     // Strategy: Two-phase approach to avoid race conditions
-    // Phase 1: Insert finalized text BEFORE "🔴 LIVE:" marker
+    // Phase 1: Find live marker and insert finalized text BEFORE it
     // Phase 2: Fetch fresh document, then clear live section
 
-    // The "🔴 LIVE:\n" marker is at index (liveStartIndex - 10)
-    const liveMarkerStart = liveStartIndex - '🔴 LIVE:\n'.length;
+    // Phase 1: Fetch document and find the "🔴 LIVE:\n" marker
+    let doc = await docs.documents.get({ documentId });
 
-    // Phase 1: Insert finalized text BEFORE the "🔴 LIVE:" marker
+    // Search for "🔴 LIVE:\n" marker in the document
+    let liveMarkerStart = null;
+    for (const element of doc.data.body.content) {
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun && textElement.textRun.content) {
+            const content = textElement.textRun.content;
+            const liveIndex = content.indexOf('🔴 LIVE:\n');
+            if (liveIndex >= 0) {
+              liveMarkerStart = textElement.startIndex + liveIndex;
+              break;
+            }
+          }
+        }
+        if (liveMarkerStart !== null) break;
+      }
+    }
+
+    if (liveMarkerStart === null) {
+      throw new Error('Could not find 🔴 LIVE: marker in document for Phase 1');
+    }
+
+    // Insert finalized text BEFORE the "🔴 LIVE:" marker
     await docs.documents.batchUpdate({
       documentId,
       requestBody: {
@@ -250,33 +272,55 @@ module.exports.finalizeTranscription = async (event) => {
       }
     });
 
-    // Phase 2: Fetch fresh document state
-    const doc = await docs.documents.get({ documentId });
+    // Phase 2: Fetch fresh document state and find the live marker
+    doc = await docs.documents.get({ documentId });
     const docEnd = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-    // Calculate new live section start (shifted by inserted text)
-    const newLiveStart = liveStartIndex + text.length + 1;
+    // Search for "🔴 LIVE:\n" marker in the document
+    let foundLiveStart = null;
+    for (const element of doc.data.body.content) {
+      if (element.paragraph && element.paragraph.elements) {
+        for (const textElement of element.paragraph.elements) {
+          if (textElement.textRun && textElement.textRun.content) {
+            const content = textElement.textRun.content;
+            const liveIndex = content.indexOf('🔴 LIVE:\n');
+            if (liveIndex >= 0) {
+              foundLiveStart = textElement.startIndex + liveIndex + '🔴 LIVE:\n'.length;
+              break;
+            }
+          }
+        }
+        if (foundLiveStart) break;
+      }
+    }
 
-    // Clear the live section content and insert "[Listening...]"
+    if (!foundLiveStart) {
+      throw new Error('Could not find 🔴 LIVE: marker in document');
+    }
+
+    // Clear the live section and reset it
+    // Strategy: Delete everything from live marker to end, then re-insert the full live section
+    const liveMarkerIndex = foundLiveStart - '🔴 LIVE:\n'.length;
+
     const requests = [];
 
-    // Only delete if there's content to delete
-    if (docEnd - 1 > newLiveStart) {
+    // Delete from the "🔴 LIVE:" marker to the end
+    if (docEnd - 1 > liveMarkerIndex) {
       requests.push({
         deleteContentRange: {
           range: {
-            startIndex: newLiveStart,
+            startIndex: liveMarkerIndex,
             endIndex: docEnd - 1
           }
         }
       });
     }
 
-    // Insert "[Listening...]" in the live section
+    // Re-insert the full live section structure
     requests.push({
       insertText: {
-        text: '[Listening...]\n',
-        location: { index: newLiveStart }
+        text: '🔴 LIVE:\n[Listening...]\n',
+        location: { index: liveMarkerIndex }
       }
     });
 
