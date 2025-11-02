@@ -15,6 +15,7 @@
 # AWS credentials
 .aws/
 credentials
+credentials.json
 
 # Logs
 logs/
