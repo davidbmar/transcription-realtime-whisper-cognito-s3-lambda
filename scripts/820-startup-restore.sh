@@ -139,6 +139,19 @@ if [ "$CURRENT_IP" != "$OLD_IP" ]; then
   else
     echo "GPU_HOST=$CURRENT_IP" >> .env
   fi
+
+  # Update WHISPERLIVE_HOST in main .env (create if doesn't exist)
+  if grep -q "^WHISPERLIVE_HOST=" .env 2>/dev/null; then
+    sed -i "s/^WHISPERLIVE_HOST=.*/WHISPERLIVE_HOST=$CURRENT_IP/" .env
+  else
+    echo "WHISPERLIVE_HOST=$CURRENT_IP" >> .env
+  fi
+
+  # Update WHISPERLIVE_PORT in main .env (create if doesn't exist)
+  if ! grep -q "^WHISPERLIVE_PORT=" .env 2>/dev/null; then
+    echo "WHISPERLIVE_PORT=9090" >> .env
+  fi
+
   log_success "  ✅ .env updated"
 
   # Update .env-http (for WhisperLive edge proxy) - check multiple locations
@@ -167,6 +180,8 @@ if [ "$CURRENT_IP" != "$OLD_IP" ]; then
   log_info "Step 2/5: Exporting environment variables..."
   export GPU_INSTANCE_IP="$CURRENT_IP"
   export GPU_HOST="$CURRENT_IP"
+  export WHISPERLIVE_HOST="$CURRENT_IP"
+  export WHISPERLIVE_PORT="9090"
   log_success "✅ Variables exported for child scripts"
 
   log_info "Step 3/5: Reloading .env configuration..."

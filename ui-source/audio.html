@@ -332,7 +332,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v6.5.0</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v6.6.0</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
       &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
@@ -1340,6 +1340,10 @@
       var googleDocsCurrentText = '';  // Current text showing in live section
       var GOOGLE_DOCS_PARAGRAPH_THRESHOLD = 2.0;  // Pause duration (seconds) to trigger paragraph break
 
+      // Transcription S3 Backup - Chunk-aligned storage
+      var currentChunkSegments = [];  // Accumulate segments for current audio chunk
+      var lastSavedChunkIndex = -1;   // Track which chunk we last saved
+
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
         console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() called');
@@ -1560,6 +1564,96 @@
           }
         } catch (error) {
           console.error('❌ [GOOGLE-DOCS-FINALIZE] Error finalizing Google Docs:', error);
+        }
+      }
+
+      // Transcription S3 Backup Functions
+
+      // Save transcription segments for current audio chunk
+      async function saveTranscriptionChunk(chunkIndex, segments) {
+        if (!segments || segments.length === 0) {
+          console.log(`⚠️ [S3-TRANSCRIPTION] No segments to save for chunk ${chunkIndex}`);
+          return;
+        }
+
+        if (!currentSession) {
+          console.error('❌ [S3-TRANSCRIPTION] No current session');
+          return;
+        }
+
+        try {
+          console.log(`📤 [S3-TRANSCRIPTION] Saving ${segments.length} segments for chunk ${chunkIndex}`);
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [S3-TRANSCRIPTION] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/transcription/save-chunk`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              sessionId: currentSession.id,
+              chunkIndex: chunkIndex,
+              segments: segments
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error(`❌ [S3-TRANSCRIPTION] Failed to save chunk ${chunkIndex}:`, error);
+          } else {
+            const result = await response.json();
+            console.log(`✅ [S3-TRANSCRIPTION] Chunk ${chunkIndex} saved:`, result);
+            lastSavedChunkIndex = chunkIndex;
+          }
+        } catch (error) {
+          console.error(`❌ [S3-TRANSCRIPTION] Error saving chunk ${chunkIndex}:`, error);
+        }
+      }
+
+      // Finalize transcription session - consolidate all chunks
+      async function finalizeTranscriptionSession() {
+        if (!currentSession) {
+          console.log('ℹ️ [S3-TRANSCRIPTION] No session to finalize');
+          return;
+        }
+
+        try {
+          console.log('📤 [S3-TRANSCRIPTION] Finalizing transcription session...');
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [S3-TRANSCRIPTION] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/transcription/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              sessionId: currentSession.id
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ [S3-TRANSCRIPTION] Failed to finalize:', error);
+          } else {
+            const result = await response.json();
+            console.log('✅ [S3-TRANSCRIPTION] Session finalized:', result);
+          }
+        } catch (error) {
+          console.error('❌ [S3-TRANSCRIPTION] Error finalizing session:', error);
         }
       }
 
@@ -1829,6 +1923,19 @@
           uploadChunkToS3(currentSession.id, idx, blob, statusIcon).catch(err => {
             log('Error in S3 upload:', err.message);
           });
+
+          // NEW v6.6.0: Upload transcription segments for this chunk (chunk-aligned backup)
+          if (currentChunkSegments.length > 0 && idx > lastSavedChunkIndex) {
+            console.log(`📤 [S3-TRANSCRIPTION] Uploading ${currentChunkSegments.length} segments for chunk ${idx}`);
+
+            // Save the current chunk's segments
+            saveTranscriptionChunk(idx, [...currentChunkSegments]).catch(err => {
+              log('Error in transcription S3 upload:', err.message);
+            });
+
+            // Clear accumulated segments for next chunk
+            currentChunkSegments = [];
+          }
         }
       }
 
@@ -2215,6 +2322,17 @@
               words: words || []
             });
 
+            // NEW v6.6.0: Accumulate segment for chunk-aligned S3 backup
+            currentChunkSegments.push({
+              text: text,
+              start: start,
+              end: end,
+              is_final: true,
+              paragraph_break: false,  // Will be calculated later when we detect pauses
+              words: words || [],
+              timestamp: new Date().toISOString()
+            });
+
             // Save to IndexedDB for persistence
             if (currentSession && window.audioStorage) {
               window.audioStorage.saveTranscription(
@@ -2272,6 +2390,11 @@
 
               if (paragraphBreak) {
                 console.log(`📄 [GOOGLE-DOCS] Paragraph break detected: ${pauseDuration.toFixed(2)}s pause`);
+
+                // Update the segment we just added to currentChunkSegments
+                if (currentChunkSegments.length > 0) {
+                  currentChunkSegments[currentChunkSegments.length - 1].paragraph_break = true;
+                }
               }
             }
           }
@@ -2714,6 +2837,9 @@
             log('Error updating session:', error.message);
           }
         }
+
+        // NEW v6.6.0: Finalize transcription session in S3 (consolidate all chunk files)
+        await finalizeTranscriptionSession();
 
         stopUI();
       }

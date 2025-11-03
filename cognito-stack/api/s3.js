@@ -64,35 +64,61 @@ module.exports.listObjects = async (event) => {
     
     console.log(`Listing S3 objects in bucket: ${bucketName}, prefix: ${prefix}, onlyNames: ${onlyNames}`);
 
-    // List objects in S3 bucket
-    const s3Params = {
-      Bucket: bucketName,
-      Prefix: prefix,
-      MaxKeys: 100 // Limit results for now
-    };
+    // List objects in S3 bucket with pagination (S3 has 1000 item limit per request)
+    // Fetch up to 10,000 items (10 pages) to show enough sessions while avoiding timeouts
+    let allContents = [];
+    let continuationToken = null;
+    let pageCount = 0;
+    const MAX_PAGES = 10;
 
-    const s3Response = await s3.listObjectsV2(s3Params).promise();
-    
-    console.log(`Found ${s3Response.Contents?.length || 0} objects`);
+    do {
+      const s3Params = {
+        Bucket: bucketName,
+        Prefix: prefix,
+        MaxKeys: 1000
+      };
+
+      if (continuationToken) {
+        s3Params.ContinuationToken = continuationToken;
+      }
+
+      const s3Response = await s3.listObjectsV2(s3Params).promise();
+
+      if (s3Response.Contents) {
+        allContents = allContents.concat(s3Response.Contents);
+      }
+
+      continuationToken = s3Response.IsTruncated ? s3Response.NextContinuationToken : null;
+      pageCount++;
+
+      // Stop after MAX_PAGES to avoid Lambda timeout
+      if (pageCount >= MAX_PAGES) {
+        console.log(`Reached max pages (${MAX_PAGES}), stopping pagination`);
+        break;
+      }
+    } while (continuationToken);
+
+    console.log(`Found ${allContents.length} objects across ${pageCount} pages`);
 
     // Process the results based on the onlyNames flag
     let files;
     if (onlyNames) {
       // Return just filenames, removing the user prefix for cleaner display
-      files = (s3Response.Contents || []).map(obj => {
-        if (userScope && obj.Key.startsWith(`users/${userId}/`)) {
-          return obj.Key.replace(`users/${userId}/`, '');
+      files = allContents.map(obj => {
+        let key = obj.Key;
+        if (userScope && key.startsWith(`users/${userId}/`)) {
+          key = key.replace(`users/${userId}/`, '');
         }
-        return obj.Key;
+        return key;
       });
     } else {
       // Return full metadata with clean display names
-      files = (s3Response.Contents || []).map(obj => {
+      files = allContents.map(obj => {
         let displayKey = obj.Key;
         if (userScope && obj.Key.startsWith(`users/${userId}/`)) {
           displayKey = obj.Key.replace(`users/${userId}/`, '');
         }
-        
+
         return {
           key: obj.Key, // Original S3 key
           displayKey: displayKey, // Clean display name

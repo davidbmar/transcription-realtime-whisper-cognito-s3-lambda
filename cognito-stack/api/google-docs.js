@@ -132,13 +132,22 @@ module.exports.initializeLiveSection = async (event) => {
           {
             updateTextStyle: {
               textStyle: {
-                italic: true
+                italic: true,
+                foregroundColor: {
+                  color: {
+                    rgbColor: {
+                      red: 0.6,
+                      green: 0.6,
+                      blue: 0.6
+                    }
+                  }
+                }
               },
               range: {
                 startIndex: liveStartIndex,
                 endIndex: liveStartIndex + '[Listening...]\n'.length
               },
-              fields: 'italic'
+              fields: 'italic,foregroundColor'
             }
           }
         ]
@@ -267,17 +276,26 @@ module.exports.updateLiveTranscription = async (event) => {
           location: { index: actualLiveStart }
         }
       },
-      // Make it italic
+      // Make it italic and grey (non-finalized)
       {
         updateTextStyle: {
           textStyle: {
-            italic: true
+            italic: true,
+            foregroundColor: {
+              color: {
+                rgbColor: {
+                  red: 0.6,
+                  green: 0.6,
+                  blue: 0.6
+                }
+              }
+            }
           },
           range: {
             startIndex: actualLiveStart,
             endIndex: actualLiveStart + newText.length
           },
-          fields: 'italic'
+          fields: 'italic,foregroundColor'
         }
       }
     ];
@@ -425,18 +443,27 @@ module.exports.finalizeTranscription = async (event) => {
       }
     });
 
-    // 3. Format finalized text as normal (explicitly reset italic)
+    // 3. Format finalized text as BLACK normal (not italic)
     requests.push({
       updateTextStyle: {
         textStyle: {
           italic: false,
-          bold: false
+          bold: false,
+          foregroundColor: {
+            color: {
+              rgbColor: {
+                red: 0.0,
+                green: 0.0,
+                blue: 0.0
+              }
+            }
+          }
         },
         range: {
           startIndex: liveStart,
           endIndex: liveStart + finalizedText.length
         },
-        fields: 'italic,bold'
+        fields: 'italic,bold,foregroundColor'
       }
     });
 
@@ -449,17 +476,26 @@ module.exports.finalizeTranscription = async (event) => {
       }
     });
 
-    // 5. Format placeholder as italic
+    // 5. Format placeholder as grey italic (non-finalized)
     requests.push({
       updateTextStyle: {
         textStyle: {
-          italic: true
+          italic: true,
+          foregroundColor: {
+            color: {
+              rgbColor: {
+                red: 0.6,
+                green: 0.6,
+                blue: 0.6
+              }
+            }
+          }
         },
         range: {
           startIndex: newLiveStart,
           endIndex: newLiveStart + resetText.length
         },
-        fields: 'italic'
+        fields: 'italic,foregroundColor'
       }
     });
 

@@ -246,19 +246,39 @@ module.exports.listSessions = async (event) => {
       throw new Error('S3_BUCKET_NAME environment variable not set');
     }
 
-    // List all session folders for the user
+    // List all session folders for the user with pagination
     const prefix = `users/${userId}/audio/sessions/`;
-    
-    const s3Response = await s3.listObjectsV2({
-      Bucket: bucketName,
-      Prefix: prefix,
-      Delimiter: '/'
-    }).promise();
+
+    let allCommonPrefixes = [];
+    let continuationToken = null;
+
+    do {
+      const s3Params = {
+        Bucket: bucketName,
+        Prefix: prefix,
+        Delimiter: '/',
+        MaxKeys: 1000
+      };
+
+      if (continuationToken) {
+        s3Params.ContinuationToken = continuationToken;
+      }
+
+      const s3Response = await s3.listObjectsV2(s3Params).promise();
+
+      if (s3Response.CommonPrefixes) {
+        allCommonPrefixes = allCommonPrefixes.concat(s3Response.CommonPrefixes);
+      }
+
+      continuationToken = s3Response.IsTruncated ? s3Response.NextContinuationToken : null;
+    } while (continuationToken);
+
+    console.log(`Found ${allCommonPrefixes.length} session folders (paginated)`);
 
     // Extract session folders from CommonPrefixes
     const sessions = [];
-    if (s3Response.CommonPrefixes) {
-      for (const prefix of s3Response.CommonPrefixes) {
+    if (allCommonPrefixes.length > 0) {
+      for (const prefix of allCommonPrefixes) {
         const sessionFolder = prefix.Prefix.split('/').slice(-2)[0]; // Get folder name
         
         // Try to load metadata for each session

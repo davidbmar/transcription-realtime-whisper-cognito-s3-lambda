@@ -314,6 +314,37 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # Transcription S3 Backup Functions
+  saveTranscriptionChunk:
+    handler: api/transcription.saveTranscriptionChunk
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/transcription/save-chunk
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  finalizeTranscriptionSession:
+    handler: api/transcription.finalizeTranscription
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/transcription/finalize
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
 resources:
   Resources:
     # API Gateway Authorizer

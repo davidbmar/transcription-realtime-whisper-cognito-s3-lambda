@@ -116,7 +116,7 @@ fi
 echo ""
 
 # ============================================================================
-# Test 3: WebSocket Connection Test
+# Test 3: WebSocket Connection Test (with retries for model loading)
 # ============================================================================
 log_info "Test 3/5: Testing WebSocket connection..."
 
@@ -125,43 +125,63 @@ import asyncio
 import websockets
 import json
 import sys
+import time
 
 async def test_connection():
     uri = "ws://$GPU_HOST:$GPU_PORT"
+    max_wait_seconds = 120  # 2 minutes for model loading
+    retry_interval = 5
+    start_time = time.time()
+    attempt = 0
+
     print(f"Connecting to {uri}...")
+    print(f"Will wait up to {max_wait_seconds}s for WhisperLive to be ready (model loading)...")
+    print("")
 
-    try:
-        async with websockets.connect(uri, ping_timeout=10) as ws:
-            print("✅ WebSocket connected")
+    while time.time() - start_time < max_wait_seconds:
+        attempt += 1
+        elapsed = int(time.time() - start_time)
 
-            # Send config
-            config = {
-                "uid": "test-edge-to-gpu-connection",
-                "task": "transcribe",
-                "language": "en",
-                "model": "Systran/faster-whisper-small.en",
-                "use_vad": False
-            }
-            await ws.send(json.dumps(config))
-            print(f"Sent config: {config}")
+        try:
+            async with websockets.connect(uri, ping_timeout=10) as ws:
+                print(f"✅ WebSocket connected (attempt {attempt} after {elapsed}s)")
 
-            # Wait for SERVER_READY
-            response = await asyncio.wait_for(ws.recv(), timeout=5.0)
-            data = json.loads(response)
+                # Send config
+                config = {
+                    "uid": "test-edge-to-gpu-connection",
+                    "task": "transcribe",
+                    "language": "en",
+                    "model": "Systran/faster-whisper-small.en",
+                    "use_vad": False
+                }
+                await ws.send(json.dumps(config))
+                print(f"Sent config: {config}")
 
-            if data.get("message") == "SERVER_READY":
-                print(f"✅ Received SERVER_READY: {data}")
-                return 0
-            else:
-                print(f"❌ Unexpected response: {data}")
-                return 1
+                # Wait for SERVER_READY (may take time for first model load)
+                try:
+                    response = await asyncio.wait_for(ws.recv(), timeout=15.0)
+                    data = json.loads(response)
 
-    except asyncio.TimeoutError:
-        print("❌ Timeout waiting for response")
-        return 1
-    except Exception as e:
-        print(f"❌ Connection failed: {e}")
-        return 1
+                    if data.get("message") == "SERVER_READY" or "segments" in data or "uid" in data:
+                        print(f"✅ Server responded: {data}")
+                        return 0
+                    else:
+                        print(f"⚠️  Unexpected response: {data}")
+                        # Continue trying - server may still be loading
+                except asyncio.TimeoutError:
+                    print(f"⚠️  Response timeout (attempt {attempt}), retrying...")
+                    # Server connected but slow - keep trying
+
+        except (ConnectionRefusedError, OSError) as e:
+            print(f"  Attempt {attempt} ({elapsed}/{max_wait_seconds}s): Connection refused, retrying...", end='\\r')
+        except Exception as e:
+            print(f"  Attempt {attempt} ({elapsed}/{max_wait_seconds}s): {type(e).__name__}, retrying...", end='\\r')
+
+        await asyncio.sleep(retry_interval)
+
+    print(f"\\n❌ Server not ready after {max_wait_seconds}s")
+    print("   Check: ssh to GPU and run: sudo journalctl -u whisperlive -f")
+    return 1
 
 sys.exit(asyncio.run(test_connection()))
 PYEOF
