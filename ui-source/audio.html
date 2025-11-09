@@ -365,6 +365,7 @@
       <div class="row" style="flex-wrap:wrap;gap:8px;">
         <button id="btn-start" class="btn btn-accent">🎙 Start Recording</button>
         <button id="btn-stop" class="btn" disabled>⏹ Stop</button>
+        <button id="btn-share" class="btn" disabled title="Share live transcript link">👁️ Share Live Transcript</button>
         <button id="clearBtn" class="btn">🗑️ Clear</button>
         <button id="clearDbBtn" class="btn">🗄️ Clear DB</button>
         <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">Chunk:
@@ -1049,8 +1050,8 @@
       apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
       s3ApiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
       appUrl: 'TO_BE_REPLACED_APP_URL',
-      whisperLiveWsUrl: 'TO_BE_REPLACED_WHISPERLIVE_WS_URL',
-      googleDocId: 'TO_BE_REPLACED_GOOGLE_DOC_ID'
+      whisperLiveWsUrl: 'TO_BE_REPLACED_WHISPERLIVE_WS_URL'
+      // googleDocId removed - Google Docs integration disabled
     };
 
     // ============================================================
@@ -1346,6 +1347,12 @@
 
       // Google Docs Helper Functions
       async function initializeGoogleDocs() {
+        // Google Docs integration disabled
+        console.log('ℹ️ [GOOGLE-DOCS] Integration disabled');
+        return false;
+
+        // Original code kept for reference but never executed
+        /*
         console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() called');
         console.log('🔍 [GOOGLE-DOCS] window.config:', window.config);
 
@@ -1357,6 +1364,7 @@
           console.log('ℹ️ [GOOGLE-DOCS] Integration not configured (no docId or placeholder not replaced)');
           return false;
         }
+        */
 
         googleDocsId = docId;
         console.log('📄 [GOOGLE-DOCS] Initializing with docId:', googleDocsId);
@@ -2152,17 +2160,9 @@
         try {
           log('Connecting to WhisperLive...');
 
-          // Get authentication token for WebSocket
-          const authToken = getAuthToken();
-          if (!authToken) {
-            log('⚠️ Warning: No authentication token found. WebSocket connection may be refused.');
-          }
-
-          // Append token to WebSocket URL for authentication
+          // Connect to WhisperLive (no authentication required)
           let wsUrl = window.config?.whisperLiveWsUrl || 'wss://your-edge-box.com/ws';
-          if (authToken) {
-            wsUrl += (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(authToken);
-          }
+          log(`Connecting to: ${wsUrl}`);
 
           ws = new WebSocket(wsUrl);
 
@@ -2738,6 +2738,43 @@
         ws = null;
       }
 
+      // Share Live Transcript function
+      function shareLiveTranscript() {
+        if (!currentSession || !currentSession.id) {
+          alert('No active recording session.\n\nPlease start recording first to share the live transcript.');
+          return;
+        }
+
+        // Get user ID from token
+        const token = localStorage.getItem('id_token');
+        if (!token) {
+          alert('Authentication required. Please login again.');
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const userId = payload.sub;
+
+          // Build viewer URL
+          const viewerUrl = `${window.location.origin}/viewer.html?sessionId=${encodeURIComponent(currentSession.id)}&userId=${encodeURIComponent(userId)}`;
+
+          // Copy to clipboard
+          navigator.clipboard.writeText(viewerUrl).then(() => {
+            alert(`✅ Live Transcript Link Copied!\n\nShare this link to let others watch the live transcription:\n\n${viewerUrl}\n\nAnyone with this link can view the transcription in real-time as you record.`);
+            log('Viewer link copied to clipboard');
+          }).catch(err => {
+            // Fallback: show URL in alert for manual copy
+            alert(`📋 Copy this link to share:\n\n${viewerUrl}`);
+            log('Clipboard copy failed, showed URL in alert');
+          });
+
+        } catch (error) {
+          console.error('Error generating share link:', error);
+          alert('Error generating share link. Please try again.');
+        }
+      }
+
       async function start(){
         if (running) return;
         log('Start clicked');
@@ -2761,6 +2798,7 @@
           running = true;
           startBtn.disabled = true;
           stopBtn.disabled = false;
+          document.getElementById('btn-share').disabled = false;
           palStart.classList.add('hidden');
           palStop.classList.remove('hidden');
 
@@ -2817,6 +2855,7 @@
         dot.classList.remove('good');
         startBtn.disabled = false;
         stopBtn.disabled = true;
+        document.getElementById('btn-share').disabled = true;
         palStart.classList.remove('hidden');
         palStop.classList.add('hidden');
         log('Stopped');
@@ -2943,6 +2982,11 @@
       palStop.addEventListener('click', stop);
       clearBtn?.addEventListener('click', clearList);
       clearDbBtn?.addEventListener('click', clearDatabase);
+
+      // Share Live Transcript button
+      const shareBtn = document.getElementById('btn-share');
+      shareBtn?.addEventListener('click', shareLiveTranscript);
+
       confirmClose.addEventListener('click', ()=> confirmEl.classList.remove('open'));
 
       // Timezone selector: load saved preference and handle changes

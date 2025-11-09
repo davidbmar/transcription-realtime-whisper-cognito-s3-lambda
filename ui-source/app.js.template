@@ -2108,7 +2108,7 @@ function showFileManager() {
     const dashboardSection = document.getElementById('dashboard-section');
     const authenticatedSection = document.getElementById('authenticated-section');
     const memorySection = document.getElementById('memory-section');
-    
+
     // Show file manager, hide other sections
     dashboardSection.style.display = 'none';
     authenticatedSection.style.display = 'block';
@@ -2120,6 +2120,38 @@ function showFileManager() {
             listS3Files();
         }
     }, 100);
+}
+
+function showViewerInstructions() {
+    const instructions = `📖 How to Use Live Transcript Viewer
+
+1. Start Recording:
+   • Go to Audio Recorder
+   • Click "Start Recording"
+   • The recording will begin
+
+2. Share the Live Transcript:
+   • While recording, click "Share Live Transcript" button
+   • A link will be copied to your clipboard
+   • Share this link with anyone who wants to watch
+
+3. View the Transcript:
+   • Open the shared link in a new window/tab
+   • The transcript will update every 3 seconds
+   • Auto-scrolls to show latest text
+
+4. Features:
+   • Real-time updates while recording
+   • Copy or download transcript
+   • Works across multiple devices
+   • Requires authentication to view
+
+Need help? The viewer URL format is:
+viewer.html?sessionId={sessionId}&userId={userId}
+
+You can also bookmark sessions to view them later!`;
+
+    alert(instructions);
 }
 
 
