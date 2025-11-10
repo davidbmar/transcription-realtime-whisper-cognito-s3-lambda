@@ -1,15 +1,25 @@
 ---
 name: clouddrive-download
-description: Download and search files from CloudDrive S3 storage (development tool - requires AWS credentials)
+description: Download files shared via CloudDrive - the primary way for users to share screenshots, designs, and documents with Claude
 ---
 
 # CloudDrive File Download Skill
 
-Downloads files from the CloudDrive UI's S3 bucket using direct AWS CLI access.
+**Primary file sharing method:** Users upload files to CloudDrive, Claude downloads them automatically.
+
+## Quick Start
+
+**User workflow:**
+1. Upload screenshot/file to CloudDrive web UI
+2. Tell Claude: "Check my latest screenshot" or "Download that design I uploaded"
+3. Claude finds and downloads it automatically
+4. Claude analyzes and responds
+
+**No paths, no user IDs needed** - just natural conversation.
 
 ## Overview
 
-This skill provides file download and search capabilities for the CloudDrive S3 storage system for **development use only**. It requires AWS credentials to be configured with S3 access permissions.
+This skill uses AWS CLI for instant S3 access to CloudDrive files. It's the **fastest and easiest** way to share files with Claude.
 
 **Prerequisites:**
 - AWS CLI installed and configured
@@ -27,21 +37,22 @@ Ensure your AWS credentials are configured via:
 - `~/.aws/credentials` file
 - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 
-## Usage
+## Usage - Natural Language
 
-The skill can be invoked by asking Claude to download or search files from CloudDrive:
+**Just ask naturally! Claude handles everything:**
 
-### Download Files
+### User → Claude File Sharing (Primary Use)
+- "I uploaded a screenshot to CloudDrive"
+- "Check that design mockup I just uploaded"
+- "Download my latest screenshot"
+- "Get the PDF from /documents/"
+- "Show me what I uploaded today"
+
+### Alternative Commands
 - "Download `filename.png` from CloudDrive"
-- "Download the screenshot I uploaded earlier"
-- "Get the file in the test folder"
-- "Download all PDFs from my CloudDrive"
-
-### Search Files
-- "Search for `*.png` files in CloudDrive"
-- "List all files in the test folder"
-- "Find files containing 'screenshot' in the name"
-- "Show me what's in my CloudDrive"
+- "Search for screenshots"
+- "List my CloudDrive files"
+- "Find files with 'design' in the name"
 
 ## Features
 

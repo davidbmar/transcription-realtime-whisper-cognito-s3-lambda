@@ -1,14 +1,22 @@
 # CloudDrive Download Skill
 
-A Claude Code skill for downloading and managing files from the CloudDrive S3 storage system.
+**The easiest way to share files with Claude Code.**
 
-**For Development Use Only** - Requires AWS CLI with configured credentials.
+Upload files to CloudDrive (screenshots, designs, documents) and Claude can instantly download them using this skill.
+
+## Quick Start for File Sharing
+
+**User → Claude workflow:**
+1. Upload file to CloudDrive web UI (any folder, like `images/`)
+2. Tell Claude: "Download my screenshot from CloudDrive"
+3. Claude automatically finds and downloads it
+4. Claude analyzes it and responds
+
+**No need to specify paths or user IDs** - Claude figures it out automatically.
 
 ## Overview
 
-This skill provides file download and search capabilities for CloudDrive using direct AWS CLI access to S3. It's designed for developers and internal users who already have AWS credentials configured.
-
-**End users should access files through the CloudDrive web UI**, which uses secure Cognito OAuth/SRP authentication.
+This skill uses AWS CLI for fast, direct S3 access to CloudDrive files. It's the **primary method** for Claude to access files you share via CloudDrive.
 
 ## Prerequisites
 
@@ -130,25 +138,37 @@ aws configure list
 
 ## Using with Claude Code
 
-Simply ask Claude to download or search files from CloudDrive:
+### For User → Claude File Sharing
 
-**Download Examples:**
-- "Download test-clouddrive.txt from CloudDrive"
-- "Get the file I uploaded earlier called screenshot.png"
-- "Download all PDFs from my CloudDrive"
+**Just upload and tell Claude!** No technical details needed:
 
-**Search Examples:**
-- "Search for PNG files in CloudDrive"
-- "List all files in my CloudDrive"
-- "Find files with 'test' in the name"
-- "Show me what's in the test folder"
+**You say:**
+- "I uploaded a screenshot to CloudDrive, can you check it?"
+- "Download that design mockup I just uploaded"
+- "Get my latest screenshot from /images/"
+- "Find the PDF I uploaded yesterday"
 
-Claude will automatically:
-1. Detect the authentication method
-2. Search for the requested files
-3. Download them to `./clouddrive-downloads/`
-4. Report success and file locations
-5. Offer to display images if applicable
+**Claude responds:**
+- Automatically searches your CloudDrive
+- Downloads the file(s)
+- Analyzes content (images, code, etc.)
+- Gives you feedback/answers
+
+### For Development/Scripting
+
+**Manual usage:**
+```bash
+./download.sh "screenshot"                    # Search by name
+./download.sh "Screenshot 2025-11-09"         # Partial match
+./download.sh "images/*.png"                  # Pattern match
+```
+
+Claude automatically:
+1. Detects user ID from bucket
+2. Searches for files matching your description
+3. Downloads to `./clouddrive-downloads/`
+4. Opens/analyzes files (images, code, etc.)
+5. Provides relevant insights
 
 ## File Structure
 

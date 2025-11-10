@@ -236,20 +236,61 @@ const absoluteStart = segment.start + word.start;
 const absoluteEnd = segment.start + word.end;
 ```
 
+## File Sharing with Claude (Primary Workflow)
+
+**The easiest way to share files:** Upload to CloudDrive, then tell Claude.
+
+### Quick Workflow
+
+1. **User**: Upload screenshot/design/document to CloudDrive web UI (any folder)
+2. **User**: Tell Claude: "Check my latest screenshot" or "I uploaded a design mockup"
+3. **Claude**: Automatically downloads and analyzes the file
+4. **Claude**: Provides feedback/insights
+
+**No need to specify paths, user IDs, or technical details** - Claude figures it out.
+
+### Examples
+
+**You say:**
+- "I uploaded a screenshot to CloudDrive, what do you think?"
+- "Download that UI mockup I just uploaded"
+- "Get my latest screenshot from /images/"
+- "Check the PDF in /documents/"
+
+**Claude does:**
+- Searches CloudDrive for your files
+- Downloads automatically via `clouddrive-download` skill
+- Analyzes content (images, code, PDFs, etc.)
+- Responds with insights
+
+---
+
 ## Claude Code Skills (.claude/skills/)
 
-### clouddrive-download
-AWS CLI-based file download for development.
+### clouddrive-download (Primary File Sharing Method)
+**Recommended for sharing files with Claude.**
+
+AWS CLI-based instant file download from CloudDrive.
+
 ```bash
+# Manual usage (Claude does this automatically):
 cd .claude/skills/clouddrive-download
-./download.sh "filename.png"
-./file-search.sh --list
+./download.sh "screenshot"           # Search by name
+./download.sh "Screenshot 2025-11"   # Partial match
+./file-search.sh --list              # List all files
 ```
 
-Requires AWS credentials with S3 read access. Uses COGNITO_S3_BUCKET from .env.
+**How it works:**
+- Uses IAM credentials for direct S3 access
+- No authentication needed (uses AWS CLI)
+- Instant downloads to `clouddrive-downloads/`
+- Automatically detects user ID
+- Claude can view images, PDFs, code files
 
-### clouddrive-browser
-Playwright-based browser automation for E2E testing.
+**Configuration:** Uses `COGNITO_S3_BUCKET` from .env
+
+### clouddrive-browser (E2E Testing Only)
+Playwright-based browser automation for testing CloudDrive UI.
 ```bash
 cd .claude/skills/clouddrive-browser
 npm install
