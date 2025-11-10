@@ -345,6 +345,18 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # Public Viewer Functions (No Authentication Required)
+  getPublicTranscript:
+    handler: api/viewer-public.getPublicTranscript
+    environment:
+      S3_BUCKET: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/viewer/public/{userId}/{sessionId}/{fileName}
+          method: get
+          cors: true
+          # NO authorizer - public endpoint
+
 resources:
   Resources:
     # API Gateway Authorizer

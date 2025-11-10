@@ -119,6 +119,8 @@ cp "$SOURCE_UI_DIR/styles.css" ./
 # Use audio.html with WhisperLive integration
 cp "$SOURCE_UI_DIR/audio.html" ./audio.html
 
+# Note: Viewer files are deployed separately via 426-deploy-viewer.sh
+
 log_success "UI files copied"
 echo ""
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Real-Time Audio Recording & Transcription</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 wss://*.davidbmar.com https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
   <!-- app.js only needed on index.html, not audio.html -->
   <style>
     /* Step 4 IndexDB UI Styles */
@@ -2756,23 +2756,181 @@
           const payload = JSON.parse(atob(token.split('.')[1]));
           const userId = payload.sub;
 
-          // Build viewer URL
-          const viewerUrl = `${window.location.origin}/viewer.html?sessionId=${encodeURIComponent(currentSession.id)}&userId=${encodeURIComponent(userId)}`;
+          // Build viewer URL with full session ID (short URLs don't work without backend mapping)
+          const fullUrl = `${window.location.origin}/viewer.html?sessionId=${encodeURIComponent(currentSession.id)}&userId=${encodeURIComponent(userId)}`;
 
-          // Copy to clipboard
-          navigator.clipboard.writeText(viewerUrl).then(() => {
-            alert(`✅ Live Transcript Link Copied!\n\nShare this link to let others watch the live transcription:\n\n${viewerUrl}\n\nAnyone with this link can view the transcription in real-time as you record.`);
-            log('Viewer link copied to clipboard');
-          }).catch(err => {
-            // Fallback: show URL in alert for manual copy
-            alert(`📋 Copy this link to share:\n\n${viewerUrl}`);
-            log('Clipboard copy failed, showed URL in alert');
-          });
+          // Create share dialog
+          showShareDialog(fullUrl, fullUrl);
 
         } catch (error) {
           console.error('Error generating share link:', error);
           alert('Error generating share link. Please try again.');
         }
+      }
+
+      // Show share dialog with copyable link
+      function showShareDialog(shortUrl, fullUrl) {
+        // Remove existing dialog if any
+        const existingDialog = document.getElementById('share-dialog');
+        if (existingDialog) existingDialog.remove();
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.id = 'share-dialog';
+        dialog.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+          border: 1px solid rgba(99, 102, 241, 0.3);
+          border-radius: 16px;
+          padding: 24px;
+          min-width: 400px;
+          max-width: 90vw;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        `;
+
+        dialog.innerHTML = `
+          <div style="margin-bottom: 16px;">
+            <h3 style="margin: 0 0 8px 0; color: #f1f5f9; font-size: 18px; font-weight: 600;">
+              👁️ Share Live Transcript
+            </h3>
+            <p style="margin: 0; color: #94a3b8; font-size: 13px;">
+              Anyone with this link can watch the transcription in real-time
+            </p>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; color: #cbd5e1; font-size: 12px; font-weight: 500;">
+              Share Link
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input
+                type="text"
+                id="share-url-input"
+                value="${shortUrl}"
+                readonly
+                style="
+                  flex: 1;
+                  background: rgba(15, 23, 42, 0.8);
+                  border: 1px solid rgba(148, 163, 184, 0.2);
+                  border-radius: 8px;
+                  padding: 10px 12px;
+                  color: #e2e8f0;
+                  font-size: 13px;
+                  font-family: 'Monaco', 'Courier New', monospace;
+                "
+              />
+              <button
+                id="copy-share-url"
+                style="
+                  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                  border: none;
+                  border-radius: 8px;
+                  padding: 10px 16px;
+                  color: white;
+                  font-size: 13px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  white-space: nowrap;
+                  transition: all 0.2s;
+                "
+                onmouseover="this.style.transform='scale(1.05)'"
+                onmouseout="this.style.transform='scale(1)'"
+              >
+                📋 Copy
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <details style="color: #94a3b8; font-size: 12px;">
+              <summary style="cursor: pointer; user-select: none; margin-bottom: 8px;">
+                🔗 Full URL (with session details)
+              </summary>
+              <textarea
+                readonly
+                style="
+                  width: 100%;
+                  background: rgba(15, 23, 42, 0.8);
+                  border: 1px solid rgba(148, 163, 184, 0.2);
+                  border-radius: 8px;
+                  padding: 8px;
+                  color: #94a3b8;
+                  font-size: 11px;
+                  font-family: 'Monaco', 'Courier New', monospace;
+                  resize: none;
+                  height: 60px;
+                  box-sizing: border-box;
+                "
+              >${fullUrl}</textarea>
+            </details>
+          </div>
+
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button
+              id="close-share-dialog"
+              style="
+                background: rgba(148, 163, 184, 0.1);
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                border-radius: 8px;
+                padding: 8px 16px;
+                color: #cbd5e1;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s;
+              "
+              onmouseover="this.style.background='rgba(148, 163, 184, 0.2)'"
+              onmouseout="this.style.background='rgba(148, 163, 184, 0.1)'"
+            >
+              Close
+            </button>
+          </div>
+        `;
+
+        // Add to page
+        document.body.appendChild(dialog);
+
+        // Copy button handler
+        document.getElementById('copy-share-url').addEventListener('click', () => {
+          const input = document.getElementById('share-url-input');
+          input.select();
+          navigator.clipboard.writeText(shortUrl).then(() => {
+            const btn = document.getElementById('copy-share-url');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✅ Copied!';
+            btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            setTimeout(() => {
+              btn.innerHTML = originalText;
+              btn.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+            }, 2000);
+            log('Viewer link copied to clipboard');
+          }).catch(err => {
+            console.error('Copy failed:', err);
+            alert('Failed to copy. Please select and copy manually.');
+          });
+        });
+
+        // Close button handler
+        document.getElementById('close-share-dialog').addEventListener('click', () => {
+          dialog.remove();
+        });
+
+        // Click outside to close
+        setTimeout(() => {
+          document.addEventListener('click', function closeOnClickOutside(e) {
+            if (!dialog.contains(e.target) && e.target.id !== 'btn-share') {
+              dialog.remove();
+              document.removeEventListener('click', closeOnClickOutside);
+            }
+          });
+        }, 100);
+
+        // Auto-select URL for easy copying
+        document.getElementById('share-url-input').select();
       }
 
       async function start(){

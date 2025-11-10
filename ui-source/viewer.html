@@ -26,6 +26,12 @@
                 <button class="btn btn-secondary" onclick="toggleAutoScroll()" id="autoscroll-btn">
                     <i class="fas fa-arrow-down"></i> Auto-scroll: ON
                 </button>
+                <select class="btn btn-secondary" onchange="changePollInterval(this.value)" id="poll-interval-select" style="padding: 8px 12px; cursor: pointer;">
+                    <option value="1000">Fast (1s)</option>
+                    <option value="3000" selected>Normal (3s)</option>
+                    <option value="5000">Slow (5s)</option>
+                    <option value="10000">Very Slow (10s)</option>
+                </select>
                 <button class="btn btn-secondary" onclick="copyTranscript()">
                     <i class="fas fa-copy"></i> Copy
                 </button>
@@ -98,12 +104,45 @@
             durationInterval: null
         };
 
-        // Parse URL parameters
+        // Parse URL parameters (supports both short and full format)
         function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
+
+            // Short format: ?s=hash&u=shortId
+            const shortSession = params.get('s');
+            const shortUser = params.get('u');
+
+            // Full format: ?sessionId=full&userId=full
+            const fullSession = params.get('sessionId');
+            const fullUser = params.get('userId');
+
+            // If short format, we need to reconstruct or fetch full IDs
+            // For now, try to get from localStorage or use short as-is
+            if (shortSession && shortUser) {
+                // Try to find full session ID from localStorage recent sessions
+                const recentSessions = JSON.parse(localStorage.getItem('recentSessions') || '[]');
+                const matchingSession = recentSessions.find(s =>
+                    s.id && s.id.startsWith(shortSession)
+                );
+
+                if (matchingSession) {
+                    return {
+                        sessionId: matchingSession.id,
+                        userId: fullUser || shortUser // Use full if available
+                    };
+                }
+
+                // Fallback: use short IDs directly (viewer will need to handle)
+                return {
+                    sessionId: shortSession,
+                    userId: shortUser,
+                    isShortFormat: true
+                };
+            }
+
             return {
-                sessionId: params.get('sessionId'),
-                userId: params.get('userId')
+                sessionId: fullSession,
+                userId: fullUser
             };
         }
 
@@ -130,20 +169,17 @@
             }
         }
 
-        // Fetch file from S3 via CloudDrive API
+        // Fetch file from S3 via public viewer API (no authentication required)
         async function fetchFromS3(key) {
-            const token = getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
+            // Extract fileName from key (e.g., "users/123/audio/sessions/2025-11-09-session_123/transcription-chunk-001.json" -> "transcription-chunk-001.json")
+            const fileName = key.split('/').pop();
 
-            const encodedKey = encodeURIComponent(key);
+            // Build public endpoint URL: /api/viewer/public/{userId}/{sessionId}/{fileName}
+            const publicUrl = `${config.apiUrl}/api/viewer/public/${viewerState.userId}/${viewerState.sessionId}/${fileName}`;
 
-            const response = await fetch(`${config.apiUrl}/api/s3/download/${encodedKey}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            console.log(`Fetching via public endpoint: ${publicUrl}`);
+
+            const response = await fetch(publicUrl);
 
             if (!response.ok) {
                 const error = new Error('S3 fetch failed');
@@ -153,7 +189,7 @@
 
             // API returns presigned URL, fetch actual content
             const data = await response.json();
-            const contentResponse = await fetch(data.downloadUrl);
+            const contentResponse = await fetch(data.url);
             return await contentResponse.text();
         }
 
@@ -175,15 +211,20 @@
         async function loadNewChunks() {
             const newSegments = [];
             let chunkIndex = viewerState.lastLoadedChunk + 1;
+            let consecutiveNotFound = 0;
+            const MAX_GAPS = 3; // Allow up to 3 missing chunks before stopping
 
-            // Try to load next chunks until we hit a 404
-            while (true) {
+            // Try to load next chunks, allowing for gaps
+            while (consecutiveNotFound < MAX_GAPS) {
                 const paddedIndex = String(chunkIndex).padStart(3, '0');
                 const key = `${viewerState.sessionPath}transcription-chunk-${paddedIndex}.json`;
 
                 try {
                     const response = await fetchFromS3(key);
                     const chunkData = JSON.parse(response);
+
+                    // Found a chunk - reset gap counter
+                    consecutiveNotFound = 0;
 
                     // Extract segments from chunk
                     if (chunkData.segments && Array.isArray(chunkData.segments)) {
@@ -194,11 +235,13 @@
 
                 } catch (error) {
                     if (error.statusCode === 404) {
-                        // No more chunks available yet
-                        break;
+                        // Chunk not found - increment gap counter and keep trying
+                        consecutiveNotFound++;
+                        chunkIndex++;
+                        console.log(`Chunk ${paddedIndex} not found (gap ${consecutiveNotFound}/${MAX_GAPS})`);
                     } else {
                         console.error(`Error loading chunk ${chunkIndex}:`, error);
-                        break; // Stop on error
+                        break; // Stop on other errors
                     }
                 }
             }
@@ -218,51 +261,66 @@
                 displayFullTranscript();
                 updateStats();
 
-                console.log('Loaded final transcription:', data.totalSegments, 'segments');
+                console.log('Loaded final transcription:', data.segments.length, 'segments');
+                return true; // Successfully loaded
             } catch (error) {
+                if (error.statusCode === 404) {
+                    // Final transcription doesn't exist yet
+                    return false;
+                }
                 console.error('Error loading final transcription:', error);
+                throw error; // Re-throw non-404 errors
             }
         }
 
         // Main polling loop
         async function pollTranscription() {
             try {
-                // Step 1: Check session status
+                // Step 1: Try to load final transcription first (most efficient)
+                // If session is complete, this will have everything
+                try {
+                    const hasFinal = await loadFinalTranscription();
+                    if (hasFinal) {
+                        updateStatus('completed', 'Recording completed');
+                        stopPolling();
+                        return;
+                    }
+                } catch (error) {
+                    // Final transcription doesn't exist yet, continue with chunks
+                    console.log('Final transcription not available yet, loading chunks...');
+                }
+
+                // Step 2: Check session status via metadata (optional)
                 const metadata = await fetchMetadata();
 
-                if (!metadata) {
-                    console.log('Session metadata not found yet, waiting...');
-                    updateStatus('waiting', 'Waiting for recording to start...');
-                    return;
+                if (metadata) {
+                    viewerState.transcriptionStatus = metadata.transcriptionStatus || "pending";
+
+                    // Update session start time for duration display
+                    if (!viewerState.sessionStartTime && metadata.createdAt) {
+                        viewerState.sessionStartTime = new Date(metadata.createdAt);
+                    }
                 }
 
-                viewerState.transcriptionStatus = metadata.transcriptionStatus || "pending";
-
-                // Update session start time for duration display
-                if (!viewerState.sessionStartTime && metadata.createdAt) {
-                    viewerState.sessionStartTime = new Date(metadata.createdAt);
-                }
-
-                if (viewerState.transcriptionStatus === "completed") {
-                    // Session ended, load final consolidated transcription
-                    updateStatus('completed', 'Recording completed');
-                    await loadFinalTranscription();
-                    stopPolling();
-                    return;
-                }
-
-                // Step 2: Load new chunks (if still recording)
-                updateStatus('active', 'Recording...');
+                // Step 3: Load chunks incrementally
                 const newSegments = await loadNewChunks();
 
                 if (newSegments.length > 0) {
-                    // Step 3: Append to transcript display
+                    // Found segments - session has started
+                    updateStatus('active', 'Recording...');
                     appendSegments(newSegments);
                     autoScroll();
                     updateStats();
+                    updateLastUpdateTime();
+                } else if (!metadata && viewerState.segments.length === 0) {
+                    // No metadata, no chunks, and no segments loaded - truly waiting
+                    console.log('No metadata or chunks found yet, waiting...');
+                    updateStatus('waiting', 'Waiting for recording to start...');
+                } else {
+                    // Has some data but no new chunks
+                    updateStatus('active', 'Recording...');
+                    updateLastUpdateTime();
                 }
-
-                updateLastUpdateTime();
 
             } catch (error) {
                 console.error("Polling error:", error);
@@ -396,6 +454,24 @@
             btn.innerHTML = `<i class="fas fa-arrow-down"></i> Auto-scroll: ${viewerState.autoScrollEnabled ? 'ON' : 'OFF'}`;
         }
 
+        // Change poll interval
+        function changePollInterval(intervalMs) {
+            const interval = parseInt(intervalMs);
+            viewerState.pollFrequency = interval;
+
+            // Update footer display
+            const seconds = interval / 1000;
+            document.getElementById('poll-interval').textContent = seconds;
+
+            // Restart polling with new interval
+            if (viewerState.pollInterval) {
+                stopPolling();
+                startPolling();
+            }
+
+            console.log(`Poll interval changed to ${seconds}s`);
+        }
+
         // Detect manual scroll
         document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('transcript');
@@ -480,13 +556,8 @@
 
         // Initialize viewer
         async function initViewer() {
-            // Check authentication
-            const user = getUserFromToken();
-            if (!user) {
-                alert('Please login first');
-                window.location.href = '/';
-                return;
-            }
+            // NO AUTHENTICATION REQUIRED - public viewer for shared transcripts
+            // (Viewers don't need to login to see shared transcripts)
 
             // Get URL parameters
             const params = getUrlParams();
