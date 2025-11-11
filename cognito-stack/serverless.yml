@@ -357,6 +357,46 @@ functions:
           cors: true
           # NO authorizer - public endpoint
 
+  # Batch Transcription Lock Management
+  createBatchLock:
+    handler: api/batch-lock.createLock
+    environment:
+      S3_BUCKET: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/batch/lock
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  removeBatchLock:
+    handler: api/batch-lock.removeLock
+    environment:
+      S3_BUCKET: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/batch/unlock
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  checkBatchLock:
+    handler: api/batch-lock.checkLock
+    environment:
+      S3_BUCKET: ${self:custom.s3Bucket}
+    events:
+      - http:
+          path: api/batch/lock-status
+          method: get
+          cors: true
+          # NO authorizer - public endpoint for batch script
+
 resources:
   Resources:
     # API Gateway Authorizer

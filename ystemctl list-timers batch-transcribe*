@@ -1,0 +1,7 @@
+[0;1;32m●[0m batch-transcribe.timer - Run Batch Transcription Every 2 Hours
+     Loaded: loaded (]8;;file://ip-172-31-44-30/etc/systemd/system/batch-transcribe.timer/etc/systemd/system/batch-transcribe.timer]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Tue 2025-11-11 04:54:04 UTC; 2min 56s ago
+    Trigger: n/a
+   Triggers: ● batch-transcribe.service
+
+Nov 11 04:54:04 ip-172-31-44-30 systemd[1]: Started batch-transcribe.timer - Run Batch Transcription Every 2 Hours.

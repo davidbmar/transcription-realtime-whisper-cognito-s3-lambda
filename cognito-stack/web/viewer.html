@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Transcript Viewer - CloudDrive</title>
+    <link rel="stylesheet" href="viewer-styles.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="viewer-container">
+        <!-- Header -->
+        <div class="viewer-header">
+            <div class="header-left">
+                <h1><i class="fas fa-eye"></i> Live Transcript Viewer</h1>
+                <div class="session-info" id="session-info">
+                    <span class="status-badge" id="status-badge">
+                        <i class="fas fa-circle"></i> Connecting...
+                    </span>
+                    <span id="session-id-display">Session: Loading...</span>
+                    <span id="duration-display">Duration: 00:00:00</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-secondary" onclick="toggleAutoScroll()" id="autoscroll-btn">
+                    <i class="fas fa-arrow-down"></i> Auto-scroll: ON
+                </button>
+                <select class="btn btn-secondary" onchange="changePollInterval(this.value)" id="poll-interval-select" style="padding: 8px 12px; cursor: pointer;">
+                    <option value="1000">Fast (1s)</option>
+                    <option value="3000" selected>Normal (3s)</option>
+                    <option value="5000">Slow (5s)</option>
+                    <option value="10000">Very Slow (10s)</option>
+                </select>
+                <button class="btn btn-secondary" onclick="copyTranscript()">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+                <button class="btn btn-secondary" onclick="downloadTranscript()">
+                    <i class="fas fa-download"></i> Download
+                </button>
+                <button class="btn btn-primary" onclick="refreshNow()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Transcript Display -->
+        <div class="transcript-wrapper">
+            <div class="transcript-container" id="transcript">
+                <div class="transcript-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading transcript...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Footer -->
+        <div class="viewer-footer">
+            <div class="stat">
+                <i class="fas fa-comment-dots"></i>
+                <span id="segment-count">0</span> segments
+            </div>
+            <div class="stat">
+                <i class="fas fa-font"></i>
+                <span id="word-count">0</span> words
+            </div>
+            <div class="stat">
+                <i class="fas fa-sync"></i>
+                Last updated: <span id="last-update">Never</span>
+            </div>
+            <div class="stat">
+                <i class="fas fa-clock"></i>
+                Polling every <span id="poll-interval">3</span>s
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - will be replaced by deployment script
+        const config = {
+            userPoolId: 'us-east-2_6sN45GbIh',
+            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
+            identityPoolId: 'us-east-2:43b4ec02-d7c0-4c8b-a188-27b9d1f16287',
+            region: 'us-east-2',
+            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            appUrl: 'https://d2l28rla2hk7np.cloudfront.net'
+        };
+
+        // Viewer state
+        const viewerState = {
+            sessionId: null,
+            userId: null,
+            sessionPath: null,
+            lastLoadedChunk: 0,
+            transcriptionStatus: "pending",
+            segments: [],
+            pollInterval: null,
+            pollFrequency: 3000, // 3 seconds
+            autoScrollEnabled: true,
+            sessionStartTime: null,
+            durationInterval: null
+        };
+
+        // Parse URL parameters (supports both short and full format)
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+
+            // Short format: ?s=hash&u=shortId
+            const shortSession = params.get('s');
+            const shortUser = params.get('u');
+
+            // Full format: ?sessionId=full&userId=full
+            const fullSession = params.get('sessionId');
+            const fullUser = params.get('userId');
+
+            // If short format, we need to reconstruct or fetch full IDs
+            // For now, try to get from localStorage or use short as-is
+            if (shortSession && shortUser) {
+                // Try to find full session ID from localStorage recent sessions
+                const recentSessions = JSON.parse(localStorage.getItem('recentSessions') || '[]');
+                const matchingSession = recentSessions.find(s =>
+                    s.id && s.id.startsWith(shortSession)
+                );
+
+                if (matchingSession) {
+                    return {
+                        sessionId: matchingSession.id,
+                        userId: fullUser || shortUser // Use full if available
+                    };
+                }
+
+                // Fallback: use short IDs directly (viewer will need to handle)
+                return {
+                    sessionId: shortSession,
+                    userId: shortUser,
+                    isShortFormat: true
+                };
+            }
+
+            return {
+                sessionId: fullSession,
+                userId: fullUser
+            };
+        }
+
+        // Get auth token
+        function getAuthToken() {
+            return localStorage.getItem('id_token');
+        }
+
+        // Get user from token
+        function getUserFromToken() {
+            const token = getAuthToken();
+            if (!token) return null;
+
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return {
+                    email: payload.email,
+                    userId: payload.sub,
+                    name: payload.given_name || payload.email
+                };
+            } catch (error) {
+                console.error('Error parsing token:', error);
+                return null;
+            }
+        }
+
+        // Fetch file from S3 via public viewer API (no authentication required)
+        async function fetchFromS3(key) {
+            // Extract fileName from key (e.g., "users/123/audio/sessions/2025-11-09-session_123/transcription-chunk-001.json" -> "transcription-chunk-001.json")
+            const fileName = key.split('/').pop();
+
+            // Build public endpoint URL: /api/viewer/public/{userId}/{sessionId}/{fileName}
+            const publicUrl = `${config.apiUrl}/api/viewer/public/${viewerState.userId}/${viewerState.sessionId}/${fileName}`;
+
+            console.log(`Fetching via public endpoint: ${publicUrl}`);
+
+            const response = await fetch(publicUrl);
+
+            if (!response.ok) {
+                const error = new Error('S3 fetch failed');
+                error.statusCode = response.status;
+                throw error;
+            }
+
+            // API returns presigned URL, fetch actual content
+            const data = await response.json();
+            const contentResponse = await fetch(data.url);
+            return await contentResponse.text();
+        }
+
+        // Fetch metadata to check session status
+        async function fetchMetadata() {
+            const key = `${viewerState.sessionPath}metadata.json`;
+            try {
+                const response = await fetchFromS3(key);
+                return JSON.parse(response);
+            } catch (error) {
+                if (error.statusCode === 404) {
+                    return null; // Session not started yet
+                }
+                throw error;
+            }
+        }
+
+        // Load new transcription chunks
+        async function loadNewChunks() {
+            const newSegments = [];
+            let chunkIndex = viewerState.lastLoadedChunk + 1;
+            let consecutiveNotFound = 0;
+            const MAX_GAPS = 3; // Allow up to 3 missing chunks before stopping
+
+            // Try to load next chunks, allowing for gaps
+            while (consecutiveNotFound < MAX_GAPS) {
+                const paddedIndex = String(chunkIndex).padStart(3, '0');
+                const key = `${viewerState.sessionPath}transcription-chunk-${paddedIndex}.json`;
+
+                try {
+                    const response = await fetchFromS3(key);
+                    const chunkData = JSON.parse(response);
+
+                    // Found a chunk - reset gap counter
+                    consecutiveNotFound = 0;
+
+                    // Extract segments from chunk
+                    if (chunkData.segments && Array.isArray(chunkData.segments)) {
+                        newSegments.push(...chunkData.segments);
+                    }
+                    viewerState.lastLoadedChunk = chunkIndex;
+                    chunkIndex++;
+
+                } catch (error) {
+                    if (error.statusCode === 404) {
+                        // Chunk not found - increment gap counter and keep trying
+                        consecutiveNotFound++;
+                        chunkIndex++;
+                        console.log(`Chunk ${paddedIndex} not found (gap ${consecutiveNotFound}/${MAX_GAPS})`);
+                    } else {
+                        console.error(`Error loading chunk ${chunkIndex}:`, error);
+                        break; // Stop on other errors
+                    }
+                }
+            }
+
+            return newSegments;
+        }
+
+        // Load final consolidated transcription
+        async function loadFinalTranscription() {
+            const key = `${viewerState.sessionPath}transcription.json`;
+            try {
+                const response = await fetchFromS3(key);
+                const data = JSON.parse(response);
+
+                // Replace all segments with final version
+                viewerState.segments = data.segments || [];
+                displayFullTranscript();
+                updateStats();
+
+                console.log('Loaded final transcription:', data.segments.length, 'segments');
+                return true; // Successfully loaded
+            } catch (error) {
+                if (error.statusCode === 404) {
+                    // Final transcription doesn't exist yet
+                    return false;
+                }
+                console.error('Error loading final transcription:', error);
+                throw error; // Re-throw non-404 errors
+            }
+        }
+
+        // Main polling loop
+        async function pollTranscription() {
+            try {
+                // Step 1: Try to load final transcription first (most efficient)
+                // If session is complete, this will have everything
+                try {
+                    const hasFinal = await loadFinalTranscription();
+                    if (hasFinal) {
+                        updateStatus('completed', 'Recording completed');
+                        stopPolling();
+                        return;
+                    }
+                } catch (error) {
+                    // Final transcription doesn't exist yet, continue with chunks
+                    console.log('Final transcription not available yet, loading chunks...');
+                }
+
+                // Step 2: Check session status via metadata (optional)
+                const metadata = await fetchMetadata();
+
+                if (metadata) {
+                    viewerState.transcriptionStatus = metadata.transcriptionStatus || "pending";
+
+                    // Update session start time for duration display
+                    if (!viewerState.sessionStartTime && metadata.createdAt) {
+                        viewerState.sessionStartTime = new Date(metadata.createdAt);
+                    }
+                }
+
+                // Step 3: Load chunks incrementally
+                const newSegments = await loadNewChunks();
+
+                if (newSegments.length > 0) {
+                    // Found segments - session has started
+                    updateStatus('active', 'Recording...');
+                    appendSegments(newSegments);
+                    autoScroll();
+                    updateStats();
+                    updateLastUpdateTime();
+                } else if (!metadata && viewerState.segments.length === 0) {
+                    // No metadata, no chunks, and no segments loaded - truly waiting
+                    console.log('No metadata or chunks found yet, waiting...');
+                    updateStatus('waiting', 'Waiting for recording to start...');
+                } else {
+                    // Has some data but no new chunks
+                    updateStatus('active', 'Recording...');
+                    updateLastUpdateTime();
+                }
+
+            } catch (error) {
+                console.error("Polling error:", error);
+                updateStatus('error', 'Error loading transcript');
+                // Continue polling even on error
+            }
+        }
+
+        // Append segments to display
+        function appendSegments(segments) {
+            const container = document.getElementById('transcript');
+
+            // Remove loading message if present
+            const loading = container.querySelector('.transcript-loading');
+            if (loading) {
+                loading.remove();
+            }
+
+            segments.forEach(segment => {
+                const div = document.createElement('div');
+                div.className = 'transcript-segment';
+                if (segment.paragraph_break) {
+                    div.classList.add('paragraph-break');
+                }
+
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = formatTimestamp(segment.start || 0);
+
+                const text = document.createElement('span');
+                text.className = 'text';
+                text.textContent = segment.text || '';
+
+                div.appendChild(timestamp);
+                div.appendChild(text);
+                container.appendChild(div);
+            });
+
+            viewerState.segments.push(...segments);
+        }
+
+        // Display full transcript (for finalized sessions)
+        function displayFullTranscript() {
+            const container = document.getElementById('transcript');
+            container.innerHTML = ''; // Clear existing
+
+            viewerState.segments.forEach(segment => {
+                const div = document.createElement('div');
+                div.className = 'transcript-segment';
+                if (segment.paragraph_break) {
+                    div.classList.add('paragraph-break');
+                }
+
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = formatTimestamp(segment.start || 0);
+
+                const text = document.createElement('span');
+                text.className = 'text';
+                text.textContent = segment.text || '';
+
+                div.appendChild(timestamp);
+                div.appendChild(text);
+                container.appendChild(div);
+            });
+        }
+
+        // Format timestamp
+        function formatTimestamp(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `[${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}]`;
+        }
+
+        // Update status badge
+        function updateStatus(status, message) {
+            const badge = document.getElementById('status-badge');
+            badge.className = 'status-badge ' + status;
+
+            const icon = {
+                'waiting': 'fa-hourglass-half',
+                'active': 'fa-circle',
+                'completed': 'fa-check-circle',
+                'error': 'fa-exclamation-triangle'
+            }[status] || 'fa-circle';
+
+            badge.innerHTML = `<i class="fas ${icon}"></i> ${message}`;
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('segment-count').textContent = viewerState.segments.length;
+
+            const wordCount = viewerState.segments.reduce((sum, seg) => {
+                return sum + (seg.text || '').split(/\s+/).filter(w => w.length > 0).length;
+            }, 0);
+            document.getElementById('word-count').textContent = wordCount;
+        }
+
+        // Update last update time
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+        }
+
+        // Update duration display
+        function updateDuration() {
+            if (!viewerState.sessionStartTime) return;
+
+            const now = new Date();
+            const elapsed = Math.floor((now - viewerState.sessionStartTime) / 1000);
+            document.getElementById('duration-display').textContent = `Duration: ${formatTimestamp(elapsed)}`;
+        }
+
+        // Auto-scroll
+        function autoScroll() {
+            if (!viewerState.autoScrollEnabled) return;
+
+            const container = document.getElementById('transcript');
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        // Toggle auto-scroll
+        function toggleAutoScroll() {
+            viewerState.autoScrollEnabled = !viewerState.autoScrollEnabled;
+            const btn = document.getElementById('autoscroll-btn');
+            btn.innerHTML = `<i class="fas fa-arrow-down"></i> Auto-scroll: ${viewerState.autoScrollEnabled ? 'ON' : 'OFF'}`;
+        }
+
+        // Change poll interval
+        function changePollInterval(intervalMs) {
+            const interval = parseInt(intervalMs);
+            viewerState.pollFrequency = interval;
+
+            // Update footer display
+            const seconds = interval / 1000;
+            document.getElementById('poll-interval').textContent = seconds;
+
+            // Restart polling with new interval
+            if (viewerState.pollInterval) {
+                stopPolling();
+                startPolling();
+            }
+
+            console.log(`Poll interval changed to ${seconds}s`);
+        }
+
+        // Detect manual scroll
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('transcript');
+            container.addEventListener('scroll', (e) => {
+                const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+
+                if (!isAtBottom && viewerState.autoScrollEnabled) {
+                    viewerState.autoScrollEnabled = false;
+                    const btn = document.getElementById('autoscroll-btn');
+                    btn.innerHTML = '<i class="fas fa-arrow-down"></i> Auto-scroll: OFF';
+                } else if (isAtBottom && !viewerState.autoScrollEnabled) {
+                    viewerState.autoScrollEnabled = true;
+                    const btn = document.getElementById('autoscroll-btn');
+                    btn.innerHTML = '<i class="fas fa-arrow-down"></i> Auto-scroll: ON';
+                }
+            });
+        });
+
+        // Copy transcript
+        function copyTranscript() {
+            const text = viewerState.segments.map(seg => {
+                const timestamp = formatTimestamp(seg.start || 0);
+                return `${timestamp} ${seg.text || ''}`;
+            }).join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Transcript copied to clipboard!');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                alert('Failed to copy transcript');
+            });
+        }
+
+        // Download transcript
+        function downloadTranscript() {
+            const text = viewerState.segments.map(seg => {
+                const timestamp = formatTimestamp(seg.start || 0);
+                return `${timestamp} ${seg.text || ''}`;
+            }).join('\n');
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcript-${viewerState.sessionId}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Refresh now
+        function refreshNow() {
+            pollTranscription();
+        }
+
+        // Start polling
+        function startPolling() {
+            if (viewerState.pollInterval) {
+                clearInterval(viewerState.pollInterval);
+            }
+
+            // Poll immediately
+            pollTranscription();
+
+            // Then poll on interval
+            viewerState.pollInterval = setInterval(pollTranscription, viewerState.pollFrequency);
+
+            // Update duration every second
+            viewerState.durationInterval = setInterval(updateDuration, 1000);
+        }
+
+        // Stop polling
+        function stopPolling() {
+            if (viewerState.pollInterval) {
+                clearInterval(viewerState.pollInterval);
+                viewerState.pollInterval = null;
+            }
+            if (viewerState.durationInterval) {
+                clearInterval(viewerState.durationInterval);
+                viewerState.durationInterval = null;
+            }
+        }
+
+        // Initialize viewer
+        async function initViewer() {
+            // NO AUTHENTICATION REQUIRED - public viewer for shared transcripts
+            // (Viewers don't need to login to see shared transcripts)
+
+            // Get URL parameters
+            const params = getUrlParams();
+
+            if (!params.sessionId || !params.userId) {
+                alert('Missing session ID or user ID in URL');
+                return;
+            }
+
+            viewerState.sessionId = params.sessionId;
+            viewerState.userId = params.userId;
+
+            // Build session path
+            const timestamp = viewerState.sessionId.match(/session_(\d{4}-\d{2}-\d{2})/);
+            const datePrefix = timestamp ? timestamp[1] : new Date().toISOString().split('T')[0];
+            viewerState.sessionPath = `users/${viewerState.userId}/audio/sessions/${datePrefix}-${viewerState.sessionId}/`;
+
+            // Update UI
+            document.getElementById('session-id-display').textContent = `Session: ${viewerState.sessionId}`;
+
+            console.log('Viewer initialized:', viewerState);
+            console.log('Session path:', viewerState.sessionPath);
+
+            // Start polling
+            startPolling();
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', initViewer);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', stopPolling);
+    </script>
+</body>
+</html>
