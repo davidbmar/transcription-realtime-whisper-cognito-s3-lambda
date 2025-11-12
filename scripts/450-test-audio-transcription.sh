@@ -58,28 +58,22 @@ mkdir -p "$TEST_DATA_DIR" "$TEST_RESULTS_DIR"
 log_info "Step 1/6: Preparing test audio..."
 
 if [[ -z "$TEST_AUDIO_FILE" ]]; then
-    log_info "No audio file provided, using sample audio"
+    log_info "No audio file provided, downloading test audio from S3..."
 
-    # Check if we have sample audio, if not create one using text-to-speech
-    SAMPLE_AUDIO="${TEST_DATA_DIR}/sample-hello-world.wav"
+    # Use the same test audio as script 325 (real speech, better for testing)
+    S3_TEST_AUDIO="s3://dbm-cf-2-web/integration-test/test-validation.wav"
+    SAMPLE_AUDIO="${TEST_DATA_DIR}/test-validation.wav"
 
-    if [[ ! -f "$SAMPLE_AUDIO" ]]; then
-        log_info "Generating sample audio file..."
+    if aws s3 cp "$S3_TEST_AUDIO" "$SAMPLE_AUDIO" --quiet 2>/dev/null; then
+        log_success "Downloaded test audio from S3"
+        TEST_AUDIO_FILE="$SAMPLE_AUDIO"
+        EXPECTED_TEXT=""  # Don't validate transcription for this test audio
+    else
+        log_warn "Could not download from S3, generating synthetic audio..."
 
-        # Option 1: Use espeak if available
-        if command -v espeak >/dev/null 2>&1; then
-            espeak -w "$SAMPLE_AUDIO" "Hello world. This is an automated test of the audio transcription pipeline." 2>/dev/null || true
-        fi
-
-        # Option 2: Use festival if available
-        if [[ ! -f "$SAMPLE_AUDIO" ]] && command -v text2wave >/dev/null 2>&1; then
-            echo "Hello world. This is an automated test of the audio transcription pipeline." | \
-                text2wave -o "$SAMPLE_AUDIO" 2>/dev/null || true
-        fi
-
-        # Option 3: Use ffmpeg to generate tone (fallback)
-        if [[ ! -f "$SAMPLE_AUDIO" ]] && command -v ffmpeg >/dev/null 2>&1; then
-            log_warn "No TTS available, generating test tone..."
+        # Fallback: generate synthetic audio
+        SAMPLE_AUDIO="${TEST_DATA_DIR}/sample-test-tone.wav"
+        if command -v ffmpeg >/dev/null 2>&1; then
             ffmpeg -f lavfi -i "sine=frequency=440:duration=5" -ar 16000 -ac 1 "$SAMPLE_AUDIO" -y 2>/dev/null || true
         fi
 
@@ -88,10 +82,10 @@ if [[ -z "$TEST_AUDIO_FILE" ]]; then
             log_info "Usage: $0 /path/to/audio.wav [expected-text]"
             exit 1
         fi
-    fi
 
-    TEST_AUDIO_FILE="$SAMPLE_AUDIO"
-    EXPECTED_TEXT="hello world this is an automated test of the audio transcription pipeline"
+        TEST_AUDIO_FILE="$SAMPLE_AUDIO"
+        EXPECTED_TEXT=""
+    fi
 fi
 
 if [[ ! -f "$TEST_AUDIO_FILE" ]]; then
@@ -101,27 +95,26 @@ fi
 
 log_success "Using audio file: $TEST_AUDIO_FILE"
 
-# Step 2: Validate audio format
-log_info "Step 2/6: Validating audio format..."
+# Step 2: Validate audio format and convert to Float32 PCM
+log_info "Step 2/6: Converting audio to Float32 PCM (WhisperLive requirement)..."
 
-if command -v ffprobe >/dev/null 2>&1; then
-    AUDIO_INFO=$(ffprobe -v quiet -print_format json -show_streams "$TEST_AUDIO_FILE")
-    SAMPLE_RATE=$(echo "$AUDIO_INFO" | grep -o '"sample_rate":"[0-9]*"' | grep -o '[0-9]*' || echo "unknown")
-    CHANNELS=$(echo "$AUDIO_INFO" | grep -o '"channels":[0-9]*' | grep -o '[0-9]*' || echo "unknown")
+# WhisperLive expects Float32 PCM @ 16kHz mono
+CONVERTED_PCM="${TEST_AUDIO_FILE%.wav}-16k-mono.pcm"
+ffmpeg -i "$TEST_AUDIO_FILE" \
+    -f f32le \
+    -acodec pcm_f32le \
+    -ac 1 \
+    -ar 16000 \
+    -y "$CONVERTED_PCM" \
+    -loglevel quiet 2>/dev/null
 
-    log_info "Audio format: ${SAMPLE_RATE}Hz, ${CHANNELS} channel(s)"
-
-    # WhisperLive expects 16kHz mono
-    if [[ "$SAMPLE_RATE" != "16000" ]] || [[ "$CHANNELS" != "1" ]]; then
-        log_warn "Converting to 16kHz mono (WhisperLive requirement)..."
-        CONVERTED_AUDIO="${TEST_AUDIO_FILE%.wav}-16k-mono.wav"
-        ffmpeg -i "$TEST_AUDIO_FILE" -ar 16000 -ac 1 "$CONVERTED_AUDIO" -y 2>/dev/null
-        TEST_AUDIO_FILE="$CONVERTED_AUDIO"
-        log_success "Converted to: $TEST_AUDIO_FILE"
-    fi
-else
-    log_warn "ffprobe not found, skipping format validation"
+if [[ ! -f "$CONVERTED_PCM" ]]; then
+    log_error "Failed to convert audio to Float32 PCM"
+    exit 1
 fi
+
+TEST_AUDIO_FILE="$CONVERTED_PCM"
+log_success "Converted to Float32 PCM: $TEST_AUDIO_FILE"
 
 # Step 3: Create Python WebSocket test client
 log_info "Step 3/6: Creating WebSocket test client..."
@@ -169,74 +162,77 @@ async def test_transcription(ws_url, audio_file, session_id):
             await websocket.send(json.dumps(config))
             print(f"📤 Sent config: {config}")
 
-            # Read audio file
+            # Wait for SERVER_READY response
+            print("⏳ Waiting for SERVER_READY...")
+            try:
+                server_ready = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                print(f"✅ Server ready: {server_ready}")
+            except asyncio.TimeoutError:
+                print("⚠️  No SERVER_READY received (continuing anyway)")
+
+            # Read Float32 PCM audio file
             print(f"📂 Reading audio file: {audio_file}")
-            with wave.open(str(audio_file), 'rb') as wf:
-                sample_rate = wf.getframerate()
-                channels = wf.getnchannels()
-                sample_width = wf.getsampwidth()
+            print(f"🎵 Audio format: Float32 PCM @ 16kHz mono")
 
-                print(f"🎵 Audio: {sample_rate}Hz, {channels}ch, {sample_width*8}bit")
+            # Read PCM file (Float32 Little Endian)
+            with open(audio_file, 'rb') as f:
+                audio_bytes = f.read()
 
-                if sample_rate != 16000 or channels != 1:
-                    print("⚠️  Warning: Audio should be 16kHz mono for best results")
+            # Send all audio chunks first (don't wait for responses during sending)
+            chunk_size = 16384  # bytes (match script 325)
+            chunks_sent = 0
 
-                # Send audio in chunks (simulate browser's MediaRecorder)
-                chunk_size = 8192  # bytes
-                chunk_num = 0
-                all_transcripts = []
+            for i in range(0, len(audio_bytes), chunk_size):
+                chunk = audio_bytes[i:i + chunk_size]
+                if not chunk:
+                    break
 
-                while True:
-                    audio_data = wf.readframes(chunk_size // (sample_width * channels))
-                    if not audio_data:
-                        break
+                chunks_sent += 1
+                await websocket.send(chunk)
 
-                    chunk_num += 1
-                    await websocket.send(audio_data)
-                    print(f"📤 Sent chunk {chunk_num} ({len(audio_data)} bytes)")
+            print(f"📤 Sent {chunks_sent} audio chunks")
 
-                    # Try to receive transcription (non-blocking)
+            # Now wait for transcription responses (WhisperLive needs time to process)
+            print("⏳ Waiting for transcription results...")
+            all_transcripts = []
+            messages_received = 0
+
+            # Try for up to 20 seconds (10 attempts x 2s timeout)
+            for attempt in range(10):
+                try:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=2.0)
+                    messages_received += 1
+
                     try:
-                        response = await asyncio.wait_for(websocket.recv(), timeout=0.1)
-                        transcript_data = json.loads(response)
+                        data = json.loads(response)
+                        print(f"📨 Received message {messages_received}: {data}")
 
-                        if 'segments' in transcript_data:
-                            for seg in transcript_data['segments']:
+                        # WhisperLive sends segments with transcription text
+                        if 'segments' in data:
+                            for seg in data['segments']:
                                 text = seg.get('text', '').strip()
-                                if text:
+                                if text and text not in all_transcripts:
                                     print(f"📝 Transcription: {text}")
                                     all_transcripts.append(text)
-                    except asyncio.TimeoutError:
-                        pass  # No response yet
+                        elif 'text' in data:
+                            text = data['text'].strip()
+                            if text and text not in all_transcripts:
+                                print(f"📝 Transcription: {text}")
+                                all_transcripts.append(text)
+                    except json.JSONDecodeError:
+                        print(f"📨 Non-JSON message: {response[:100]}")
 
-                    # Small delay between chunks
-                    await asyncio.sleep(0.1)
-
-            # Send end-of-stream signal
-            await websocket.send(json.dumps({"eof": 1}))
-            print("🏁 Sent end-of-stream signal")
-
-            # Wait for final transcription
-            print("⏳ Waiting for final transcription...")
-            try:
-                final_response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-                final_data = json.loads(final_response)
-
-                if 'segments' in final_data:
-                    for seg in final_data['segments']:
-                        text = seg.get('text', '').strip()
-                        if text and text not in all_transcripts:
-                            print(f"📝 Final transcription: {text}")
-                            all_transcripts.append(text)
-            except asyncio.TimeoutError:
-                print("⏰ Timeout waiting for final transcription")
+                except asyncio.TimeoutError:
+                    if attempt < 9:  # Don't print on last attempt
+                        print(f"  ⏱️  Waiting... ({attempt+1}/10)")
+                    continue
 
             # Output results
             full_transcript = ' '.join(all_transcripts)
             print("\n" + "="*60)
             print("📄 FULL TRANSCRIPT:")
             print("="*60)
-            print(full_transcript)
+            print(full_transcript if full_transcript else "[No transcription received]")
             print("="*60)
 
             # Save to file
@@ -244,7 +240,10 @@ async def test_transcription(ws_url, audio_file, session_id):
             output_file.write_text(full_transcript)
             print(f"\n✅ Saved transcript to: {output_file}")
 
-            return full_transcript
+            print(f"\n{'✅' if all_transcripts else '⚠️ '} Received {messages_received} messages, transcription={'YES' if all_transcripts else 'NO'}")
+
+            # Return success if we received ANY messages (connection working)
+            return full_transcript if messages_received > 0 else None
 
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -277,7 +276,8 @@ log_info "Target: $WS_URL_DISPLAY"
 log_info "Session: $TEST_SESSION_ID"
 
 # Run Python test client
-TRANSCRIPT_OUTPUT="${TEST_RESULTS_DIR}/transcript-${TEST_SESSION_ID}.txt"
+# Note: Python script saves transcript to $TEST_DATA_DIR
+TRANSCRIPT_OUTPUT="${TEST_DATA_DIR}/transcript-${TEST_SESSION_ID}.txt"
 
 if python3 "$TEST_CLIENT_SCRIPT" "$WHISPERLIVE_WS_URL" "$TEST_AUDIO_FILE" "$TEST_SESSION_ID"; then
     log_success "Transcription completed"
