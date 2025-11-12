@@ -164,7 +164,7 @@ async def test_transcription(ws_url, audio_file, session_id):
                 "language": "en",
                 "task": "transcribe",
                 "model": "small.en",
-                "use_vad": True
+                "use_vad": False
             }
             await websocket.send(json.dumps(config))
             print(f"📤 Sent config: {config}")
