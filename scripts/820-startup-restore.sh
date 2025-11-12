@@ -189,18 +189,71 @@ if [ "$CURRENT_IP" != "$OLD_IP" ]; then
   log_success "✅ Configuration reloaded"
 
   log_info "Step 4/5: Updating AWS security groups..."
-  if echo "1" | "$(dirname "$0")/030-configure-gpu-security.sh" > /dev/null 2>&1; then
-    log_success "✅ Security groups updated successfully"
+
+  # Get edge box IP (this script runs on edge box)
+  EDGE_BOX_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s http://checkip.amazonaws.com 2>/dev/null)
+
+  if [ -z "$EDGE_BOX_IP" ]; then
+    log_warn "⚠️  Could not detect edge box public IP"
+    log_info "Skipping security group update - run manually if needed:"
+    log_info "  ./scripts/030-configure-gpu-security.sh"
   else
-    log_warn "⚠️  Security group update encountered issues"
-    log_info "You may need to run manually: ./scripts/030-configure-gpu-security.sh"
+    log_info "  Edge box IP: $EDGE_BOX_IP"
+    log_info "  Allowing edge box → GPU on port 9090..."
+
+    # Get GPU security group ID
+    GPU_SG_ID=$(aws ec2 describe-instances \
+      --instance-ids "$GPU_INSTANCE_ID" \
+      --region "$REGION" \
+      --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' \
+      --output text 2>/dev/null)
+
+    if [ -n "$GPU_SG_ID" ]; then
+      # Add rule to allow edge box → GPU on port 9090 (ignore if already exists)
+      if aws ec2 authorize-security-group-ingress \
+          --region "$REGION" \
+          --group-id "$GPU_SG_ID" \
+          --protocol tcp \
+          --port 9090 \
+          --cidr "${EDGE_BOX_IP}/32" \
+          --output text > /dev/null 2>&1; then
+        log_success "  ✅ Security group rule added: ${EDGE_BOX_IP}/32 → GPU:9090"
+      else
+        # Rule already exists or other error
+        log_info "  ℹ️  Security group rule already exists or update not needed"
+      fi
+    else
+      log_warn "  ⚠️  Could not find GPU security group ID"
+    fi
   fi
 
   echo ""
   log_info "Step 5/5: Recreating Docker containers with new IP..."
 
-  # Recreate Caddy container to pick up new GPU_HOST from .env-http
-  if [ -f docker-compose.yml ]; then
+  # Detect edge directory (multiple possible locations)
+  EDGE_DIRS=(
+    "$HOME/event-b/whisper-live-test"
+    "$HOME/event-b/whisperlive-test"
+    "$HOME/whisper-live-test"
+    "$HOME/whisperlive-test"
+  )
+
+  EDGE_DIR=""
+  for dir in "${EDGE_DIRS[@]}"; do
+    if [ -f "$dir/docker-compose.yml" ]; then
+      EDGE_DIR="$dir"
+      log_info "  Found edge directory: $EDGE_DIR"
+      break
+    fi
+  done
+
+  if [ -n "$EDGE_DIR" ]; then
+    # Save current directory
+    ORIGINAL_DIR=$(pwd)
+
+    # Change to edge directory
+    cd "$EDGE_DIR"
+
     log_info "  Stopping Caddy container..."
     docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
 
@@ -215,6 +268,35 @@ if [ "$CURRENT_IP" != "$OLD_IP" ]; then
       log_success "  ✅ Caddy container recreated"
     else
       log_warn "  ⚠️  Failed to recreate Caddy container"
+    fi
+
+    # Return to original directory
+    cd "$ORIGINAL_DIR"
+  else
+    log_info "  ℹ️  No edge directory found (Caddy not configured)"
+  fi
+
+  echo ""
+  log_info "Step 6/6: Verifying connectivity..."
+
+  # Test edge box → GPU connectivity
+  if [ -n "$EDGE_BOX_IP" ]; then
+    log_info "  Testing edge box can reach GPU on port 9090..."
+    if timeout 5 bash -c "echo > /dev/tcp/$CURRENT_IP/9090" 2>/dev/null; then
+      log_success "  ✅ Edge box → GPU:9090 connectivity verified"
+    else
+      log_warn "  ⚠️  Cannot reach GPU:9090 from edge box"
+      log_info "  This may resolve after WhisperLive starts"
+    fi
+  fi
+
+  # Test Caddy health endpoint if container was recreated
+  if [ -n "$EDGE_DIR" ]; then
+    log_info "  Testing Caddy health endpoint..."
+    if curl -sk https://localhost/healthz 2>/dev/null | grep -q "OK"; then
+      log_success "  ✅ Caddy HTTPS proxy responding"
+    else
+      log_warn "  ⚠️  Caddy health check failed (may need time to start)"
     fi
   fi
 
