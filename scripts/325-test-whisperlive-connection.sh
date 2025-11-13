@@ -284,8 +284,9 @@ async def test_transcription():
             transcription_received = False
             messages_received = 0
 
-            # Try for up to 20 seconds (10 attempts x 2s timeout)
-            for i in range(10):
+            # Try for up to 60 seconds (30 attempts x 2s timeout)
+            # WhisperLive needs time to process audio when VAD is disabled
+            for i in range(30):
                 try:
                     msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
                     messages_received += 1
@@ -301,8 +302,8 @@ async def test_transcription():
                         print(f"Received non-JSON message: {msg[:100]}")
 
                 except asyncio.TimeoutError:
-                    if i < 9:  # Don't print on last attempt
-                        print(f"  Waiting... ({i+1}/10)")
+                    if i < 29:  # Don't print on last attempt
+                        print(f"  Waiting... ({i+1}/30)")
                     continue
 
             # Close gracefully
@@ -341,14 +342,16 @@ echo ""
 # ============================================================================
 log_info "Test 5/5: Testing browser client accessibility..."
 
-EDGE_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null)
+# Test via domain (not IP, since Caddy certificate is for domain)
+EDGE_DOMAIN="${EDGE_BOX_DNS:-transcribe.davidbmar.com}"
 
-if curl -k --max-time 5 "https://$EDGE_IP/healthz" 2>/dev/null | grep -q "OK"; then
+if curl -k --max-time 5 "https://$EDGE_DOMAIN/healthz" 2>/dev/null | grep -q "OK"; then
     log_success "✓ Edge proxy HTTPS endpoint is accessible"
-    log_info "Browser client URL: https://$EDGE_IP/"
+    log_info "Browser client URL: https://$EDGE_DOMAIN/"
 else
     log_error "✗ Edge proxy HTTPS endpoint is not accessible"
     log_warn "Check Caddy container status: docker compose ps"
+    log_warn "Test manually: curl -k https://$EDGE_DOMAIN/healthz"
 fi
 
 echo ""
@@ -372,7 +375,7 @@ fi
 echo "  ✓ Browser client: OK"
 echo ""
 echo "Next Steps:"
-echo "  1. Open browser: https://$EDGE_IP/"
+echo "  1. Open browser: https://$EDGE_DOMAIN/"
 echo "  2. Click 'Start Recording'"
 echo "  3. Speak and watch transcriptions appear"
 echo ""

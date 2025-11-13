@@ -197,8 +197,9 @@ async def test_transcription(ws_url, audio_file, session_id):
             all_transcripts = []
             messages_received = 0
 
-            # Try for up to 20 seconds (10 attempts x 2s timeout)
-            for attempt in range(10):
+            # Try for up to 60 seconds (30 attempts x 2s timeout)
+            # WhisperLive needs time to process audio when VAD is disabled
+            for attempt in range(30):
                 try:
                     response = await asyncio.wait_for(websocket.recv(), timeout=2.0)
                     messages_received += 1
@@ -223,8 +224,8 @@ async def test_transcription(ws_url, audio_file, session_id):
                         print(f"📨 Non-JSON message: {response[:100]}")
 
                 except asyncio.TimeoutError:
-                    if attempt < 9:  # Don't print on last attempt
-                        print(f"  ⏱️  Waiting... ({attempt+1}/10)")
+                    if attempt < 29:  # Don't print on last attempt
+                        print(f"  ⏱️  Waiting... ({attempt+1}/30)")
                     continue
 
             # Output results
