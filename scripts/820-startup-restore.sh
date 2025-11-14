@@ -37,6 +37,9 @@ REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 load_environment
 
+# Record startup time
+STARTUP_START_TIME=$(date +%s)
+
 # Validate GPU_INSTANCE_ID is set
 if [ -z "${GPU_INSTANCE_ID:-}" ]; then
     log_error "❌ GPU_INSTANCE_ID not set in .env"
@@ -432,4 +435,160 @@ echo ""
 log_info "📝 Check WhisperLive logs:"
 echo "  ssh -i ~/.ssh/${SSH_KEY_NAME}.pem ubuntu@$CURRENT_IP 'sudo journalctl -u whisperlive -f'"
 echo ""
-log_success "🎉 WhisperLive is ready for transcription!"
+
+# ============================================================================
+# Step 7: End-to-End Transcription Verification
+# ============================================================================
+log_info "Step 7/7: Verifying transcription readiness..."
+echo ""
+
+# Wait for WhisperLive to fully initialize (model loading)
+log_info "Waiting 30s for WhisperLive model to fully load..."
+sleep 30
+
+# Download test audio if not exists
+TEST_AUDIO="$REPO_ROOT/test-data/test-validation.wav"
+if [ ! -f "$TEST_AUDIO" ]; then
+    log_info "Downloading test audio..."
+    mkdir -p "$REPO_ROOT/test-data"
+    aws s3 cp s3://dbm-cf-2-web/integration-test/test-validation.wav "$TEST_AUDIO" > /dev/null 2>&1
+    if [ ! -f "$TEST_AUDIO" ]; then
+        log_warn "⚠️  Could not download test audio, skipping verification"
+        VERIFICATION_SKIPPED=true
+    fi
+fi
+
+if [ "${VERIFICATION_SKIPPED:-false}" != "true" ]; then
+    # Convert to PCM for WhisperLive
+    PCM_AUDIO="${TEST_AUDIO%.wav}-16k-mono.pcm"
+    log_info "Converting audio to Float32 PCM..."
+    ffmpeg -i "$TEST_AUDIO" -f f32le -acodec pcm_f32le -ac 1 -ar 16000 -y "$PCM_AUDIO" -loglevel quiet 2>/dev/null
+
+    if [ ! -f "$PCM_AUDIO" ]; then
+        log_warn "⚠️  Audio conversion failed, skipping verification"
+        VERIFICATION_SKIPPED=true
+    fi
+fi
+
+if [ "${VERIFICATION_SKIPPED:-false}" != "true" ]; then
+    log_info "Testing transcription with sample audio..."
+
+    # Create minimal Python test script
+    TEST_SCRIPT="$REPO_ROOT/test-data/quick-transcribe-test.py"
+    cat > "$TEST_SCRIPT" << 'PYEOF'
+#!/usr/bin/env python3
+import asyncio
+import websockets
+import json
+import sys
+
+async def test():
+    ws_url = f"ws://{sys.argv[1]}:9090"
+    audio_file = sys.argv[2]
+
+    try:
+        async with websockets.connect(ws_url) as ws:
+            # Send config
+            await ws.send(json.dumps({
+                'uid': 'startup-verify',
+                'task': 'transcribe',
+                'language': 'en',
+                'model': 'small.en',
+                'use_vad': False
+            }))
+
+            # Wait for SERVER_READY
+            await asyncio.wait_for(ws.recv(), timeout=10.0)
+
+            # Send audio
+            with open(audio_file, 'rb') as f:
+                audio = f.read()
+            chunk_size = 16384
+            for i in range(0, len(audio), chunk_size):
+                await ws.send(audio[i:i+chunk_size])
+
+            # Wait for transcription (up to 30s)
+            for _ in range(15):
+                try:
+                    msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+                    data = json.loads(msg)
+                    if data.get('segments'):
+                        print("SUCCESS")
+                        return True
+                except asyncio.TimeoutError:
+                    continue
+
+            print("NO_TRANSCRIPTION")
+            return False
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return False
+
+if __name__ == "__main__":
+    result = asyncio.run(test())
+    sys.exit(0 if result else 1)
+PYEOF
+
+    chmod +x "$TEST_SCRIPT"
+
+    # Run transcription test
+    TRANSCRIBE_RESULT=$(python3 "$TEST_SCRIPT" "$CURRENT_IP" "$PCM_AUDIO" 2>&1)
+    TRANSCRIBE_EXIT_CODE=$?
+
+    VERIFICATION_END_TIME=$(date +%s)
+    TOTAL_TIME=$((VERIFICATION_END_TIME - STARTUP_START_TIME))
+
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║                                                            ║"
+    if [ "$TRANSCRIBE_EXIT_CODE" -eq 0 ] && echo "$TRANSCRIBE_RESULT" | grep -q "SUCCESS"; then
+        echo "║    ✅ TRANSCRIPTION VERIFIED - SYSTEM FULLY READY        ║"
+        READY_STATUS="READY"
+    else
+        echo "║    ⚠️  TRANSCRIPTION TEST FAILED                         ║"
+        READY_STATUS="PARTIAL"
+    fi
+    echo "║                                                            ║"
+    echo "╠════════════════════════════════════════════════════════════╣"
+    echo "║                                                            ║"
+    echo "║  ⏱️  STARTUP PERFORMANCE METRICS                           ║"
+    echo "║                                                            ║"
+    echo "╟────────────────────────────────────────────────────────────╢"
+    printf "║  Total Time (start → ready):  %-28s ║\n" "${TOTAL_TIME}s"
+    printf "║  Status:                      %-28s ║\n" "$READY_STATUS"
+    echo "╟────────────────────────────────────────────────────────────╢"
+    echo "║  Breakdown:                                                ║"
+    echo "║    • Instance startup:        ~2-3 minutes                 ║"
+    echo "║    • SSH ready:               ~30 seconds                  ║"
+    echo "║    • WhisperLive model load:  ~30 seconds                  ║"
+    echo "║    • First transcription:     ~30 seconds                  ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    if [ "$TRANSCRIBE_EXIT_CODE" -ne 0 ] || ! echo "$TRANSCRIBE_RESULT" | grep -q "SUCCESS"; then
+        log_warn "⚠️  Transcription test did not return expected results"
+        log_info "Test output: $TRANSCRIBE_RESULT"
+        log_info "This may indicate WhisperLive needs more time to initialize"
+        log_info "Try running: ./scripts/450-test-audio-transcription.sh"
+    fi
+else
+    # Verification skipped
+    VERIFICATION_END_TIME=$(date +%s)
+    TOTAL_TIME=$((VERIFICATION_END_TIME - STARTUP_START_TIME))
+
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║                                                            ║"
+    echo "║    ℹ️  VERIFICATION SKIPPED - MANUAL TEST RECOMMENDED     ║"
+    echo "║                                                            ║"
+    echo "╠════════════════════════════════════════════════════════════╣"
+    printf "║  Startup Time:                %-28s ║\n" "${TOTAL_TIME}s"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+fi
+
+log_success "🎉 WhisperLive startup complete!"
+echo ""
+log_info "Next steps:"
+echo "  • Test manually: ./scripts/450-test-audio-transcription.sh"
+echo "  • View GPU logs: ssh -i ~/.ssh/${SSH_KEY_NAME}.pem ubuntu@$CURRENT_IP 'sudo journalctl -u whisperlive -f'"
