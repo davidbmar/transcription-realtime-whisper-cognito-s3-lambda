@@ -115,6 +115,7 @@ log_info "Step 2: Analyzing each session for missing transcriptions..."
 # Arrays to store results
 declare -a MISSING_SESSIONS=()
 TOTAL_MISSING=0
+SKIPPED_SESSIONS=0
 
 # Temporarily disable pipefail for this section to handle errors gracefully
 set +e
@@ -126,7 +127,13 @@ for SESSION_PATH in $SESSIONS; do
     SESSION_ID=$(basename "$SESSION_PATH")
 
     if [ $((SESSION_NUM % 10)) -eq 0 ]; then
-        log_info "  Processed $SESSION_NUM/$SESSION_COUNT sessions..."
+        log_info "  Processed $SESSION_NUM/$SESSION_COUNT sessions ($SKIPPED_SESSIONS skipped)..."
+    fi
+
+    # OPTIMIZATION: Skip sessions with completion markers
+    if has_completion_marker "$SESSION_PATH"; then
+        SKIPPED_SESSIONS=$((SKIPPED_SESSIONS + 1))
+        continue
     fi
 
     # Get all audio chunks for this session
@@ -254,6 +261,8 @@ log_info "==================================================================="
 echo ""
 log_info "Scan Summary:"
 log_info "  - Sessions scanned: $SESSION_COUNT"
+log_info "  - Sessions skipped (already complete): $SKIPPED_SESSIONS"
+log_info "  - Sessions analyzed: $((SESSION_COUNT - SKIPPED_SESSIONS))"
 log_info "  - Sessions with missing chunks: ${#MISSING_SESSIONS[@]}"
 log_info "  - Total missing chunks: $TOTAL_MISSING"
 log_info "  - Scan duration: ${SCAN_DURATION}s"

@@ -830,3 +830,50 @@ EOF
 }
 
 export -f generate_env_http
+
+# =============================================================================
+# S3 Session Completion Markers
+# =============================================================================
+# These functions manage .transcription-complete marker files to optimize
+# scan performance by skipping sessions that are fully transcribed.
+# =============================================================================
+
+# Check if a session has a completion marker
+# Usage: has_completion_marker "session-path"
+# Returns: 0 if marker exists, 1 if not
+has_completion_marker() {
+    local session_path="$1"
+    local s3_bucket="${COGNITO_S3_BUCKET}"
+    local marker_path="s3://$s3_bucket/$session_path/.transcription-complete"
+
+    aws s3 ls "$marker_path" >/dev/null 2>&1
+    return $?
+}
+
+# Create a completion marker for a session
+# Usage: create_completion_marker "session-path"
+create_completion_marker() {
+    local session_path="$1"
+    local s3_bucket="${COGNITO_S3_BUCKET}"
+    local marker_path="s3://$s3_bucket/$session_path/.transcription-complete"
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Create marker with metadata showing when it was completed
+    echo "{\"completed\": \"$timestamp\"}" | aws s3 cp - "$marker_path" --content-type "application/json" 2>/dev/null
+    return $?
+}
+
+# Remove a completion marker (used when new audio chunks are added)
+# Usage: remove_completion_marker "session-path"
+remove_completion_marker() {
+    local session_path="$1"
+    local s3_bucket="${COGNITO_S3_BUCKET}"
+    local marker_path="s3://$s3_bucket/$session_path/.transcription-complete"
+
+    aws s3 rm "$marker_path" >/dev/null 2>&1
+    return $?
+}
+
+export -f has_completion_marker
+export -f create_completion_marker
+export -f remove_completion_marker

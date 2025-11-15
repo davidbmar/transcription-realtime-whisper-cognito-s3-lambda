@@ -753,6 +753,44 @@ transcribe_chunk_batch() {
 
     log_success "  Stage 7: Uploaded $upload_success transcriptions to S3"
 
+    # =============================================================================
+    # STAGE 8: CREATE COMPLETION MARKERS FOR FULLY TRANSCRIBED SESSIONS
+    # =============================================================================
+    # After uploading transcriptions, check if any sessions are now fully complete
+    # (all audio chunks have corresponding transcription files). If so, create
+    # completion markers to speed up future scans.
+    # =============================================================================
+
+    log_info "  Stage 8: Checking for completed sessions to mark..."
+
+    # Group chunks by session to check completion
+    declare -A session_chunks
+    for chunk_info in "${chunks[@]}"; do
+        local session_path="${chunk_info%:*}"
+        session_chunks["$session_path"]=1
+    done
+
+    local marked_count=0
+    for session_path in "${!session_chunks[@]}"; do
+        # Check if this session has any remaining missing chunks
+        local audio_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'chunk-[0-9]+\.webm$' | wc -l)
+        local trans_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'transcription-chunk-[0-9]+\.json$' | wc -l)
+
+        if [ "$audio_count" -eq "$trans_count" ] && [ "$audio_count" -gt 0 ]; then
+            # Session is complete! Create marker
+            if create_completion_marker "$session_path"; then
+                marked_count=$((marked_count + 1))
+                log_info "  ✓ Marked session as complete: $(basename "$session_path")"
+            fi
+        fi
+    done
+
+    if [ $marked_count -gt 0 ]; then
+        log_success "  Stage 8: Marked $marked_count session(s) as complete"
+    else
+        log_info "  Stage 8: No sessions fully completed in this batch"
+    fi
+
     # Cleanup
     rm -rf "$batch_dir_edge"
     ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
