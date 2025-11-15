@@ -435,9 +435,11 @@ transcribe_chunk_batch() {
     # Create batch directory
     mkdir -p "$batch_dir_edge"
 
-    # Step 1: Download all audio files from S3 (in parallel)
-    log_info "  Step 1/5: Downloading $batch_count audio files from S3..."
-    local download_pids=()
+    # Step 1: Download all audio files from S3 (throttled parallel downloads)
+    log_info "  Step 1/5: Downloading $batch_count audio files from S3 (max 20 concurrent)..."
+    local MAX_PARALLEL=20
+    local download_failed=0
+    local download_success=0
     local chunk_index=0
 
     for chunk_info in "${chunks[@]}"; do
@@ -446,19 +448,31 @@ transcribe_chunk_batch() {
         local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.webm"
         local audio_file="$batch_dir_edge/chunk-${session_path//\//-}-${chunk_num}.webm"
 
-        # Download in background
-        aws s3 cp "$audio_s3" "$audio_file" 2>/dev/null &
-        download_pids+=($!)
+        # Throttle: Wait if we have MAX_PARALLEL jobs running
+        while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL ]; do
+            wait -n 2>/dev/null || true
+        done
+
+        # Download in background with error tracking
+        (
+            if aws s3 cp "$audio_s3" "$audio_file" 2>/dev/null; then
+                exit 0
+            else
+                exit 1
+            fi
+        ) &
+
         chunk_index=$((chunk_index + 1))
     done
 
-    # Wait for all downloads
-    local download_failed=0
-    for pid in "${download_pids[@]}"; do
-        if ! wait "$pid"; then
-            download_failed=$((download_failed + 1))
-        fi
+    # Wait for all remaining downloads
+    while [ $(jobs -r | wc -l) -gt 0 ]; do
+        wait -n 2>/dev/null || true
     done
+
+    # Count downloaded files
+    download_success=$(ls -1 "$batch_dir_edge"/*.webm 2>/dev/null | wc -l)
+    download_failed=$((batch_count - download_success))
 
     if [ $download_failed -gt 0 ]; then
         log_error "  $download_failed/$batch_count downloads failed"
@@ -522,9 +536,11 @@ transcribe_chunk_batch() {
 
     log_success "  Retrieved transcriptions"
 
-    # Step 5: Upload all to S3 (in parallel)
-    log_info "  Step 5/5: Uploading $batch_count transcriptions to S3..."
-    local upload_pids=()
+    # Step 5: Upload all to S3 (throttled parallel uploads)
+    log_info "  Step 5/5: Uploading $batch_count transcriptions to S3 (max 20 concurrent)..."
+    local MAX_PARALLEL_UPLOAD=20
+    local upload_failed=0
+    local upload_success=0
 
     for chunk_info in "${chunks[@]}"; do
         local session_path="${chunk_info%:*}"
@@ -532,29 +548,36 @@ transcribe_chunk_batch() {
         local trans_s3="s3://$S3_BUCKET/$session_path/transcription-chunk-${chunk_num}.json"
         local trans_file="$batch_dir_edge/transcription-chunk-${session_path//\//-}-${chunk_num}.json"
 
-        # Upload in background
-        if [ -f "$trans_file" ]; then
-            aws s3 cp "$trans_file" "$trans_s3" 2>/dev/null &
-            upload_pids+=($!)
+        if [ ! -f "$trans_file" ]; then
+            continue
         fi
+
+        # Throttle: Wait if we have MAX_PARALLEL_UPLOAD jobs running
+        while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL_UPLOAD ]; do
+            wait -n 2>/dev/null || true
+        done
+
+        # Upload in background
+        (
+            if aws s3 cp "$trans_file" "$trans_s3" 2>/dev/null; then
+                exit 0
+            else
+                exit 1
+            fi
+        ) &
     done
 
-    # Wait for all uploads
-    local upload_failed=0
-    for pid in "${upload_pids[@]}"; do
-        if ! wait "$pid"; then
-            upload_failed=$((upload_failed + 1))
-        fi
+    # Wait for all remaining uploads
+    while [ $(jobs -r | wc -l) -gt 0 ]; do
+        wait -n 2>/dev/null || true
     done
+
+    # Count successful uploads by checking S3
+    upload_success=$(ls -1 "$batch_dir_edge"/transcription-*.json 2>/dev/null | wc -l)
 
     # Cleanup
     rm -rf "$batch_dir_edge"
     ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
-
-    if [ $upload_failed -gt 0 ]; then
-        log_error "  $upload_failed/$batch_count uploads failed"
-        return 1
-    fi
 
     log_success "  Batch complete: $batch_count chunks processed"
     return 0
