@@ -37,6 +37,11 @@ else
     log_warn() { echo "[WARN] $*"; }
 fi
 
+# Source riva-common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/riva-common-library.sh"
+fi
+
 echo "============================================"
 echo "305: Setup WhisperLive Edge Proxy"
 echo "============================================"
@@ -124,13 +129,33 @@ log_info "Step 4/8: Gathering configuration..."
 EDGE_PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null)
 log_info "Edge public IP: $EDGE_PUBLIC_IP"
 
-# Get GPU IP from .env or prompt
-if [ -z "${GPU_INSTANCE_IP:-}" ]; then
-    log_warn "GPU_INSTANCE_IP not found in .env"
-    read -p "Enter GPU instance private IP: " GPU_INSTANCE_IP
+# Get GPU IP using dynamic lookup from instance ID
+if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+    log_info "Looking up GPU IP from instance ID: $GPU_INSTANCE_ID"
+    GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+    if [ -n "$GPU_IP" ] && [ "$GPU_IP" != "None" ]; then
+        log_success "GPU IP from dynamic lookup: $GPU_IP"
+    else
+        log_warn "Dynamic IP lookup failed"
+        GPU_IP="${GPU_INSTANCE_IP:-}"
+    fi
+else
+    # Fallback to static IP variable or prompt
+    GPU_IP="${GPU_INSTANCE_IP:-}"
+    if [ -z "$GPU_IP" ]; then
+        log_warn "GPU_INSTANCE_ID not set in .env"
+        log_info "For automatic IP lookup, add GPU_INSTANCE_ID to .env"
+        read -p "Enter GPU instance IP manually: " GPU_IP
+    fi
 fi
 
-log_info "GPU instance IP: $GPU_INSTANCE_IP"
+if [ -z "$GPU_IP" ]; then
+    log_error "Could not determine GPU IP"
+    log_info "Please set GPU_INSTANCE_ID in .env (e.g., GPU_INSTANCE_ID=i-xxxxxxxxxxxxx)"
+    exit 1
+fi
+
+log_info "GPU instance IP: $GPU_IP"
 
 # Get user email
 if [ -z "${EMAIL:-}" ]; then
@@ -148,15 +173,16 @@ log_info "Step 5/8: Creating .env-http configuration..."
 cat > "$EDGE_DIR/.env-http" << EOF
 # WhisperLive Edge Proxy Configuration
 # Created by 305-setup-whisperlive-edge.sh on $(date)
+# GPU IP looked up dynamically from instance ID: ${GPU_INSTANCE_ID:-manual}
 
 # Domain (using IP for now, can use domain name later)
-DOMAIN=${GPU_INSTANCE_IP}
+DOMAIN=${GPU_IP}
 
 # Email for Let's Encrypt (not used with self-signed certs)
 EMAIL=${EMAIL}
 
-# GPU WhisperLive endpoint
-GPU_HOST=${GPU_INSTANCE_IP}
+# GPU WhisperLive endpoint (dynamically looked up)
+GPU_HOST=${GPU_IP}
 GPU_PORT=9090
 
 # WhisperLive model settings (these are just defaults shown in UI)
@@ -326,6 +352,17 @@ if docker ps -a --format '{{.Names}}' | grep -q "^whisperlive-edge$"; then
     fi
 fi
 
+# Regenerate .env-http from .env with dynamic GPU IP lookup
+# This ensures GPU_HOST is always correct before starting Caddy
+log_info "Regenerating .env-http with current GPU IP..."
+if generate_env_http "$EDGE_DIR"; then
+    log_success "✅ Generated .env-http with dynamic GPU IP"
+else
+    log_error "Failed to generate .env-http"
+    exit 1
+fi
+echo ""
+
 # Start Caddy
 cd "$EDGE_DIR"
 docker compose up -d
@@ -357,8 +394,11 @@ log_info "  - WebSocket: wss://$EDGE_PUBLIC_IP/ws"
 log_info "  - Container: whisperlive-edge"
 echo ""
 log_info "GPU Connection:"
-log_info "  - Target: $GPU_INSTANCE_IP:9090"
+log_info "  - Target: $GPU_IP:9090"
 log_info "  - Protocol: WebSocket (ws://)"
+if [ -n "${GPU_INSTANCE_ID:-}" ]; then
+    log_info "  - Instance ID: $GPU_INSTANCE_ID (dynamic lookup)"
+fi
 echo ""
 log_info "Management Commands:"
 log_info "  - View logs: docker compose logs -f"

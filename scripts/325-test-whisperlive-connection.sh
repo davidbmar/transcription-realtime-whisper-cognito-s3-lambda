@@ -45,31 +45,54 @@ echo ""
 # ============================================================================
 log_info "Checking prerequisites..."
 
-# Load environment
-if [ -f "$PROJECT_ROOT/.env-http" ]; then
-    set -a
-    source "$PROJECT_ROOT/.env-http"
-    set +a
-elif [ -f "$PROJECT_ROOT/.env" ]; then
+# Load environment FIRST (before sourcing riva-common-library)
+# Load .env first, then .env-http can override specific values
+if [ -f "$PROJECT_ROOT/.env" ]; then
     set -a
     source "$PROJECT_ROOT/.env"
     set +a
 fi
 
-# Support both WhisperLive (GPU_HOST) and RIVA (RIVA_HOST/GPU_INSTANCE_IP) variables
-GPU_HOST="${GPU_HOST:-${RIVA_HOST:-${GPU_INSTANCE_IP:-}}}"
+# Then load .env-http if it exists (for edge-specific config)
+if [ -f "$PROJECT_ROOT/.env-http" ]; then
+    set -a
+    source "$PROJECT_ROOT/.env-http"
+    set +a
+fi
+
+# Source riva-common-library for dynamic IP lookup (AFTER .env is loaded)
+if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/riva-common-library.sh"
+fi
+
+# Dynamic IP lookup from instance ID (survives reboots)
+# Falls back to static variables if instance ID not available
+if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+    log_info "Looking up GPU IP from instance ID: $GPU_INSTANCE_ID"
+    GPU_HOST=$(get_instance_ip "$GPU_INSTANCE_ID")
+    if [ -n "$GPU_HOST" ] && [ "$GPU_HOST" != "None" ]; then
+        log_success "GPU IP from dynamic lookup: $GPU_HOST"
+    else
+        log_warn "Dynamic IP lookup failed, trying static variables..."
+        GPU_HOST="${GPU_HOST:-${RIVA_HOST:-${GPU_INSTANCE_IP:-}}}"
+    fi
+else
+    # Fallback to static IP variables
+    GPU_HOST="${GPU_HOST:-${RIVA_HOST:-${GPU_INSTANCE_IP:-}}}"
+fi
+
 GPU_PORT="${GPU_PORT:-9090}"
 
 if [ -z "$GPU_HOST" ]; then
     log_error "GPU endpoint not configured"
     echo ""
     echo "Please set one of the following in .env:"
+    echo "  - GPU_INSTANCE_ID=i-xxxxx  (preferred - survives reboots)"
     echo "  - GPU_HOST=<gpu-ip>  (for WhisperLive)"
     echo "  - RIVA_HOST=<gpu-ip>  (for RIVA, will be used as fallback)"
-    echo "  - GPU_INSTANCE_IP=<gpu-ip>  (legacy, will be used as fallback)"
     echo ""
     echo "Example:"
-    echo "  echo 'GPU_HOST=52.15.199.98' >> .env"
+    echo "  echo 'GPU_INSTANCE_ID=i-03a292875d9b12688' >> .env"
     echo "  echo 'GPU_PORT=9090' >> .env"
     exit 1
 fi

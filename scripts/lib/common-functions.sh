@@ -279,18 +279,51 @@ validate_prerequisites() {
 # =============================================================================
 
 # Execute command on remote GPU instance
+# Uses dynamic IP lookup from GPU_INSTANCE_ID if GPU_INSTANCE_IP is not set or is stale
 run_remote() {
     local SSH_KEY_PATH="$HOME/.ssh/${SSH_KEY_NAME}.pem"
-    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i "$SSH_KEY_PATH" ubuntu@"$GPU_INSTANCE_IP" "$@"
+
+    # Dynamic IP lookup (survives GPU reboots)
+    local GPU_IP="${GPU_INSTANCE_IP:-}"
+    if [ -z "$GPU_IP" ] && [ -n "${GPU_INSTANCE_ID:-}" ]; then
+        GPU_IP=$(aws ec2 describe-instances \
+            --instance-ids "$GPU_INSTANCE_ID" \
+            --region "${AWS_REGION:-us-east-2}" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text 2>/dev/null || echo "")
+    fi
+
+    if [ -z "$GPU_IP" ]; then
+        echo "ERROR: Cannot determine GPU IP. Set GPU_INSTANCE_IP or GPU_INSTANCE_ID in .env" >&2
+        return 1
+    fi
+
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i "$SSH_KEY_PATH" ubuntu@"$GPU_IP" "$@"
 }
 
 # Copy file to remote instance
+# Uses dynamic IP lookup from GPU_INSTANCE_ID if GPU_INSTANCE_IP is not set or is stale
 copy_to_remote() {
     local local_path=$1
     local remote_path=$2
     local SSH_KEY_PATH="$HOME/.ssh/${SSH_KEY_NAME}.pem"
-    
-    scp -o StrictHostKeyChecking=no -i "$SSH_KEY_PATH" "$local_path" ubuntu@"$GPU_INSTANCE_IP":"$remote_path"
+
+    # Dynamic IP lookup (survives GPU reboots)
+    local GPU_IP="${GPU_INSTANCE_IP:-}"
+    if [ -z "$GPU_IP" ] && [ -n "${GPU_INSTANCE_ID:-}" ]; then
+        GPU_IP=$(aws ec2 describe-instances \
+            --instance-ids "$GPU_INSTANCE_ID" \
+            --region "${AWS_REGION:-us-east-2}" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text 2>/dev/null || echo "")
+    fi
+
+    if [ -z "$GPU_IP" ]; then
+        echo "ERROR: Cannot determine GPU IP. Set GPU_INSTANCE_IP or GPU_INSTANCE_ID in .env" >&2
+        return 1
+    fi
+
+    scp -o StrictHostKeyChecking=no -i "$SSH_KEY_PATH" "$local_path" ubuntu@"$GPU_IP":"$remote_path"
 }
 
 # =============================================================================
@@ -711,3 +744,89 @@ resolve_gpu_ip() {
 }
 
 export -f resolve_gpu_ip
+
+# =============================================================================
+# EDGE PROXY CONFIGURATION GENERATION
+# =============================================================================
+
+# Generate .env-http for Caddy edge proxy from .env using dynamic IP lookup
+# This ensures .env-http always has the correct GPU IP (survives restarts)
+#
+# Usage: generate_env_http [target_dir]
+#
+# Args:
+#   target_dir - Optional directory for .env-http (default: current directory)
+#
+# Returns:
+#   0 on success, 1 on failure
+#
+# Example:
+#   generate_env_http ~/event-b/whisper-live-test
+#
+generate_env_http() {
+    local target_dir="${1:-.}"
+    local env_http_path="${target_dir}/.env-http"
+
+    log_info "Generating .env-http for Caddy edge proxy..."
+
+    # Load .env if not already loaded
+    if [ -z "${GPU_INSTANCE_ID:-}" ]; then
+        if [ -f .env ]; then
+            source .env
+        else
+            log_error ".env file not found"
+            return 1
+        fi
+    fi
+
+    # Source riva-common-library for get_instance_ip function
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [ -f "$script_dir/riva-common-library.sh" ]; then
+        source "$script_dir/riva-common-library.sh"
+    else
+        log_error "riva-common-library.sh not found"
+        return 1
+    fi
+
+    # Get GPU IP dynamically from instance ID (NOT from static vars)
+    local gpu_host=""
+    if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+        gpu_host=$(get_instance_ip "$GPU_INSTANCE_ID")
+        if [ -z "$gpu_host" ] || [ "$gpu_host" = "None" ]; then
+            log_error "Failed to get GPU IP from instance ID: $GPU_INSTANCE_ID"
+            return 1
+        fi
+        log_success "GPU IP from dynamic lookup: $gpu_host"
+    else
+        log_error "GPU_INSTANCE_ID not set or get_instance_ip not available"
+        return 1
+    fi
+
+    # Generate .env-http with dynamic GPU_HOST
+    cat > "$env_http_path" << EOF
+# Auto-generated from .env - DO NOT EDIT MANUALLY
+# Regenerated automatically before every docker compose up
+# Last generated: $(date)
+# Source: GPU_INSTANCE_ID=$GPU_INSTANCE_ID
+
+# GPU WhisperLive endpoint (dynamically looked up from GPU_INSTANCE_ID)
+GPU_HOST=$gpu_host
+GPU_PORT=${GPU_PORT:-9090}
+
+# Edge proxy domain configuration
+DOMAIN=${EDGE_BOX_DNS:-localhost}
+EMAIL=${EMAIL:-admin@localhost}
+
+# WhisperLive model defaults (shown in UI)
+MODEL=${WHISPER_MODEL:-Systran/faster-whisper-small.en}
+LANGUAGE=en
+EOF
+
+    log_success "Generated .env-http at: $env_http_path"
+    log_info "  GPU_HOST=$gpu_host (from GPU_INSTANCE_ID)"
+    log_info "  GPU_PORT=${GPU_PORT:-9090}"
+
+    return 0
+}
+
+export -f generate_env_http

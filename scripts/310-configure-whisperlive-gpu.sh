@@ -37,6 +37,11 @@ else
     log_warn() { echo "[WARN] $*"; }
 fi
 
+# Source riva-common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/riva-common-library.sh"
+fi
+
 echo "============================================"
 echo "310: Configure WhisperLive on GPU"
 echo "============================================"
@@ -55,10 +60,26 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Check if we're on the GPU instance or build box
-if [ -n "${GPU_INSTANCE_IP:-}" ] && [ "$(hostname -I | awk '{print $1}')" != "$GPU_INSTANCE_IP" ]; then
+# Dynamic IP lookup from instance ID (survives reboots)
+GPU_IP=""
+if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+    log_info "Looking up GPU IP from instance ID: $GPU_INSTANCE_ID"
+    GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+    if [ -n "$GPU_IP" ] && [ "$GPU_IP" != "None" ]; then
+        log_success "GPU IP from dynamic lookup: $GPU_IP"
+    else
+        log_warn "Dynamic IP lookup failed, trying static variable..."
+        GPU_IP="${GPU_INSTANCE_IP:-}"
+    fi
+else
+    # Fallback to static IP variable
+    GPU_IP="${GPU_INSTANCE_IP:-}"
+fi
+
+if [ -n "$GPU_IP" ] && [ "$(hostname -I | awk '{print $1}')" != "$GPU_IP" ]; then
     REMOTE_MODE=true
     log_info "Running in REMOTE mode - will SSH to GPU instance"
-    log_info "GPU IP: $GPU_INSTANCE_IP"
+    log_info "GPU IP: $GPU_IP"
 
     if [ -z "${SSH_KEY:-}" ]; then
         if [ -n "${SSH_KEY_NAME:-}" ]; then
@@ -582,7 +603,15 @@ EOFSCRIPT
 # ============================================================================
 if [ "$REMOTE_MODE" = true ]; then
     log_info "Executing installation on GPU instance via SSH..."
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@"$GPU_INSTANCE_IP" "bash -s" << EOF
+
+    # Verify we have a valid GPU IP
+    if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
+        log_error "Cannot determine GPU IP"
+        log_error "Please set GPU_INSTANCE_ID in .env (e.g., GPU_INSTANCE_ID=i-xxxxxxxxxxxxx)"
+        exit 1
+    fi
+
+    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no ubuntu@"$GPU_IP" "bash -s" << EOF
 $INSTALL_SCRIPT
 EOF
 

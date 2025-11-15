@@ -32,6 +32,12 @@ fi
 REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
+
+# Source riva-common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/riva-common-library.sh"
+fi
+
 load_environment
 
 echo "╔════════════════════════════════════════════════════════════╗"
@@ -157,25 +163,50 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Test 5: GPU Connectivity from Edge"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if [ -n "${GPU_INSTANCE_IP:-}" ]; then
-    echo "  GPU IP:             $GPU_INSTANCE_IP"
+# Dynamic IP lookup from instance ID (preferred)
+GPU_IP=""
+if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+    log_info "Looking up GPU IP from instance ID: $GPU_INSTANCE_ID"
+    GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+    if [ -n "$GPU_IP" ] && [ "$GPU_IP" != "None" ]; then
+        echo "  GPU Instance ID:    $GPU_INSTANCE_ID"
+        echo "  GPU IP (dynamic):   $GPU_IP"
+    else
+        echo "  ⚠️  Dynamic IP lookup failed"
+        GPU_IP="${GPU_INSTANCE_IP:-}"
+    fi
+else
+    # Fallback to static variable (deprecated)
+    GPU_IP="${GPU_INSTANCE_IP:-}"
+    if [ -n "$GPU_IP" ]; then
+        echo "  ⚠️  Using static GPU_INSTANCE_IP (deprecated)"
+        echo "  GPU IP (static):    $GPU_IP"
+        echo "     → Recommended: Set GPU_INSTANCE_ID in .env for dynamic lookup"
+    fi
+fi
+
+if [ -n "$GPU_IP" ]; then
     echo "  GPU Port:           ${GPU_PORT:-9090}"
     echo ""
 
-    GPU_TEST=$(curl -s http://$GPU_INSTANCE_IP:${GPU_PORT:-9090} 2>&1 | grep -o "426 Upgrade Required" || echo "FAILED")
+    GPU_TEST=$(curl -s http://$GPU_IP:${GPU_PORT:-9090} 2>&1 | grep -o "426 Upgrade Required" || echo "FAILED")
 
     if [ "$GPU_TEST" = "426 Upgrade Required" ]; then
         echo "  ✅ PASS: GPU WhisperLive is reachable"
         echo "     (426 is expected - WebSocket requires upgrade)"
     else
         echo "  ❌ ISSUE: Cannot connect to GPU WhisperLive"
-        echo "     → Check GPU is running: aws ec2 describe-instances --instance-ids $GPU_INSTANCE_ID"
-        echo "     → Check security groups allow edge→GPU on port 9090"
+        if [ -n "${GPU_INSTANCE_ID:-}" ]; then
+            echo "     → Check GPU is running: aws ec2 describe-instances --instance-ids $GPU_INSTANCE_ID"
+        fi
+        echo "     → Check security groups allow edge→GPU on port ${GPU_PORT:-9090}"
         echo "     → Run: ./scripts/030-configure-gpu-security.sh"
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
     fi
 else
-    echo "  ⚠️  SKIP: GPU_INSTANCE_IP not configured in .env"
+    echo "  ⚠️  SKIP: GPU not configured in .env"
+    echo "     → Set GPU_INSTANCE_ID in .env for dynamic lookup"
+    echo "     → Or set GPU_INSTANCE_IP for static configuration"
     echo "     (Transcription will not work without GPU)"
 fi
 echo ""

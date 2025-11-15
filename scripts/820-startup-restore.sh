@@ -3,7 +3,7 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# Script 220: Startup GPU and Restore WhisperLive
+# Script 820: Startup GPU and Restore WhisperLive
 # ============================================================================
 # Complete one-command restoration of WhisperLive streaming setup.
 # Run this after shutting down the GPU to save costs.
@@ -12,18 +12,20 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 # 1. Starts GPU EC2 instance (uses GPU_INSTANCE_ID from .env)
 # 2. Waits for instance to be ready
 # 3. Queries AWS for current IP (IP changes on every stop/start)
-# 4. If IP changed, updates ALL config files:
-#    - .env (GPU_INSTANCE_IP, GPU_HOST)
-#    - .env-http (DOMAIN, GPU_HOST)
-# 5. If IP changed, updates AWS security groups
-# 6. If IP changed, recreates Docker containers (Caddy) to load new IP
-# 7. Verifies SSH connectivity
-# 8. Checks WhisperLive service status
-# 9. Deploys WhisperLive if needed (calls 310-configure-whisperlive-gpu.sh)
-# 10. Ensures WhisperLive service is running
+# 4. Exports IP to environment for current session only (NOT stored)
+# 5. Verifies SSH connectivity
+# 6. Checks WhisperLive service status
+# 7. Deploys WhisperLive if needed (calls 310-configure-whisperlive-gpu.sh)
+# 8. Ensures WhisperLive service is running
+# 9. Runs end-to-end transcription verification
 #
-# Architecture: Instance ID is source of truth, IP is resolved at startup
-# Total time: 3-5 minutes (2min startup + 1-3min deployment if needed)
+# NEW Architecture: Dynamic IP lookup pattern
+# - GPU_INSTANCE_ID is permanent (stored in .env)
+# - GPU IP is queried at runtime (NOT stored)
+# - Edge box scripts (825) handle Caddy proxy updates
+# - All scripts use get_instance_ip() for current IP
+#
+# Total time: 4-5 minutes (2min startup + 30s model load + 30s verification)
 # ============================================================================
 
 # Find repository root (works from symlink or direct execution)
@@ -99,221 +101,36 @@ fi
 echo ""
 
 # ============================================================================
-# Step 2: Get Current IP and Update .env if Changed
+# Step 2: Get Current IP (Dynamic Lookup - Not Stored)
 # ============================================================================
-log_info "Step 2/6: Checking GPU IP address..."
+log_info "Step 2/6: Looking up current GPU IP address..."
 CURRENT_IP=$(aws ec2 describe-instances \
   --instance-ids "$GPU_INSTANCE_ID" \
   --region "$REGION" \
   --query 'Reservations[0].Instances[0].PublicIpAddress' \
   --output text)
 
-log_info "Current GPU IP: $CURRENT_IP"
+log_success "Current GPU IP: $CURRENT_IP (dynamic lookup)"
 
-OLD_IP=$(grep "^GPU_INSTANCE_IP=" .env | cut -d'=' -f2)
+# Export for current shell session only (NOT stored in .env)
+export GPU_HOST="$CURRENT_IP"
+export WHISPERLIVE_HOST="$CURRENT_IP"
+export WHISPERLIVE_PORT="9090"
 
-if [ "$CURRENT_IP" != "$OLD_IP" ]; then
-  echo ""
-  echo "╔════════════════════════════════════════════════════════════╗"
-  echo "║                                                            ║"
-  echo "║         ⚠️  CRITICAL: GPU IP ADDRESS HAS CHANGED          ║"
-  echo "║                                                            ║"
-  echo "╟────────────────────────────────────────────────────────────╢"
-  echo "║  Old IP: $OLD_IP"
-  echo "║  New IP: $CURRENT_IP"
-  echo "╟────────────────────────────────────────────────────────────╢"
-  echo "║  Actions being taken:                                      ║"
-  echo "║   1. Updating all config files (.env, .env-http)           ║"
-  echo "║   2. Exporting environment variables                       ║"
-  echo "║   3. Reloading configuration                               ║"
-  echo "║   4. Updating AWS security groups                          ║"
-  echo "║   5. Recreating Docker containers (Caddy)                  ║"
-  echo "╚════════════════════════════════════════════════════════════╝"
-  echo ""
-
-  log_info "Step 1/5: Updating configuration files..."
-
-  # Update .env
-  sed -i "s/^GPU_INSTANCE_IP=.*/GPU_INSTANCE_IP=$CURRENT_IP/" .env
-
-  # Update GPU_HOST in main .env (create if doesn't exist)
-  if grep -q "^GPU_HOST=" .env 2>/dev/null; then
-    sed -i "s/^GPU_HOST=.*/GPU_HOST=$CURRENT_IP/" .env
-  else
-    echo "GPU_HOST=$CURRENT_IP" >> .env
-  fi
-
-  # Update WHISPERLIVE_HOST in main .env (create if doesn't exist)
-  if grep -q "^WHISPERLIVE_HOST=" .env 2>/dev/null; then
-    sed -i "s/^WHISPERLIVE_HOST=.*/WHISPERLIVE_HOST=$CURRENT_IP/" .env
-  else
-    echo "WHISPERLIVE_HOST=$CURRENT_IP" >> .env
-  fi
-
-  # Update WHISPERLIVE_PORT in main .env (create if doesn't exist)
-  if ! grep -q "^WHISPERLIVE_PORT=" .env 2>/dev/null; then
-    echo "WHISPERLIVE_PORT=9090" >> .env
-  fi
-
-  log_success "  ✅ .env updated"
-
-  # Update .env-http (for WhisperLive edge proxy) - check multiple locations
-  EDGE_ENV_HTTP_LOCATIONS=(
-    "$HOME/event-b/whisper-live-test/.env-http"
-    "$HOME/event-b/whisper-live-edge/.env-http"
-    ".env-http"
-  )
-
-  ENV_HTTP_UPDATED=false
-  for env_http_path in "${EDGE_ENV_HTTP_LOCATIONS[@]}"; do
-    if [ -f "$env_http_path" ]; then
-      sed -i "s/^DOMAIN=.*/DOMAIN=$CURRENT_IP/" "$env_http_path"
-      sed -i "s/^GPU_HOST=.*/GPU_HOST=$CURRENT_IP/" "$env_http_path"
-      log_success "  ✅ .env-http updated: $env_http_path"
-      ENV_HTTP_UPDATED=true
-    fi
-  done
-
-  if [ "$ENV_HTTP_UPDATED" = "false" ]; then
-    log_info "  ℹ️  No .env-http found (edge proxy not configured)"
-  fi
-
-  log_success "✅ All configuration files updated"
-
-  log_info "Step 2/5: Exporting environment variables..."
-  export GPU_INSTANCE_IP="$CURRENT_IP"
-  export GPU_HOST="$CURRENT_IP"
-  export WHISPERLIVE_HOST="$CURRENT_IP"
-  export WHISPERLIVE_PORT="9090"
-  log_success "✅ Variables exported for child scripts"
-
-  log_info "Step 3/5: Reloading .env configuration..."
-  load_environment
-  log_success "✅ Configuration reloaded"
-
-  log_info "Step 4/5: Updating AWS security groups..."
-
-  # Get edge box IP (this script runs on edge box)
-  EDGE_BOX_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s http://checkip.amazonaws.com 2>/dev/null)
-
-  if [ -z "$EDGE_BOX_IP" ]; then
-    log_warn "⚠️  Could not detect edge box public IP"
-    log_info "Skipping security group update - run manually if needed:"
-    log_info "  ./scripts/030-configure-gpu-security.sh"
-  else
-    log_info "  Edge box IP: $EDGE_BOX_IP"
-    log_info "  Allowing edge box → GPU on port 9090..."
-
-    # Get GPU security group ID
-    GPU_SG_ID=$(aws ec2 describe-instances \
-      --instance-ids "$GPU_INSTANCE_ID" \
-      --region "$REGION" \
-      --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' \
-      --output text 2>/dev/null)
-
-    if [ -n "$GPU_SG_ID" ]; then
-      # Add rule to allow edge box → GPU on port 9090 (ignore if already exists)
-      if aws ec2 authorize-security-group-ingress \
-          --region "$REGION" \
-          --group-id "$GPU_SG_ID" \
-          --protocol tcp \
-          --port 9090 \
-          --cidr "${EDGE_BOX_IP}/32" \
-          --output text > /dev/null 2>&1; then
-        log_success "  ✅ Security group rule added: ${EDGE_BOX_IP}/32 → GPU:9090"
-      else
-        # Rule already exists or other error
-        log_info "  ℹ️  Security group rule already exists or update not needed"
-      fi
-    else
-      log_warn "  ⚠️  Could not find GPU security group ID"
-    fi
-  fi
-
-  echo ""
-  log_info "Step 5/5: Recreating Docker containers with new IP..."
-
-  # Detect edge directory (multiple possible locations)
-  EDGE_DIRS=(
-    "$HOME/event-b/whisper-live-test"
-    "$HOME/event-b/whisperlive-test"
-    "$HOME/whisper-live-test"
-    "$HOME/whisperlive-test"
-  )
-
-  EDGE_DIR=""
-  for dir in "${EDGE_DIRS[@]}"; do
-    if [ -f "$dir/docker-compose.yml" ]; then
-      EDGE_DIR="$dir"
-      log_info "  Found edge directory: $EDGE_DIR"
-      break
-    fi
-  done
-
-  if [ -n "$EDGE_DIR" ]; then
-    # Save current directory
-    ORIGINAL_DIR=$(pwd)
-
-    # Change to edge directory
-    cd "$EDGE_DIR"
-
-    log_info "  Stopping Caddy container..."
-    docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
-
-    # Force remove if still exists (handles stale containers)
-    if docker ps -a --format '{{.Names}}' | grep -q "whisperlive-edge"; then
-      log_info "  Force removing stale Caddy container..."
-      docker rm -f whisperlive-edge || true
-    fi
-
-    log_info "  Starting Caddy with updated GPU IP..."
-    if docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null; then
-      log_success "  ✅ Caddy container recreated"
-    else
-      log_warn "  ⚠️  Failed to recreate Caddy container"
-    fi
-
-    # Return to original directory
-    cd "$ORIGINAL_DIR"
-  else
-    log_info "  ℹ️  No edge directory found (Caddy not configured)"
-  fi
-
-  echo ""
-  log_info "Step 6/6: Verifying connectivity..."
-
-  # Test edge box → GPU connectivity
-  if [ -n "$EDGE_BOX_IP" ]; then
-    log_info "  Testing edge box can reach GPU on port 9090..."
-    if timeout 5 bash -c "echo > /dev/tcp/$CURRENT_IP/9090" 2>/dev/null; then
-      log_success "  ✅ Edge box → GPU:9090 connectivity verified"
-    else
-      log_warn "  ⚠️  Cannot reach GPU:9090 from edge box"
-      log_info "  This may resolve after WhisperLive starts"
-    fi
-  fi
-
-  # Test Caddy health endpoint if container was recreated
-  if [ -n "$EDGE_DIR" ]; then
-    log_info "  Testing Caddy health endpoint..."
-    if curl -sk https://localhost/healthz 2>/dev/null | grep -q "OK"; then
-      log_success "  ✅ Caddy HTTPS proxy responding"
-    else
-      log_warn "  ⚠️  Caddy health check failed (may need time to start)"
-    fi
-  fi
-
-  echo ""
-  echo "╔════════════════════════════════════════════════════════════╗"
-  echo "║                                                            ║"
-  echo "║    ✅ IP CHANGE COMPLETE - CONTINUING WITH DEPLOYMENT     ║"
-  echo "║                                                            ║"
-  echo "╚════════════════════════════════════════════════════════════╝"
-  echo ""
-else
-  log_success "✅ IP unchanged: $CURRENT_IP"
-fi
-
+log_info "IP exported for current session (will be looked up dynamically on next run)"
+echo ""
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║                                                            ║"
+echo "║  ℹ️  NEW ARCHITECTURE: Dynamic IP Lookup                  ║"
+echo "║                                                            ║"
+echo "╟────────────────────────────────────────────────────────────╢"
+echo "║  GPU IP is NOT stored in .env (changes on every reboot)   ║"
+echo "║  All scripts use get_instance_ip() for current IP         ║"
+echo "║                                                            ║"
+echo "║  If running edge box proxy (Caddy):                       ║"
+echo "║    Run ./scripts/825-update-edge-box-ip.sh on edge box    ║"
+echo "║    This updates Caddy config with new GPU IP              ║"
+echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
 # ============================================================================
@@ -590,5 +407,12 @@ fi
 log_success "🎉 WhisperLive startup complete!"
 echo ""
 log_info "Next steps:"
-echo "  • Test manually: ./scripts/450-test-audio-transcription.sh"
+echo "  • If using edge box proxy: Run ./scripts/825-update-edge-box-ip.sh ON EDGE BOX"
+echo "    (This updates Caddy reverse proxy config with new GPU IP)"
+echo ""
+echo "  • Test transcription: ./scripts/450-test-audio-transcription.sh"
 echo "  • View GPU logs: ssh -i ~/.ssh/${SSH_KEY_NAME}.pem ubuntu@$CURRENT_IP 'sudo journalctl -u whisperlive -f'"
+echo ""
+log_warn "⚠️  IMPORTANT: GPU IP changes on every stop/start"
+log_info "All scripts now use dynamic IP lookup from GPU_INSTANCE_ID"
+log_info "Edge box Caddy proxy must be updated manually with script 825"

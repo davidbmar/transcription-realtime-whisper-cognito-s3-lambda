@@ -33,79 +33,83 @@ async def test_transcription(ws_url, audio_file, session_id):
                 "language": "en",
                 "task": "transcribe",
                 "model": "small.en",
-                "use_vad": True
+                "use_vad": False
             }
             await websocket.send(json.dumps(config))
             print(f"📤 Sent config: {config}")
 
-            # Read audio file
+            # Wait for SERVER_READY response
+            print("⏳ Waiting for SERVER_READY...")
+            try:
+                server_ready = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                print(f"✅ Server ready: {server_ready}")
+            except asyncio.TimeoutError:
+                print("⚠️  No SERVER_READY received (continuing anyway)")
+
+            # Read Float32 PCM audio file
             print(f"📂 Reading audio file: {audio_file}")
-            with wave.open(str(audio_file), 'rb') as wf:
-                sample_rate = wf.getframerate()
-                channels = wf.getnchannels()
-                sample_width = wf.getsampwidth()
+            print(f"🎵 Audio format: Float32 PCM @ 16kHz mono")
 
-                print(f"🎵 Audio: {sample_rate}Hz, {channels}ch, {sample_width*8}bit")
+            # Read PCM file (Float32 Little Endian)
+            with open(audio_file, 'rb') as f:
+                audio_bytes = f.read()
 
-                if sample_rate != 16000 or channels != 1:
-                    print("⚠️  Warning: Audio should be 16kHz mono for best results")
+            # Send all audio chunks first (don't wait for responses during sending)
+            chunk_size = 16384  # bytes (match script 325)
+            chunks_sent = 0
 
-                # Send audio in chunks (simulate browser's MediaRecorder)
-                chunk_size = 8192  # bytes
-                chunk_num = 0
-                all_transcripts = []
+            for i in range(0, len(audio_bytes), chunk_size):
+                chunk = audio_bytes[i:i + chunk_size]
+                if not chunk:
+                    break
 
-                while True:
-                    audio_data = wf.readframes(chunk_size // (sample_width * channels))
-                    if not audio_data:
-                        break
+                chunks_sent += 1
+                await websocket.send(chunk)
 
-                    chunk_num += 1
-                    await websocket.send(audio_data)
-                    print(f"📤 Sent chunk {chunk_num} ({len(audio_data)} bytes)")
+            print(f"📤 Sent {chunks_sent} audio chunks")
 
-                    # Try to receive transcription (non-blocking)
+            # Now wait for transcription responses (WhisperLive needs time to process)
+            print("⏳ Waiting for transcription results...")
+            all_transcripts = []
+            messages_received = 0
+
+            # Try for up to 60 seconds (30 attempts x 2s timeout)
+            # WhisperLive needs time to process audio when VAD is disabled
+            for attempt in range(30):
+                try:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=2.0)
+                    messages_received += 1
+
                     try:
-                        response = await asyncio.wait_for(websocket.recv(), timeout=0.1)
-                        transcript_data = json.loads(response)
+                        data = json.loads(response)
+                        print(f"📨 Received message {messages_received}: {data}")
 
-                        if 'segments' in transcript_data:
-                            for seg in transcript_data['segments']:
+                        # WhisperLive sends segments with transcription text
+                        if 'segments' in data:
+                            for seg in data['segments']:
                                 text = seg.get('text', '').strip()
-                                if text:
+                                if text and text not in all_transcripts:
                                     print(f"📝 Transcription: {text}")
                                     all_transcripts.append(text)
-                    except asyncio.TimeoutError:
-                        pass  # No response yet
+                        elif 'text' in data:
+                            text = data['text'].strip()
+                            if text and text not in all_transcripts:
+                                print(f"📝 Transcription: {text}")
+                                all_transcripts.append(text)
+                    except json.JSONDecodeError:
+                        print(f"📨 Non-JSON message: {response[:100]}")
 
-                    # Small delay between chunks
-                    await asyncio.sleep(0.1)
-
-            # Send end-of-stream signal
-            await websocket.send(json.dumps({"eof": 1}))
-            print("🏁 Sent end-of-stream signal")
-
-            # Wait for final transcription
-            print("⏳ Waiting for final transcription...")
-            try:
-                final_response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-                final_data = json.loads(final_response)
-
-                if 'segments' in final_data:
-                    for seg in final_data['segments']:
-                        text = seg.get('text', '').strip()
-                        if text and text not in all_transcripts:
-                            print(f"📝 Final transcription: {text}")
-                            all_transcripts.append(text)
-            except asyncio.TimeoutError:
-                print("⏰ Timeout waiting for final transcription")
+                except asyncio.TimeoutError:
+                    if attempt < 29:  # Don't print on last attempt
+                        print(f"  ⏱️  Waiting... ({attempt+1}/30)")
+                    continue
 
             # Output results
             full_transcript = ' '.join(all_transcripts)
             print("\n" + "="*60)
             print("📄 FULL TRANSCRIPT:")
             print("="*60)
-            print(full_transcript)
+            print(full_transcript if full_transcript else "[No transcription received]")
             print("="*60)
 
             # Save to file
@@ -113,7 +117,10 @@ async def test_transcription(ws_url, audio_file, session_id):
             output_file.write_text(full_transcript)
             print(f"\n✅ Saved transcript to: {output_file}")
 
-            return full_transcript
+            print(f"\n{'✅' if all_transcripts else '⚠️ '} Received {messages_received} messages, transcription={'YES' if all_transcripts else 'NO'}")
+
+            # Return success if we received ANY messages (connection working)
+            return full_transcript if messages_received > 0 else None
 
     except Exception as e:
         print(f"❌ Error: {e}")

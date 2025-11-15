@@ -45,6 +45,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 source "$PROJECT_ROOT/scripts/lib/gpu-cost-functions.sh"
+source "$PROJECT_ROOT/scripts/riva-common-library.sh"
 
 echo "============================================"
 echo "515: Run Batch Transcription"
@@ -82,7 +83,17 @@ else
     SSH_KEY="$PROJECT_ROOT/$GPU_SSH_KEY_PATH"  # Relative path
 fi
 SSH_USER="ubuntu"
-GPU_IP="${GPU_INSTANCE_IP}"
+
+# Dynamic IP lookup from instance ID (survives reboots)
+log_info "Looking up current GPU IP from instance ID: $GPU_INSTANCE_ID"
+GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
+    log_error "Failed to get GPU IP from instance ID: $GPU_INSTANCE_ID"
+    log_error "Is the GPU instance running? Check: aws ec2 describe-instances --instance-ids $GPU_INSTANCE_ID"
+    exit 1
+fi
+log_success "Current GPU IP: $GPU_IP (dynamic lookup)"
+
 GPU_ID="${GPU_INSTANCE_ID}"
 S3_BUCKET="${COGNITO_S3_BUCKET}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
@@ -847,6 +858,29 @@ fi
 # Step 3: Check GPU state and start if needed
 GPU_STATE=$(check_gpu_state)
 GPU_WAS_RUNNING=false
+
+# If GPU is in a transient state (stopping/pending), wait for it to stabilize
+if [ "$GPU_STATE" = "stopping" ]; then
+    log_info "GPU is stopping - waiting for stopped state..."
+    if aws ec2 wait instance-stopped --instance-ids "$GPU_ID" --region "$AWS_REGION" 2>/dev/null; then
+        log_success "GPU stopped successfully"
+        GPU_STATE="stopped"
+    else
+        log_error "Timeout waiting for GPU to stop"
+        exit 1
+    fi
+    echo ""
+elif [ "$GPU_STATE" = "pending" ]; then
+    log_info "GPU is starting - waiting for running state..."
+    if aws ec2 wait instance-running --instance-ids "$GPU_ID" --region "$AWS_REGION" 2>/dev/null; then
+        log_success "GPU running successfully"
+        GPU_STATE="running"
+    else
+        log_error "Timeout waiting for GPU to start"
+        exit 1
+    fi
+    echo ""
+fi
 
 if [ "$GPU_STATE" = "running" ]; then
     log_info "GPU is already running"

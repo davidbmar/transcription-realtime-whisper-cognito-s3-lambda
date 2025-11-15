@@ -236,6 +236,18 @@ docker rm whisperlive-edge 2>/dev/null || true
 log_info "Starting Caddy (this will obtain Let's Encrypt certificate)..."
 log_info "This may take 30-60 seconds..."
 
+# Regenerate .env-http from .env with dynamic GPU IP lookup
+log_info "Regenerating .env-http with current GPU IP..."
+cd "$REPO_ROOT"  # Go to repo root for generate_env_http context
+if generate_env_http "$CADDY_DIR"; then
+    log_success "✅ Generated .env-http with dynamic GPU IP"
+else
+    log_error "Failed to generate .env-http"
+    exit 1
+fi
+cd "$CADDY_DIR"  # Return to caddy dir
+echo ""
+
 docker compose up -d
 
 # Wait for container to start

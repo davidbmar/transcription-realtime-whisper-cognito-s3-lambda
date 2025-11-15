@@ -415,11 +415,18 @@ deploy_instance() {
     echo -e "${BLUE}📝 Updating configuration...${NC}"
 
     # Update .env file
+    # NOTE: Instance ID is permanent, IPs are temporary (change on every stop/start)
     update_env_file "GPU_INSTANCE_ID" "$instance_id"
-    update_env_file "GPU_INSTANCE_IP" "$public_ip"
-    update_env_file "GPU_HOST" "$public_ip"
-    update_env_file "RIVA_HOST" "$public_ip"
     update_env_file "SECURITY_GROUP_ID" "$sg_id"
+
+    # IP addresses written for immediate use only (will become stale on next reboot)
+    # All scripts should use dynamic IP lookup via get_instance_ip()
+    update_env_file "GPU_INSTANCE_IP" "$public_ip"  # Deprecated - use GPU_INSTANCE_ID
+    update_env_file "GPU_HOST" "$public_ip"          # Deprecated - use GPU_INSTANCE_ID
+    update_env_file "RIVA_HOST" "$public_ip"         # Deprecated - use GPU_INSTANCE_ID
+
+    echo "  ⚠️  Note: IP addresses stored for immediate use only"
+    echo "     All scripts use dynamic IP lookup from GPU_INSTANCE_ID"
 
     # Write instance facts
     write_instance_facts "$instance_id" "${GPU_INSTANCE_TYPE}" "$ami_id" "$sg_id" "${SSH_KEY_NAME}"

@@ -113,6 +113,16 @@ if docker compose ps | grep -q whisperlive-edge; then
     log_success "Caddy restarted"
 else
     log_warn "Caddy container not running, starting it..."
+
+    # Regenerate .env-http from .env with dynamic GPU IP lookup
+    log_info "Regenerating .env-http with current GPU IP..."
+    if generate_env_http .; then
+        log_success "✅ Generated .env-http with dynamic GPU IP"
+    else
+        log_error "Failed to generate .env-http"
+        exit 1
+    fi
+
     docker compose up -d
     sleep 3
 fi

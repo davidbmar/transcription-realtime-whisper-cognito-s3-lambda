@@ -3,26 +3,30 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# 825: Update Edge Box IP Address
+# 825: Update Edge Box and GPU IP Addresses
 # ============================================================================
-# Detects and handles edge box IP changes (e.g., after EC2 stop/start).
-# Similar to 820-startup-restore.sh but for the edge box instead of GPU.
+# Detects and handles IP changes for both edge box and GPU (e.g., after EC2 stop/start).
+# Uses dynamic IP lookup from instance IDs.
 #
 # What this does:
 # 1. Detects current edge box public IP
-# 2. Compares with stored IP in .env
-# 3. If changed:
-#    - Updates all config files (.env)
+# 2. Detects current GPU IP from GPU_INSTANCE_ID (dynamic lookup)
+# 3. Compares both with stored IPs in configuration files
+# 4. If edge box IP changed:
+#    - Updates .env configuration
 #    - Regenerates SSL certificate for new IP
-#    - Restarts Caddy container to pick up new cert
 #    - Redeploys UI with new WebSocket URL
-#    - Optionally updates security groups
-# 4. Provides verification steps for browser
+# 5. If GPU IP changed:
+#    - Updates .env-http (Caddy's proxy target)
+#    - Restarts Caddy to connect to new GPU IP
+# 6. Provides verification steps for browser
 #
 # Run this script:
 # - After stopping/starting the edge box EC2 instance
-# - When edge box IP changes for any reason
+# - After stopping/starting the GPU EC2 instance
+# - When either IP changes for any reason
 # - To verify/fix SSL certificate issues
+# - Automatically runs on boot via systemd (if configured with script 827)
 # ============================================================================
 
 # Find repository root (works from symlink or direct execution)
@@ -35,6 +39,11 @@ REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 load_environment
+
+# Source riva-common-library for dynamic GPU IP lookup
+if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/riva-common-library.sh"
+fi
 
 echo "============================================"
 echo "825: Update Edge Box IP Address"
@@ -113,6 +122,61 @@ fi
 echo ""
 
 # ============================================================================
+# Step 2b: Check GPU IP Changes (Critical for Caddy Proxy)
+# ============================================================================
+log_info "Step 2b/8: Checking GPU IP (for Caddy reverse proxy)..."
+
+GPU_IP_CHANGED=false
+CADDY_NEEDS_UPDATE=false
+
+if [ -n "${GPU_INSTANCE_ID:-}" ] && command -v get_instance_ip >/dev/null 2>&1; then
+    # Use dynamic IP lookup
+    CURRENT_GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+
+    if [ -z "$CURRENT_GPU_IP" ] || [ "$CURRENT_GPU_IP" = "None" ]; then
+        log_warn "⚠️  Could not look up GPU IP from instance ID: $GPU_INSTANCE_ID"
+        log_info "GPU may be stopped. Caddy config will be updated when GPU restarts."
+        CURRENT_GPU_IP=""
+    else
+        log_success "✅ GPU IP from dynamic lookup: $CURRENT_GPU_IP"
+
+        # Check if GPU IP changed in .env-http (Caddy's config)
+        ENV_HTTP_PATH=""
+        for caddy_dir in "$HOME/event-b/whisper-live-test" "$HOME/event-b/whisper-live-edge"; do
+            if [ -f "$caddy_dir/.env-http" ]; then
+                ENV_HTTP_PATH="$caddy_dir/.env-http"
+                break
+            fi
+        done
+
+        if [ -n "$ENV_HTTP_PATH" ]; then
+            OLD_GPU_IP=$(grep "^GPU_HOST=" "$ENV_HTTP_PATH" 2>/dev/null | cut -d'=' -f2 || echo "")
+
+            if [ -z "$OLD_GPU_IP" ]; then
+                log_warn "GPU_HOST not found in .env-http, will add it"
+                GPU_IP_CHANGED=true
+                CADDY_NEEDS_UPDATE=true
+            elif [ "$CURRENT_GPU_IP" != "$OLD_GPU_IP" ]; then
+                log_warn "⚠️  GPU IP has changed!"
+                echo "  Old GPU IP: $OLD_GPU_IP"
+                echo "  New GPU IP: $CURRENT_GPU_IP"
+                GPU_IP_CHANGED=true
+                CADDY_NEEDS_UPDATE=true
+            else
+                log_success "✅ GPU IP unchanged: $CURRENT_GPU_IP"
+            fi
+        else
+            log_warn ".env-http not found, Caddy may not be configured"
+        fi
+    fi
+else
+    log_info "GPU_INSTANCE_ID not set, skipping GPU IP check"
+    log_info "To enable automatic GPU IP detection, set GPU_INSTANCE_ID in .env"
+fi
+
+echo ""
+
+# ============================================================================
 # Step 3: Update Configuration Files
 # ============================================================================
 if [ "$IP_CHANGED" = "true" ]; then
@@ -166,6 +230,30 @@ if [ "$IP_CHANGED" = "true" ]; then
     echo ""
 fi
 
+# Generate .env-http from .env with dynamic GPU IP lookup
+# This ensures .env is single source of truth and GPU_HOST is always correct
+if [ "$GPU_IP_CHANGED" = "true" ] || [ "$IP_CHANGED" = "true" ] || [ "${CADDY_NEEDS_UPDATE:-false}" = "true" ]; then
+    log_info "Regenerating .env-http from .env with dynamic GPU IP lookup..."
+
+    # Find all possible Caddy directories
+    CADDY_DIRS=(
+        "$HOME/event-b/whisper-live-test"
+        "$HOME/event-b/whisper-live-edge"
+    )
+
+    for caddy_dir in "${CADDY_DIRS[@]}"; do
+        if [ -d "$caddy_dir" ]; then
+            # Generate .env-http with dynamic GPU IP from GPU_INSTANCE_ID
+            if generate_env_http "$caddy_dir"; then
+                log_success "  ✅ Generated .env-http in: $caddy_dir"
+                CADDY_NEEDS_UPDATE=true
+            fi
+        fi
+    done
+
+    echo ""
+fi
+
 # ============================================================================
 # Step 4: Regenerate SSL Certificate
 # ============================================================================
@@ -213,7 +301,11 @@ fi
 # ============================================================================
 # Step 5: Restart Caddy Container
 # ============================================================================
-log_info "Step 5/7: Restarting Caddy container with new certificate..."
+if [ "${CADDY_NEEDS_UPDATE:-false}" = "true" ]; then
+    log_info "Step 5/8: Restarting Caddy container (config changed)..."
+else
+    log_info "Step 5/8: Restarting Caddy container with new certificate..."
+fi
 
 # Find Caddy docker-compose directory
 CADDY_DIRS=(
@@ -227,11 +319,18 @@ for caddy_dir in "${CADDY_DIRS[@]}"; do
         log_info "  Found Caddy at: $caddy_dir"
         cd "$caddy_dir"
 
+        # Regenerate .env-http from .env with dynamic GPU IP lookup
+        # This ensures GPU_HOST is always correct before starting Caddy
+        log_info "  Regenerating .env-http with current GPU IP..."
+        cd "$REPO_ROOT"  # go back to repo root for generate_env_http
+        generate_env_http "$caddy_dir"
+        cd "$caddy_dir"  # return to caddy dir
+
         # Stop and remove container
         docker stop whisperlive-edge 2>/dev/null || true
         docker rm whisperlive-edge 2>/dev/null || true
 
-        # Restart with docker compose
+        # Restart with docker compose (now with fresh .env-http)
         if docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null; then
             log_success "  ✅ Caddy container restarted"
             CADDY_RESTARTED=true

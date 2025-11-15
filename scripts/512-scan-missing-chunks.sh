@@ -153,8 +153,8 @@ for SESSION_PATH in $SESSIONS; do
     MISSING_CHUNKS=""
     for CHUNK_NUM in $AUDIO_CHUNKS; do
         # Check if this chunk number exists in transcription list
-        # Use grep -F for literal match and || true to handle no-match case
-        if [ -z "$TRANSCRIPTION_CHUNKS" ] || ! echo "$TRANSCRIPTION_CHUNKS" | grep -qF "^${CHUNK_NUM}$" 2>/dev/null; then
+        # Use grep -w for word boundary matching (exact match without regex anchors)
+        if [ -z "$TRANSCRIPTION_CHUNKS" ] || ! echo "$TRANSCRIPTION_CHUNKS" | grep -qw "^${CHUNK_NUM}$" 2>/dev/null; then
             if [ -z "$MISSING_CHUNKS" ]; then
                 MISSING_CHUNKS="$CHUNK_NUM"
             else

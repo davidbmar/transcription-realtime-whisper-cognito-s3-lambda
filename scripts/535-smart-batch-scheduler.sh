@@ -117,6 +117,30 @@ log_queue_size() {
         sudo tee -a "$QUEUE_LOG" >/dev/null
 }
 
+# Check if we're in backoff period after watchdog kill
+check_backoff() {
+    local backoff_file="/tmp/batch-transcribe-backoff"
+
+    if [ -f "$backoff_file" ]; then
+        local backoff_until=$(cat "$backoff_file" 2>/dev/null || echo "0")
+        local now=$(date +%s)
+
+        if [ "$now" -lt "$backoff_until" ]; then
+            local wait_minutes=$(( (backoff_until - now) / 60 ))
+            log_warn "In backoff period after watchdog termination"
+            log_warn "Cannot retry until: $(date -d @$backoff_until)"
+            log_warn "Wait time remaining: ${wait_minutes} minutes"
+            return 1  # In backoff, cannot proceed
+        else
+            log_info "Backoff period expired, removing marker"
+            rm -f "$backoff_file"
+            return 0  # Backoff expired, can proceed
+        fi
+    fi
+
+    return 0  # No backoff, can proceed
+}
+
 # Check if batch is already running
 check_batch_lock() {
     if [ -f "$LOCK_FILE" ]; then
@@ -132,7 +156,7 @@ check_batch_lock() {
             # Safety check: Has it been running too long?
             if [ $age_hours -ge $MAX_RUNTIME_HOURS ]; then
                 log_warn "Batch has been running for ${age_hours}h (threshold: ${MAX_RUNTIME_HOURS}h)"
-                log_warn "Consider investigating PID $lock_pid"
+                log_warn "Watchdog should terminate this process soon"
             fi
 
             return 1  # Lock exists and process is running
@@ -201,7 +225,18 @@ EOF
 # Main Scheduler Logic
 # ============================================================================
 
-log_info "Step 1: Checking for existing batch process..."
+log_info "Step 1: Checking for backoff period..."
+
+if ! check_backoff; then
+    log_info "In backoff period, skipping this run"
+    log_info "Next check in $CHECK_HOURS hours"
+    exit 0
+fi
+
+log_success "No backoff - continuing"
+echo ""
+
+log_info "Step 2: Checking for existing batch process..."
 
 if ! check_batch_lock; then
     log_info "Batch is currently running, skipping this run"
@@ -213,10 +248,10 @@ log_success "No batch lock - safe to proceed"
 echo ""
 
 # ============================================================================
-# Step 2: Scan for missing chunks
+# Step 3: Scan for missing chunks
 # ============================================================================
 
-log_info "Step 2: Scanning S3 for missing transcriptions..."
+log_info "Step 3: Scanning S3 for missing transcriptions..."
 
 # Run scan script (512)
 if ! "$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh"; then
@@ -236,10 +271,10 @@ log_info "Missing chunks found: $MISSING_CHUNKS"
 echo ""
 
 # ============================================================================
-# Step 3: Decide whether to run batch transcription
+# Step 4: Decide whether to run batch transcription
 # ============================================================================
 
-log_info "Step 3: Evaluating threshold..."
+log_info "Step 4: Evaluating threshold..."
 log_info "  Missing chunks: $MISSING_CHUNKS"
 log_info "  Threshold:      $BATCH_THRESHOLD"
 echo ""
@@ -275,7 +310,7 @@ if [ $MISSING_CHUNKS -lt $BATCH_THRESHOLD ]; then
 fi
 
 # ============================================================================
-# Step 4: Run batch transcription
+# Step 5: Run batch transcription
 # ============================================================================
 
 log_success "Threshold met! Starting batch transcription..."
