@@ -79,6 +79,10 @@ PENDING_JOBS_FILE="/tmp/pending-jobs.json"
 REPORT_DIR="$PROJECT_ROOT/batch-reports"
 REPORT_FILE="$REPORT_DIR/batch-$(date +%Y-%m-%d-%H%M).json"
 
+# Batch processing configuration
+BATCH_SIZE="${BATCH_SIZE:-1}"  # Process N chunks at once (default: 1 for backward compatibility)
+BATCH_LIMIT="${BATCH_LIMIT:-0}"  # Limit total chunks to process (0 = no limit, for testing)
+
 # GPU cost tracking
 GPU_HOURLY_COST=0.526  # g4dn.xlarge on-demand pricing
 WE_STARTED_GPU=false
@@ -253,6 +257,7 @@ stop_gpu() {
 
 transcribe_all_chunks() {
     log_info "Step 4: Transcribing all pending chunks..."
+    log_info "Batch mode: $([[ $BATCH_SIZE -gt 1 ]] && echo "ENABLED (size=$BATCH_SIZE)" || echo "DISABLED (sequential)")"
 
     # Read pending jobs
     if [ ! -f "$PENDING_JOBS_FILE" ]; then
@@ -262,41 +267,87 @@ transcribe_all_chunks() {
 
     local session_count=$(jq -r '.sessions | length' "$PENDING_JOBS_FILE")
     local total_chunks=$(jq -r '.totalMissingChunks' "$PENDING_JOBS_FILE")
+
+    # Apply limit if set (for testing)
+    if [ $BATCH_LIMIT -gt 0 ] && [ $BATCH_LIMIT -lt $total_chunks ]; then
+        log_info "BATCH_LIMIT set: Processing only $BATCH_LIMIT of $total_chunks chunks (for testing)"
+        total_chunks=$BATCH_LIMIT
+    fi
+
     log_info "Processing $session_count sessions with $total_chunks missing chunks"
     echo ""
 
-    # Process each session (use temp file to avoid fd conflicts with exec tee)
+    # Build flat list of all chunks to process
+    local all_chunks=()
     local sessions_file="/tmp/batch-sessions-$$.json"
     jq -c '.sessions[]' "$PENDING_JOBS_FILE" > "$sessions_file"
 
-    local session_num=0
     while read -r session_data; do
-        session_num=$((session_num + 1))
-
         local session_path=$(echo "$session_data" | jq -r '.sessionPath')
-        local session_id=$(echo "$session_data" | jq -r '.sessionId')
         local missing_chunks=$(echo "$session_data" | jq -r '.missingChunks[]')
-        local chunk_count=$(echo "$session_data" | jq -r '.missingCount')
 
-        log_info "Session $session_num/$session_count: $session_id ($chunk_count chunks)"
-
-        # Transcribe each missing chunk
         for chunk_num in $missing_chunks; do
-            local current_total=$((CHUNKS_TRANSCRIBED + CHUNKS_FAILED + 1))
-            log_info "  Processing chunk $chunk_num [$current_total/$total_chunks total]..."
-            if transcribe_chunk "$session_path" "$chunk_num"; then
-                CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
-                log_success "  Chunk $chunk_num complete [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
-            else
-                CHUNKS_FAILED=$((CHUNKS_FAILED + 1))
-                log_warn "  Chunk $chunk_num failed [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            all_chunks+=("$session_path:$chunk_num")
+
+            # Stop if we hit the limit
+            if [ $BATCH_LIMIT -gt 0 ] && [ ${#all_chunks[@]} -ge $BATCH_LIMIT ]; then
+                break 2
             fi
         done
-
-        echo ""
     done < "$sessions_file"
-
     rm -f "$sessions_file"
+
+    total_chunks=${#all_chunks[@]}
+    log_info "Total chunks to process: $total_chunks"
+
+    # Process chunks (batch or sequential)
+    if [ $BATCH_SIZE -le 1 ]; then
+        # Sequential processing (original behavior)
+        log_info "Using SEQUENTIAL processing (BATCH_SIZE=1)"
+        echo ""
+
+        for chunk_info in "${all_chunks[@]}"; do
+            local session_path="${chunk_info%:*}"
+            local chunk_num="${chunk_info#*:}"
+            local current_total=$((CHUNKS_TRANSCRIBED + CHUNKS_FAILED + 1))
+
+            log_info "Processing chunk $chunk_num [$current_total/$total_chunks total]..."
+            if transcribe_chunk "$session_path" "$chunk_num"; then
+                CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
+                log_success "Chunk $chunk_num complete [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            else
+                CHUNKS_FAILED=$((CHUNKS_FAILED + 1))
+                log_warn "Chunk $chunk_num failed [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            fi
+        done
+    else
+        # Batch processing (NEW optimization)
+        log_info "Using BATCH processing (BATCH_SIZE=$BATCH_SIZE)"
+        echo ""
+
+        local batch_num=0
+        for ((i=0; i<total_chunks; i+=BATCH_SIZE)); do
+            batch_num=$((batch_num + 1))
+            local batch_end=$((i + BATCH_SIZE))
+            [ $batch_end -gt $total_chunks ] && batch_end=$total_chunks
+            local batch_count=$((batch_end - i))
+
+            log_info "Batch $batch_num: Processing chunks $((i+1))-$batch_end ($batch_count chunks)..."
+
+            # Extract this batch's chunks
+            local batch_chunks=("${all_chunks[@]:i:batch_count}")
+
+            # Process the batch
+            if transcribe_chunk_batch "${batch_chunks[@]}"; then
+                CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + batch_count))
+                log_success "Batch $batch_num complete [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            else
+                CHUNKS_FAILED=$((CHUNKS_FAILED + batch_count))
+                log_warn "Batch $batch_num failed [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            fi
+            echo ""
+        done
+    fi
 
     log_success "Transcription complete: $CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed"
 }
@@ -367,6 +418,145 @@ transcribe_chunk() {
     ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -f '$audio_gpu' '$trans_gpu'" 2>/dev/null || true
 
     log_success "  Chunk $chunk_num: Complete"
+    return 0
+}
+
+transcribe_chunk_batch() {
+    # Batch process multiple chunks at once (eliminates model reload overhead)
+    # Args: Array of "session_path:chunk_num" strings
+    local chunks=("$@")
+    local batch_count=${#chunks[@]}
+    local batch_id="batch-$$-$(date +%s)"
+    local batch_dir_edge="/tmp/$batch_id"
+    local batch_dir_gpu="/tmp/$batch_id"
+
+    log_info "  Batch processing $batch_count chunks..."
+
+    # Create batch directory
+    mkdir -p "$batch_dir_edge"
+
+    # Step 1: Download all audio files from S3 (in parallel)
+    log_info "  Step 1/5: Downloading $batch_count audio files from S3..."
+    local download_pids=()
+    local chunk_index=0
+
+    for chunk_info in "${chunks[@]}"; do
+        local session_path="${chunk_info%:*}"
+        local chunk_num="${chunk_info#*:}"
+        local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.webm"
+        local audio_file="$batch_dir_edge/chunk-${session_path//\//-}-${chunk_num}.webm"
+
+        # Download in background
+        aws s3 cp "$audio_s3" "$audio_file" 2>/dev/null &
+        download_pids+=($!)
+        chunk_index=$((chunk_index + 1))
+    done
+
+    # Wait for all downloads
+    local download_failed=0
+    for pid in "${download_pids[@]}"; do
+        if ! wait "$pid"; then
+            download_failed=$((download_failed + 1))
+        fi
+    done
+
+    if [ $download_failed -gt 0 ]; then
+        log_error "  $download_failed/$batch_count downloads failed"
+        rm -rf "$batch_dir_edge"
+        return 1
+    fi
+
+    log_success "  Downloaded $batch_count files"
+
+    # Step 2: Transfer entire batch to GPU (one rsync call)
+    log_info "  Step 2/5: Transferring batch to GPU..."
+    if ! rsync -az -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+                "$batch_dir_edge/" "$SSH_USER@$GPU_IP:$batch_dir_gpu/" 2>/dev/null; then
+        log_error "  Failed to transfer batch to GPU"
+        rm -rf "$batch_dir_edge"
+        return 1
+    fi
+
+    log_success "  Batch transferred to GPU"
+
+    # Step 3: Run batch transcription on GPU (SINGLE model load for all files!)
+    log_info "  Step 3/5: Transcribing $batch_count chunks on GPU (single model load)..."
+
+    # Ensure batch processor script exists on GPU
+    ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "mkdir -p ~/batch-transcription" 2>/dev/null || true
+
+    # Copy bulk processor script to GPU if needed
+    if ! ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "test -f ~/batch-transcription/batch-transcribe-audio-bulk.py" 2>/dev/null; then
+        log_info "  Deploying batch processor to GPU..."
+        scp -i "$SSH_KEY" "$PROJECT_ROOT/scripts/batch-transcribe-audio-bulk.py" \
+            "$SSH_USER@$GPU_IP:~/batch-transcription/" 2>/dev/null || {
+            log_error "  Failed to deploy batch processor"
+            rm -rf "$batch_dir_edge"
+            ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
+            return 1
+        }
+    fi
+
+    # Run bulk transcription on GPU
+    if ! ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" \
+        "cd ~/whisperlive/WhisperLive && source venv/bin/activate && \
+         export LD_LIBRARY_PATH=\$PWD/venv/lib/python3.9/site-packages/nvidia/cudnn/lib:\$PWD/venv/lib/python3.9/site-packages/nvidia/cublas/lib:\$LD_LIBRARY_PATH && \
+         python3 ~/batch-transcription/batch-transcribe-audio-bulk.py --input '$batch_dir_gpu' --output '$batch_dir_gpu' 2>&1"; then
+        log_error "  Batch transcription failed on GPU"
+        rm -rf "$batch_dir_edge"
+        ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
+        return 1
+    fi
+
+    log_success "  Batch transcription complete"
+
+    # Step 4: Retrieve all transcriptions (one rsync call)
+    log_info "  Step 4/5: Retrieving transcriptions from GPU..."
+    if ! rsync -az -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+                "$SSH_USER@$GPU_IP:$batch_dir_gpu/transcription-*.json" "$batch_dir_edge/" 2>/dev/null; then
+        log_error "  Failed to retrieve transcriptions from GPU"
+        rm -rf "$batch_dir_edge"
+        ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
+        return 1
+    fi
+
+    log_success "  Retrieved transcriptions"
+
+    # Step 5: Upload all to S3 (in parallel)
+    log_info "  Step 5/5: Uploading $batch_count transcriptions to S3..."
+    local upload_pids=()
+
+    for chunk_info in "${chunks[@]}"; do
+        local session_path="${chunk_info%:*}"
+        local chunk_num="${chunk_info#*:}"
+        local trans_s3="s3://$S3_BUCKET/$session_path/transcription-chunk-${chunk_num}.json"
+        local trans_file="$batch_dir_edge/transcription-chunk-${session_path//\//-}-${chunk_num}.json"
+
+        # Upload in background
+        if [ -f "$trans_file" ]; then
+            aws s3 cp "$trans_file" "$trans_s3" 2>/dev/null &
+            upload_pids+=($!)
+        fi
+    done
+
+    # Wait for all uploads
+    local upload_failed=0
+    for pid in "${upload_pids[@]}"; do
+        if ! wait "$pid"; then
+            upload_failed=$((upload_failed + 1))
+        fi
+    done
+
+    # Cleanup
+    rm -rf "$batch_dir_edge"
+    ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
+
+    if [ $upload_failed -gt 0 ]; then
+        log_error "  $upload_failed/$batch_count uploads failed"
+        return 1
+    fi
+
+    log_success "  Batch complete: $batch_count chunks processed"
     return 0
 }
 
