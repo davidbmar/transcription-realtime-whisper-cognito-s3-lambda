@@ -44,6 +44,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 # Load environment and common functions
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
+source "$PROJECT_ROOT/scripts/lib/gpu-cost-functions.sh"
 
 echo "============================================"
 echo "515: Run Batch Transcription"
@@ -219,6 +220,8 @@ start_gpu() {
 
     if aws ec2 wait instance-running --instance-ids "$GPU_ID" --region "$AWS_REGION" 2>/dev/null; then
         log_success "GPU is running"
+        # Log GPU start event for cost tracking
+        gpu_log_start "$GPU_ID" "batch-transcription-515"
     else
         log_error "Timeout waiting for GPU to start"
         exit 1
@@ -256,8 +259,12 @@ stop_gpu() {
 
     if aws ec2 wait instance-stopped --instance-ids "$GPU_ID" --region "$AWS_REGION" 2>/dev/null; then
         log_success "GPU stopped successfully"
+        # Log GPU stop event for cost tracking
+        gpu_log_stop "$GPU_ID" "batch-complete-515" "$CHUNKS_TRANSCRIBED"
     else
         log_warn "Timeout waiting for GPU to stop (stop was initiated)"
+        # Log stop event even on timeout (stop was initiated)
+        gpu_log_stop "$GPU_ID" "batch-timeout-515" "$CHUNKS_TRANSCRIBED"
     fi
 }
 
