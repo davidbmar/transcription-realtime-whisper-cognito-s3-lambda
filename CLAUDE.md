@@ -395,7 +395,10 @@ The repository includes numbered deployment scripts (000-999) that automate the 
 - Auto-detects GPU IP changes after stop/start
 - Updates .env, .env-http, and security groups
 - Recreates Docker containers with new GPU IP
-- Similar to 825 but for GPU instead of edge box
+- **NEW**: Records startup timing and runs end-to-end transcription verification
+- Reports total startup time (start → transcription ready) with metrics display
+- Verifies actual transcription capability before declaring system ready
+- Typical total time: 4-5 minutes (includes 30s model load + 30s transcription test)
 
 **825-update-edge-box-ip.sh** (NEW)
 - Detects edge box public IP changes
@@ -744,3 +747,34 @@ Refused to load media from 'blob:...' because it violates the following Content 
 curl -s https://de70by05kq678.cloudfront.net/audio.html | grep -A1 "Content-Security-Policy"
 # Should include: media-src 'self' blob:
 ```
+
+### Test Scripts Timing Out / "No transcription received"
+
+**Symptom:** Scripts 325 or 450 report "No transcription received" even though WhisperLive is running.
+
+**Root cause:** WhisperLive with **VAD disabled** (`use_vad: False`) needs 30-60 seconds to process audio when sent all at once. The scripts were only waiting 20 seconds.
+
+**Fix applied:** Both scripts now wait 60 seconds (30 attempts × 2s timeout) instead of 20 seconds.
+
+**Why this happens:**
+- WhisperLive buffers incoming audio into 30-second chunks
+- Processes them through the GPU faster-whisper model
+- With VAD off, waits for enough audio or connection patterns to send results
+- When audio is sent quickly (not real-time), processing takes longer
+
+**Testing notes:**
+- **Script 325**: Tests direct GPU connection via `ws://GPU_IP:9090`
+- **Script 450**: Tests edge proxy via `wss://transcribe.davidbmar.com/ws`
+- **Script 820**: Now includes end-to-end verification with timing metrics
+- All three scripts use the same 60-second wait pattern
+
+**Expected behavior:**
+- First transcription message typically arrives after 20-40 seconds
+- Multiple messages may arrive as WhisperLive processes the audio
+- Success = receiving at least 1 message with `segments` or `text` field
+
+**If tests still fail after 60s:**
+1. Check WhisperLive is actually processing: `ssh ubuntu@<GPU_IP> 'sudo journalctl -u whisperlive -f'`
+2. Look for "Processing audio with duration" messages
+3. If no processing logs, WhisperLive may not be receiving audio
+4. Verify WebSocket connection with: `wscat -c ws://<GPU_IP>:9090`
