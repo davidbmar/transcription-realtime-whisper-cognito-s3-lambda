@@ -60,6 +60,18 @@ log_info "  5. Generate batch report"
 echo ""
 
 # ============================================================================
+# GPU Instance Validation
+# ============================================================================
+
+# Validate GPU instance ID and auto-correct if needed
+if ! validate_gpu_instance_id --auto-fix; then
+    log_error "Failed to validate GPU instance ID"
+    log_info "Please check GPU_INSTANCE_ID in .env"
+    exit 1
+fi
+echo ""
+
+# ============================================================================
 # Configuration
 # ============================================================================
 
