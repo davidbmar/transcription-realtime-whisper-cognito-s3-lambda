@@ -291,6 +291,42 @@ stop_gpu() {
     fi
 }
 
+log_to_edge_box() {
+    local event="$1"
+    local details="$2"
+    local log_file="${EDGE_LOG_FILE:-/var/log/batch-transcription.log}"
+
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local epoch=$(date +%s)
+
+    # Ensure log directory exists
+    sudo mkdir -p "$(dirname "$log_file")" 2>/dev/null || true
+
+    # Log to edge box (append mode)
+    echo "${timestamp}|${epoch}|${event}|${details}" | sudo tee -a "$log_file" >/dev/null 2>&1 || true
+}
+
+verify_batch_transcription() {
+    log_info "  Stage 9: Verifying batch transcription..." >&2
+
+    # Run scanner to check remaining missing chunks
+    local remaining_missing=$("$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh" 2>&1 | tail -1)
+
+    # Validate output
+    if ! [[ "$remaining_missing" =~ ^[0-9]+$ ]]; then
+        log_warn "  Stage 9: Scanner returned invalid output, assuming verification failed" >&2
+        remaining_missing="-1"
+    fi
+
+    if [ "$remaining_missing" -eq 0 ]; then
+        log_success "  Stage 9: All chunks successfully transcribed!" >&2
+    elif [ "$remaining_missing" -gt 0 ]; then
+        log_warn "  Stage 9: $remaining_missing chunks still missing after batch" >&2
+    fi
+
+    echo "$remaining_missing"
+}
+
 transcribe_all_chunks() {
     log_info "Step 4: Transcribing all pending chunks..."
     log_info "Batch mode: $([[ $BATCH_SIZE -gt 1 ]] && echo "ENABLED (size=$BATCH_SIZE)" || echo "DISABLED (sequential)")"
@@ -856,6 +892,12 @@ generate_report() {
     "chunksTranscribed": $CHUNKS_TRANSCRIBED,
     "chunksFailed": $CHUNKS_FAILED
   },
+  "verification": {
+    "initialMissing": ${INITIAL_REMAINING:-0},
+    "finalRemaining": ${REMAINING_MISSING:-0},
+    "retriesNeeded": ${RETRY_ATTEMPT:-0},
+    "successRate": $(awk "BEGIN {if ($missing_count > 0) printf \"%.1f\", ((($missing_count - ${REMAINING_MISSING:-0}) / $missing_count) * 100); else print \"100.0\"}")
+  },
   "performance": {
     "totalDurationSeconds": $total_duration
   }
@@ -932,8 +974,51 @@ else
 fi
 
 # Step 4: Transcribe all pending chunks
+log_to_edge_box "BATCH_START" "missing=$MISSING_COUNT,gpu_state=$GPU_STATE"
 transcribe_all_chunks
+log_to_edge_box "BATCH_COMPLETE" "transcribed=$CHUNKS_TRANSCRIBED,failed=$CHUNKS_FAILED"
 echo ""
+
+# Step 4.5: Verify transcription and retry if needed
+MAX_RETRY_ATTEMPTS=${MAX_RETRY_ATTEMPTS:-3}
+RETRY_ATTEMPT=0
+REMAINING_MISSING=$(verify_batch_transcription)
+INITIAL_REMAINING=$REMAINING_MISSING
+echo ""
+
+while [ "$REMAINING_MISSING" -gt 0 ] && [ "$RETRY_ATTEMPT" -lt "$MAX_RETRY_ATTEMPTS" ]; do
+    RETRY_ATTEMPT=$((RETRY_ATTEMPT + 1))
+    log_warn "Retry attempt $RETRY_ATTEMPT of $MAX_RETRY_ATTEMPTS for $REMAINING_MISSING remaining chunks"
+    log_to_edge_box "RETRY_START" "attempt=$RETRY_ATTEMPT,remaining=$REMAINING_MISSING"
+
+    # Re-run scanner to refresh pending jobs
+    RETRY_MISSING=$(run_scanner)
+    echo ""
+
+    if [ "$RETRY_MISSING" -eq 0 ]; then
+        log_success "Verification scan shows all chunks complete!"
+        REMAINING_MISSING=0
+        break
+    fi
+
+    # Retry transcription for remaining chunks
+    transcribe_all_chunks
+    log_to_edge_box "RETRY_COMPLETE" "attempt=$RETRY_ATTEMPT,transcribed=$CHUNKS_TRANSCRIBED"
+    echo ""
+
+    # Verify again
+    REMAINING_MISSING=$(verify_batch_transcription)
+    echo ""
+done
+
+# Log final verification result
+if [ "$REMAINING_MISSING" -gt 0 ]; then
+    log_error "Failed to transcribe $REMAINING_MISSING chunks after $RETRY_ATTEMPT retries"
+    log_to_edge_box "VERIFICATION_FAILED" "remaining=$REMAINING_MISSING,retries=$RETRY_ATTEMPT"
+else
+    log_success "All chunks successfully transcribed!"
+    log_to_edge_box "VERIFICATION_SUCCESS" "retries=$RETRY_ATTEMPT"
+fi
 
 # Step 5: Stop GPU if we started it
 if [ "$WE_STARTED_GPU" = "true" ]; then
