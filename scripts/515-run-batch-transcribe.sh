@@ -79,12 +79,18 @@ PENDING_JOBS_FILE="/tmp/pending-jobs.json"
 REPORT_DIR="$PROJECT_ROOT/batch-reports"
 REPORT_FILE="$REPORT_DIR/batch-$(date +%Y-%m-%d-%H%M).json"
 
-# Batch processing configuration
-BATCH_SIZE="${BATCH_SIZE:-1}"  # Process N chunks at once (default: 1 for backward compatibility)
-BATCH_LIMIT="${BATCH_LIMIT:-0}"  # Limit total chunks to process (0 = no limit, for testing)
+# Batch processing configuration (from .env, with defaults)
+BATCH_SIZE="${BATCH_SIZE:-100}"                              # Process N chunks at once
+BATCH_LIMIT="${BATCH_LIMIT:-0}"                              # Limit total chunks (0 = no limit, for testing)
+BATCH_MAX_PARALLEL_DOWNLOAD="${BATCH_MAX_PARALLEL_DOWNLOAD:-20}"   # Concurrent S3 downloads
+BATCH_MAX_PARALLEL_UPLOAD="${BATCH_MAX_PARALLEL_UPLOAD:-20}"       # Concurrent S3 uploads
+BATCH_DOWNLOAD_THRESHOLD="${BATCH_DOWNLOAD_THRESHOLD:-30}"         # When to start GPU processing
+BATCH_DOWNLOAD_TIMEOUT="${BATCH_DOWNLOAD_TIMEOUT:-60}"             # Max wait for initial downloads
+WHISPER_MODEL="${WHISPER_MODEL:-small.en}"                          # Whisper model (tiny/base/small/medium)
+WHISPER_COMPUTE_TYPE="${WHISPER_COMPUTE_TYPE:-float16}"            # Compute precision (int8/float16/float32)
 
-# GPU cost tracking
-GPU_HOURLY_COST=0.526  # g4dn.xlarge on-demand pricing
+# GPU cost tracking (from .env, with default)
+GPU_HOURLY_COST="${GPU_HOURLY_COST:-0.526}"  # g4dn.xlarge on-demand pricing
 WE_STARTED_GPU=false
 GPU_START_TIME=""
 GPU_STOP_TIME=""
@@ -476,8 +482,7 @@ transcribe_chunk_batch() {
     # Downloads run in background and continue while GPU transfer/processing starts
     # =============================================================================
 
-    log_info "  Stage 1: Starting parallel S3 downloads (max 20 concurrent)..."
-    local MAX_PARALLEL=20
+    log_info "  Stage 1: Starting parallel S3 downloads (max $BATCH_MAX_PARALLEL_DOWNLOAD concurrent)..."
     local download_pids=()
     local chunk_index=0
 
@@ -489,7 +494,7 @@ transcribe_chunk_batch() {
         local audio_file="$batch_dir_edge/chunk-${session_path//\//-}-${chunk_num}.webm"
 
         # Semaphore pattern: Wait if we have MAX_PARALLEL jobs running
-        while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL ]; do
+        while [ $(jobs -r | wc -l) -ge $BATCH_MAX_PARALLEL_DOWNLOAD ]; do
             wait -n 2>/dev/null || true
         done
 
@@ -521,7 +526,7 @@ transcribe_chunk_batch() {
     #   - GPU utilization (start processing sooner on large batches)
     # =============================================================================
 
-    local download_threshold
+    local download_threshold=$BATCH_DOWNLOAD_THRESHOLD
     if [ $batch_count -lt 30 ]; then
         download_threshold=$batch_count
     else
@@ -532,7 +537,7 @@ transcribe_chunk_batch() {
 
     local downloaded_count=0
     local wait_iterations=0
-    local max_wait_iterations=60  # 60 seconds max wait
+    local max_wait_iterations=$BATCH_DOWNLOAD_TIMEOUT  # 60 seconds max wait
 
     while [ $downloaded_count -lt $download_threshold ] && [ $wait_iterations -lt $max_wait_iterations ]; do
         sleep 1
@@ -679,7 +684,7 @@ transcribe_chunk_batch() {
     # =============================================================================
 
     log_info "  Stage 7: Uploading $batch_count transcriptions to S3 (max 20 concurrent)..."
-    local MAX_PARALLEL_UPLOAD=20
+    # Using BATCH_MAX_PARALLEL_UPLOAD from .env
     local upload_success=0
 
     for chunk_info in "${chunks[@]}"; do
@@ -693,7 +698,7 @@ transcribe_chunk_batch() {
         fi
 
         # Semaphore pattern: Wait if we have MAX_PARALLEL_UPLOAD jobs running
-        while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL_UPLOAD ]; do
+        while [ $(jobs -r | wc -l) -ge $BATCH_MAX_PARALLEL_UPLOAD ]; do
             wait -n 2>/dev/null || true
         done
 
