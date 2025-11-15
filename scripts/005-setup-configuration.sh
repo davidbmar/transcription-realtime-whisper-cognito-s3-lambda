@@ -1527,8 +1527,8 @@ TEST_AUDIO_PATH=/opt/riva/test_audio
 #
 # Example configurations:
 #   Fastest (2-3x speedup): WHISPER_MODEL=base.en, WHISPER_COMPUTE_TYPE=int8
-#   Balanced: WHISPER_MODEL=small.en, WHISPER_COMPUTE_TYPE=float16 [DEFAULT]
-#   Best Quality: WHISPER_MODEL=medium.en, WHISPER_COMPUTE_TYPE=float16
+#   Balanced: WHISPER_MODEL=small.en, WHISPER_COMPUTE_TYPE=int8 [DEFAULT]
+#   Best Quality: WHISPER_MODEL=medium.en, WHISPER_COMPUTE_TYPE=int8
 #
 BATCH_SIZE=100
 BATCH_MAX_PARALLEL_DOWNLOAD=20
@@ -1536,7 +1536,7 @@ BATCH_MAX_PARALLEL_UPLOAD=20
 BATCH_DOWNLOAD_THRESHOLD=30
 BATCH_DOWNLOAD_TIMEOUT=60
 WHISPER_MODEL=small.en
-WHISPER_COMPUTE_TYPE=float16
+WHISPER_COMPUTE_TYPE=int8
 
 # GPU Configuration for Batch Processing
 GPU_INSTANCE_ID=your-gpu-instance-id      # EC2 instance ID (i-xxxxx)
