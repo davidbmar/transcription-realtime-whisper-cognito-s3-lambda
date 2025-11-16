@@ -84,15 +84,9 @@ else
 fi
 SSH_USER="ubuntu"
 
-# Dynamic IP lookup from instance ID (survives reboots)
-log_info "Looking up current GPU IP from instance ID: $GPU_INSTANCE_ID"
-GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
-if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
-    log_error "Failed to get GPU IP from instance ID: $GPU_INSTANCE_ID"
-    log_error "Is the GPU instance running? Check: aws ec2 describe-instances --instance-ids $GPU_INSTANCE_ID"
-    exit 1
-fi
-log_success "Current GPU IP: $GPU_IP (dynamic lookup)"
+# Note: GPU_IP will be looked up after GPU starts (in start_gpu function)
+# This is intentional - stopped instances don't have public IPs
+GPU_IP=""  # Will be set by start_gpu() function
 
 GPU_ID="${GPU_INSTANCE_ID}"
 S3_BUCKET="${COGNITO_S3_BUCKET}"
@@ -245,6 +239,15 @@ start_gpu() {
         log_success "GPU is running"
         # Log GPU start event for cost tracking
         gpu_log_start "$GPU_ID" "batch-transcription-515"
+
+        # Now get GPU IP (must be after instance is running)
+        log_info "Looking up GPU IP from running instance: $GPU_ID"
+        GPU_IP=$(get_instance_ip "$GPU_ID")
+        if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
+            log_error "Failed to get GPU IP after starting instance"
+            exit 1
+        fi
+        log_success "GPU IP: $GPU_IP"
     else
         log_error "Timeout waiting for GPU to start"
         exit 1
