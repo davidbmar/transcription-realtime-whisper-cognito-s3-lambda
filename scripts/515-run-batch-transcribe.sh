@@ -410,12 +410,29 @@ transcribe_all_chunks() {
             local batch_chunks=("${all_chunks[@]:i:batch_count}")
 
             # Process the batch
-            if transcribe_chunk_batch "${batch_chunks[@]}"; then
-                CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + batch_count))
-                log_success "Batch $batch_num complete [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+            transcribe_chunk_batch "${batch_chunks[@]}"
+
+            # Use actual GPU success/failure counts (set by transcribe_chunk_batch function)
+            # This handles partial success correctly instead of all-or-nothing
+            if [ -n "$BATCH_GPU_SUCCESS" ] && [ -n "$BATCH_GPU_FAILED" ]; then
+                CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + BATCH_GPU_SUCCESS))
+                CHUNKS_FAILED=$((CHUNKS_FAILED + BATCH_GPU_FAILED))
+
+                if [ "$BATCH_GPU_FAILED" -eq 0 ]; then
+                    log_success "Batch $batch_num complete: all $BATCH_GPU_SUCCESS chunks succeeded [$CHUNKS_TRANSCRIBED total succeeded, $CHUNKS_FAILED total failed]"
+                elif [ "$BATCH_GPU_SUCCESS" -gt 0 ]; then
+                    log_warn "Batch $batch_num partial success: $BATCH_GPU_SUCCESS succeeded, $BATCH_GPU_FAILED failed [$CHUNKS_TRANSCRIBED total succeeded, $CHUNKS_FAILED total failed]"
+                else
+                    log_error "Batch $batch_num failed: all $BATCH_GPU_FAILED chunks failed [$CHUNKS_TRANSCRIBED total succeeded, $CHUNKS_FAILED total failed]"
+                fi
+
+                # Reset batch variables for next iteration
+                BATCH_GPU_SUCCESS=0
+                BATCH_GPU_FAILED=0
             else
+                # Fallback if function didn't set variables (shouldn't happen)
                 CHUNKS_FAILED=$((CHUNKS_FAILED + batch_count))
-                log_warn "Batch $batch_num failed [$CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed]"
+                log_error "Batch $batch_num: unable to determine results (assuming all failed)"
             fi
             echo ""
         done
@@ -681,22 +698,42 @@ transcribe_chunk_batch() {
 
     # Start GPU processing (runs in foreground, blocks until complete)
     log_info "  Stage 4: GPU processing started (single model load for all $batch_count chunks)"
-    if ! ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" \
+
+    # Capture GPU output to parse success/failure counts
+    local gpu_output
+    gpu_output=$(ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" \
         "cd ~/whisperlive/WhisperLive && source venv/bin/activate && \
          export LD_LIBRARY_PATH=\$PWD/venv/lib/python3.9/site-packages/nvidia/cudnn/lib:\$PWD/venv/lib/python3.9/site-packages/nvidia/cublas/lib:\$LD_LIBRARY_PATH && \
-         python3 ~/batch-transcription/batch-transcribe-audio-bulk.py --input '$batch_dir_gpu' --output '$batch_dir_gpu' 2>&1"; then
-        log_error "  Batch transcription failed on GPU"
-        kill $rsync_pid 2>/dev/null || true
-        rm -rf "$batch_dir_edge"
-        ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
-        return 1
-    fi
+         python3 ~/batch-transcription/batch-transcribe-audio-bulk.py --input '$batch_dir_gpu' --output '$batch_dir_gpu' 2>&1" || true)
 
     # Kill rsync background process (GPU processing complete)
     kill $rsync_pid 2>/dev/null || true
     wait $rsync_pid 2>/dev/null || true
 
-    log_success "  Stage 4: GPU processing complete"
+    # Parse GPU output for actual success/failure counts
+    # Expected format: "Files processed:      97/98"
+    local gpu_success=$(echo "$gpu_output" | grep "Files processed:" | awk '{print $3}' | cut -d'/' -f1)
+    local gpu_failed=$(echo "$gpu_output" | grep "^Failed:" | awk '{print $2}')
+
+    # Validate parsed values
+    if ! [[ "$gpu_success" =~ ^[0-9]+$ ]]; then
+        gpu_success=0
+    fi
+    if ! [[ "$gpu_failed" =~ ^[0-9]+$ ]]; then
+        gpu_failed=$batch_count
+    fi
+
+    # Log results
+    if [ "$gpu_failed" -eq 0 ]; then
+        log_success "  Stage 4: GPU processing complete ($gpu_success/$batch_count succeeded)"
+    elif [ "$gpu_success" -gt 0 ]; then
+        log_warn "  Stage 4: GPU processing complete with partial success ($gpu_success succeeded, $gpu_failed failed)"
+    else
+        log_error "  Stage 4: GPU processing failed (0 succeeded, $gpu_failed failed)"
+    fi
+
+    # Continue to upload stages even if some files failed
+    # The upload loop will only upload successfully transcribed files
 
     # =============================================================================
     # STAGE 5: WAIT FOR REMAINING DOWNLOADS (Ensure completeness)
@@ -831,8 +868,18 @@ transcribe_chunk_batch() {
     rm -rf "$batch_dir_edge"
     ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
 
-    log_success "  Batch complete: $batch_count chunks processed"
-    return 0
+    # Export actual success/failure counts for caller to track statistics
+    # These variables will be read by the calling loop
+    BATCH_GPU_SUCCESS=$gpu_success
+    BATCH_GPU_FAILED=$gpu_failed
+
+    if [ "$gpu_success" -gt 0 ]; then
+        log_success "  Batch complete: $gpu_success succeeded, $gpu_failed failed"
+        return 0
+    else
+        log_error "  Batch failed: all $gpu_failed chunks failed"
+        return 1
+    fi
 }
 
 generate_report() {

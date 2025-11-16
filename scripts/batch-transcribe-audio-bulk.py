@@ -159,7 +159,9 @@ def main():
 
     print("=" * 60, file=sys.stderr)
 
-    sys.exit(0 if failed == 0 else 1)
+    # Always exit 0 to allow orchestrator to handle partial success
+    # Orchestrator will parse output summary to determine actual success/failure counts
+    sys.exit(0)
 
 
 if __name__ == "__main__":
