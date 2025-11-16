@@ -119,12 +119,30 @@ cp "$SOURCE_UI_DIR/styles.css" ./
 # Use audio.html with WhisperLive integration
 cp "$SOURCE_UI_DIR/audio.html" ./audio.html
 
-# Copy transcript editor template (will be processed later)
+# Copy transcript editor templates (will be processed later)
 if [ -f "$SOURCE_UI_DIR/transcript-editor.html.template" ]; then
     cp "$SOURCE_UI_DIR/transcript-editor.html.template" ./transcript-editor.html
     log_info "  - Copied transcript-editor.html.template"
 else
     log_warn "  - transcript-editor.html.template not found (skipping)"
+fi
+
+if [ -f "$SOURCE_UI_DIR/transcript-editor-v2.html.template" ]; then
+    cp "$SOURCE_UI_DIR/transcript-editor-v2.html.template" ./transcript-editor-v2.html
+    log_info "  - Copied transcript-editor-v2.html.template"
+else
+    log_warn "  - transcript-editor-v2.html.template not found (skipping)"
+fi
+
+# Copy JavaScript libraries
+if [ -f "$REPO_ROOT/scripts/transcript-preprocessor.js" ]; then
+    cp "$REPO_ROOT/scripts/transcript-preprocessor.js" ./
+    log_info "  - Copied transcript-preprocessor.js"
+fi
+
+if [ -f "$REPO_ROOT/scripts/transcript-plugins.js" ]; then
+    cp "$REPO_ROOT/scripts/transcript-plugins.js" ./
+    log_info "  - Copied transcript-plugins.js"
 fi
 
 # Note: Viewer files are deployed separately via 426-deploy-viewer.sh
@@ -176,6 +194,27 @@ if [ -f "./transcript-editor.html" ]; then
     echo ""
 else
     log_info "Step 4b: transcript-editor.html not found (skipping)"
+    echo ""
+fi
+
+# Update transcript-editor-v2.html with deployment values
+if [ -f "./transcript-editor-v2.html" ]; then
+    log_info "Step 4c: Updating transcript-editor-v2.html configuration"
+
+    # Replace placeholders in transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_IDENTITY_POOL_ID|$COGNITO_IDENTITY_POOL_ID|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_API_URL|$COGNITO_API_ENDPOINT|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_S3_API_URL|$COGNITO_API_ENDPOINT|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" transcript-editor-v2.html
+    sed -i "s|TO_BE_REPLACED_CLOUDFRONT_DOMAIN|${COGNITO_CLOUDFRONT_URL#https://}|g" transcript-editor-v2.html
+
+    log_success "Configuration updated in transcript-editor-v2.html"
+    echo ""
+else
+    log_info "Step 4c: transcript-editor-v2.html not found (skipping)"
     echo ""
 fi
 
