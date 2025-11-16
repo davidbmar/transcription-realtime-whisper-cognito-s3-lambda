@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcript Editor - CloudDrive</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.cloudfront.net; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f9fafb;
+            color: #1f2937;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2563eb;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #f3f4f6;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .session-info {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .session-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .session-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .toolbar {
+            background: white;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .toolbar-btn.active {
+            background: #dbeafe;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+
+        .editor-container {
+            background: white;
+            border-radius: 8px;
+            padding: 48px 64px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-height: 600px;
+        }
+
+        .editor {
+            outline: none;
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        .word {
+            cursor: pointer;
+            transition: background-color 0.1s;
+        }
+
+        .word:hover {
+            background-color: #fef3c7;
+        }
+
+        .word.playing {
+            background-color: #fde047;
+        }
+
+        .chunk-marker {
+            display: inline-flex;
+            align-items: center;
+            background: #eff6ff;
+            border-left: 3px solid #2563eb;
+            padding: 4px 8px;
+            margin: 8px 0;
+            font-size: 12px;
+            color: #2563eb;
+            border-radius: 4px;
+            user-select: none;
+        }
+
+        .speaker-label {
+            display: inline-block;
+            background: #f3f4f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-right: 8px;
+        }
+
+        .error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px 0;
+            color: #991b1b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">CloudDrive Transcript Editor</div>
+        <div class="header-actions">
+            <span id="user-email"></span>
+            <button class="btn" onclick="window.location.href='index.html'">Back to Dashboard</button>
+            <button class="btn" id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Loading latest transcript...</div>
+        </div>
+
+        <div id="content" style="display: none;">
+            <div class="session-info">
+                <div class="session-title" id="session-title">Loading...</div>
+                <div class="session-meta" id="session-meta"></div>
+            </div>
+
+            <div class="toolbar">
+                <button class="toolbar-btn" onclick="formatText('bold')"><strong>B</strong></button>
+                <button class="toolbar-btn" onclick="formatText('italic')"><em>I</em></button>
+                <button class="toolbar-btn" onclick="formatText('underline')"><u>U</u></button>
+                <div style="flex: 1"></div>
+                <button class="toolbar-btn" id="save-btn" onclick="saveTranscript()">Save Changes</button>
+                <button class="toolbar-btn" id="export-btn" onclick="exportTranscript()">Export</button>
+            </div>
+
+            <div class="editor-container">
+                <div class="editor" id="editor" contenteditable="true"></div>
+            </div>
+        </div>
+
+        <div id="error" style="display: none;" class="error"></div>
+        <div id="empty-state" style="display: none;" class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <h2>No Transcripts Found</h2>
+            <p>Record audio using the Audio Recorder to create transcripts.</p>
+            <button class="btn btn-primary" onclick="window.location.href='audio.html'" style="margin-top: 16px;">
+                Go to Recorder
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - will be replaced during deployment
+        const config = {
+            userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+            userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+            identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
+            region: 'TO_BE_REPLACED_REGION',
+            apiUrl: 'TO_BE_REPLACED_API_URL',
+            s3ApiUrl: 'TO_BE_REPLACED_S3_API_URL',
+            appUrl: 'TO_BE_REPLACED_APP_URL'
+        };
+
+        let currentSession = null;
+        let transcriptData = null;
+        let audioChunks = [];
+
+        // Auth helper functions
+        function getAuthToken() {
+            return localStorage.getItem('id_token');
+        }
+
+        function getUserEmail() {
+            const email = localStorage.getItem('user_email');
+            return email || 'User';
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // Check auth on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = getAuthToken();
+            if (!token) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const userEmail = getUserEmail();
+            document.getElementById('user-email').textContent = userEmail;
+            document.getElementById('logout-btn').onclick = logout;
+
+            await loadLatestSession();
+        });
+
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            const token = getAuthToken();
+            const response = await fetch(`${config.apiUrl}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.statusText}`);
+            }
+
+            return await response.json();
+        }
+
+        async function loadLatestSession() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('empty-state').style.display = 'none';
+
+                // List all sessions
+                const data = await apiCall('/api/audio/sessions');
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    showEmptyState();
+                    return;
+                }
+
+                // Get the most recent session
+                currentSession = data.sessions[0];
+                console.log('Latest session:', currentSession);
+
+                // Load transcription data from S3
+                await loadTranscription();
+
+            } catch (error) {
+                console.error('Error loading session:', error);
+                showError('Failed to load transcript: ' + error.message);
+            }
+        }
+
+        async function loadTranscription() {
+            try {
+                // Get download URL for consolidated transcription file
+                const sessionFolder = currentSession.folder;
+                const transcriptionKey = `users/${currentSession.metadata.userId}/audio/sessions/${sessionFolder}/transcription.json`;
+
+                const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(transcriptionKey)}`);
+
+                // Fetch the actual file
+                const response = await fetch(downloadData.url);
+                if (!response.ok) {
+                    throw new Error('Transcription file not found. It may still be processing.');
+                }
+
+                transcriptData = await response.json();
+                console.log('Loaded transcription:', transcriptData);
+
+                // Render the transcript
+                renderTranscript();
+
+                // Show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading transcription:', error);
+
+                // Check if transcription exists
+                if (error.message.includes('not found')) {
+                    showError('This session does not have a transcription yet. Transcriptions are created automatically after recording.');
+                } else {
+                    showError('Failed to load transcription: ' + error.message);
+                }
+            }
+        }
+
+        function renderTranscript() {
+            const editor = document.getElementById('editor');
+            const sessionInfo = currentSession.metadata || {};
+
+            // Update session info
+            document.getElementById('session-title').textContent =
+                `Session: ${currentSession.folder || 'Unknown'}`;
+
+            document.getElementById('session-meta').textContent =
+                `Created: ${new Date(sessionInfo.createdAt || '').toLocaleString()} | ` +
+                `Duration: ${formatDuration(transcriptData.totalDuration || 0)} | ` +
+                `${transcriptData.totalSegments || 0} segments | ` +
+                `${transcriptData.wordCount || 0} words`;
+
+            // Build HTML from segments
+            let html = '';
+            let lastChunkIndex = -1;
+
+            for (const segment of transcriptData.segments || []) {
+                // Check if we need a chunk marker
+                const chunkIndex = segment.chunkIndex || 0;
+                if (chunkIndex !== lastChunkIndex) {
+                    const chunkTime = formatTime(segment.start || 0);
+                    html += `<div class="chunk-marker" data-chunk="${chunkIndex}">⏱️ Chunk ${chunkIndex} (${chunkTime})</div>`;
+                    lastChunkIndex = chunkIndex;
+                }
+
+                // Add speaker label if available
+                if (segment.speaker) {
+                    html += `<span class="speaker-label">${segment.speaker}</span>`;
+                }
+
+                // Add words with timestamps
+                if (segment.words && segment.words.length > 0) {
+                    for (const word of segment.words) {
+                        const absoluteStart = (segment.start || 0) + (word.start || 0);
+                        const absoluteEnd = (segment.start || 0) + (word.end || 0);
+                        html += `<span class="word" data-start="${absoluteStart}" data-end="${absoluteEnd}">${word.word}</span> `;
+                    }
+                } else {
+                    // No word-level timestamps, just show the text
+                    html += `<span>${segment.text}</span> `;
+                }
+
+                html += '<br>';
+            }
+
+            editor.innerHTML = html || '<p>No transcript available.</p>';
+
+            // Add click handlers for word playback
+            document.querySelectorAll('.word').forEach(word => {
+                word.addEventListener('click', () => playWord(word));
+            });
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 100);
+            return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        async function playWord(wordElement) {
+            const start = parseFloat(wordElement.dataset.start);
+            const end = parseFloat(wordElement.dataset.end);
+
+            console.log(`Playing word from ${start}s to ${end}s`);
+
+            // Highlight the word
+            document.querySelectorAll('.word').forEach(w => w.classList.remove('playing'));
+            wordElement.classList.add('playing');
+
+            // TODO: Load and play the corresponding audio chunk
+            // This will be implemented in the next phase
+            alert(`Playing word at ${formatTime(start)} - ${formatTime(end)}\n(Audio playback will be implemented next)`);
+        }
+
+        function formatText(command) {
+            document.execCommand(command, false, null);
+        }
+
+        async function saveTranscript() {
+            try {
+                const editor = document.getElementById('editor');
+                const content = editor.innerHTML;
+
+                // Save updated content back to S3
+                // For now, we'll save it as a new file
+                const sessionFolder = currentSession.folder;
+                const editedKey = `users/${currentSession.metadata.userId}/audio/sessions/${sessionFolder}/transcription-edited.html`;
+
+                // Create a blob and upload it
+                const blob = new Blob([content], { type: 'text/html' });
+
+                // Get upload URL
+                const uploadData = await apiCall('/api/s3/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        fileName: editedKey.split('/').pop(),
+                        contentType: 'text/html',
+                        fileSize: blob.size
+                    })
+                });
+
+                // Upload to S3
+                await fetch(uploadData.uploadUrl, {
+                    method: 'PUT',
+                    body: blob,
+                    headers: {
+                        'Content-Type': 'text/html'
+                    }
+                });
+
+                alert('Transcript saved successfully!');
+            } catch (error) {
+                console.error('Error saving transcript:', error);
+                alert('Failed to save transcript: ' + error.message);
+            }
+        }
+
+        function exportTranscript() {
+            const editor = document.getElementById('editor');
+            const content = editor.textContent;
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcript-${currentSession.folder}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+
+        function showEmptyState() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
