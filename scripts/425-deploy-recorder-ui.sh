@@ -119,6 +119,14 @@ cp "$SOURCE_UI_DIR/styles.css" ./
 # Use audio.html with WhisperLive integration
 cp "$SOURCE_UI_DIR/audio.html" ./audio.html
 
+# Copy transcript editor template (will be processed later)
+if [ -f "$SOURCE_UI_DIR/transcript-editor.html.template" ]; then
+    cp "$SOURCE_UI_DIR/transcript-editor.html.template" ./transcript-editor.html
+    log_info "  - Copied transcript-editor.html.template"
+else
+    log_warn "  - transcript-editor.html.template not found (skipping)"
+fi
+
 # Note: Viewer files are deployed separately via 426-deploy-viewer.sh
 
 log_success "UI files copied"
@@ -151,8 +159,28 @@ fi
 log_success "Configuration updated in audio.html"
 echo ""
 
+# Update transcript-editor.html with deployment values
+if [ -f "./transcript-editor.html" ]; then
+    log_info "Step 4b: Updating transcript-editor.html configuration"
+
+    # Replace placeholders in transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_IDENTITY_POOL_ID|$COGNITO_IDENTITY_POOL_ID|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_API_URL|$COGNITO_API_ENDPOINT|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_S3_API_URL|$COGNITO_API_ENDPOINT|g" transcript-editor.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" transcript-editor.html
+
+    log_success "Configuration updated in transcript-editor.html"
+    echo ""
+else
+    log_info "Step 4b: transcript-editor.html not found (skipping)"
+    echo ""
+fi
+
 # Add logout button
-log_info "Step 4b: Adding logout button to audio.html"
+log_info "Step 4c: Adding logout button to audio.html"
 
 # Note: Test panel already removed from source audio.html
 
