@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transcript Editor - CloudDrive</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.cloudfront.net; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.us-east-2.amazonaws.com https://*.cloudfront.net https://*.s3.us-east-2.amazonaws.com https://*.s3.amazonaws.com; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
     <style>
         * {
             margin: 0;
@@ -286,8 +286,31 @@
         }
 
         function getUserEmail() {
-            const email = localStorage.getItem('user_email');
-            return email || 'User';
+            // Try to extract email from JWT token
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.email || payload.sub || 'User';
+                }
+            } catch (e) {
+                console.error('Error parsing token:', e);
+            }
+            return localStorage.getItem('user_email') || 'User';
+        }
+
+        function getUserId() {
+            // Extract userId (sub claim) from JWT token
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.sub;
+                }
+            } catch (e) {
+                console.error('Error parsing token for userId:', e);
+            }
+            return null;
         }
 
         function logout() {
@@ -298,7 +321,26 @@
         // Check auth on load
         window.addEventListener('DOMContentLoaded', async () => {
             const token = getAuthToken();
+            console.log('Checking auth, token exists:', !!token);
+
             if (!token) {
+                console.log('No token found, redirecting to index.html');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Validate token isn't expired
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const now = Math.floor(Date.now() / 1000);
+                if (payload.exp && payload.exp < now) {
+                    console.log('Token expired, redirecting to index.html');
+                    localStorage.clear();
+                    window.location.href = 'index.html';
+                    return;
+                }
+            } catch (e) {
+                console.error('Error validating token:', e);
                 window.location.href = 'index.html';
                 return;
             }
@@ -307,6 +349,7 @@
             document.getElementById('user-email').textContent = userEmail;
             document.getElementById('logout-btn').onclick = logout;
 
+            console.log('Auth check passed, loading latest session...');
             await loadLatestSession();
         });
 
@@ -358,20 +401,27 @@
 
         async function loadTranscription() {
             try {
-                // Get download URL for consolidated transcription file
+                const userId = getUserId();
                 const sessionFolder = currentSession.folder;
-                const transcriptionKey = `users/${currentSession.metadata.userId}/audio/sessions/${sessionFolder}/transcription.json`;
 
-                const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(transcriptionKey)}`);
+                // Try to load consolidated transcription.json first
+                const transcriptionKey = `users/${userId}/audio/sessions/${sessionFolder}/transcription.json`;
 
-                // Fetch the actual file
-                const response = await fetch(downloadData.url);
-                if (!response.ok) {
-                    throw new Error('Transcription file not found. It may still be processing.');
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(transcriptionKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        transcriptData = await response.json();
+                        console.log('Loaded consolidated transcription:', transcriptData);
+                    } else {
+                        throw new Error('Consolidated file not found');
+                    }
+                } catch (consolidatedError) {
+                    // Consolidated file doesn't exist, build from individual chunks
+                    console.log('Consolidated transcription not found, loading from chunks...');
+                    transcriptData = await buildTranscriptionFromChunks(userId, sessionFolder);
                 }
-
-                transcriptData = await response.json();
-                console.log('Loaded transcription:', transcriptData);
 
                 // Render the transcript
                 renderTranscript();
@@ -382,14 +432,83 @@
 
             } catch (error) {
                 console.error('Error loading transcription:', error);
+                showError('Failed to load transcription: ' + error.message);
+            }
+        }
 
-                // Check if transcription exists
-                if (error.message.includes('not found')) {
-                    showError('This session does not have a transcription yet. Transcriptions are created automatically after recording.');
-                } else {
-                    showError('Failed to load transcription: ' + error.message);
+        async function buildTranscriptionFromChunks(userId, sessionFolder) {
+            console.log('Building transcription from individual chunk files...');
+            console.log('userId:', userId);
+            console.log('sessionFolder:', sessionFolder);
+
+            // List all files in the session folder
+            const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
+            console.log('List response:', listResponse);
+
+            // Find all transcription-chunk-*.json files
+            const chunkFiles = listResponse.files
+                .filter(f => f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json'))
+                .sort((a, b) => {
+                    // Extract chunk number from filename like "transcription-chunk-001.json"
+                    const aNum = parseInt(a.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                    const bNum = parseInt(b.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                    return aNum - bNum;
+                });
+
+            console.log('Filtered chunk files:', chunkFiles);
+
+            if (chunkFiles.length === 0) {
+                throw new Error('No transcription files found for this session');
+            }
+
+            console.log(`Found ${chunkFiles.length} chunk transcription files`);
+
+            // Load all chunk transcriptions
+            const allSegments = [];
+            let totalDuration = 0;
+            let wordCount = 0;
+
+            for (const chunkFile of chunkFiles) {
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkFile.key)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        const chunkData = await response.json();
+                        const chunkNum = parseInt(chunkFile.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+
+                        // Add chunk index to each segment for rendering
+                        if (chunkData.segments) {
+                            chunkData.segments.forEach(segment => {
+                                segment.chunkIndex = chunkNum;
+                                allSegments.push(segment);
+
+                                // Count words
+                                if (segment.words) {
+                                    wordCount += segment.words.length;
+                                } else if (segment.text) {
+                                    wordCount += segment.text.split(/\s+/).length;
+                                }
+                            });
+                        }
+
+                        // Track total duration
+                        if (chunkData.duration) {
+                            totalDuration = Math.max(totalDuration, chunkData.duration);
+                        }
+                    }
+                } catch (chunkError) {
+                    console.warn(`Failed to load chunk ${chunkFile.key}:`, chunkError);
                 }
             }
+
+            return {
+                segments: allSegments,
+                totalSegments: allSegments.length,
+                totalDuration: totalDuration,
+                wordCount: wordCount,
+                builtFromChunks: true
+            };
         }
 
         function renderTranscript() {
@@ -486,8 +605,9 @@
 
                 // Save updated content back to S3
                 // For now, we'll save it as a new file
+                const userId = getUserId();
                 const sessionFolder = currentSession.folder;
-                const editedKey = `users/${currentSession.metadata.userId}/audio/sessions/${sessionFolder}/transcription-edited.html`;
+                const editedKey = `users/${userId}/audio/sessions/${sessionFolder}/transcription-edited.html`;
 
                 // Create a blob and upload it
                 const blob = new Blob([content], { type: 'text/html' });
