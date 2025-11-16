@@ -148,52 +148,138 @@
         .editor-container {
             background: white;
             border-radius: 8px;
-            padding: 48px 64px;
+            padding: 24px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             min-height: 600px;
         }
 
         .editor {
             outline: none;
-            line-height: 1.7;
-            font-size: 15px;
         }
 
-        .word {
-            cursor: pointer;
+        /* 3-Column Grid Layout */
+        .transcript-grid {
+            display: grid;
+            grid-template-columns: 100px 1fr 140px;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .segment-row {
+            display: contents;
+        }
+
+        .segment-row:hover .timestamp-col,
+        .segment-row:hover .text-col,
+        .segment-row:hover .actions-col {
+            background-color: #f9fafb;
+        }
+
+        .timestamp-col {
+            padding: 8px;
+            border-radius: 4px;
             transition: background-color 0.1s;
         }
 
-        .word:hover {
+        .timestamp-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: block;
+        }
+
+        .timestamp-link:hover {
+            text-decoration: underline;
+            color: #1d4ed8;
+        }
+
+        .text-col {
+            line-height: 1.7;
+            font-size: 15px;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+            user-select: text;
+        }
+
+        .text-col.playing {
             background-color: #fef3c7;
         }
 
-        .word.playing {
-            background-color: #fde047;
+        .actions-col {
+            display: flex;
+            gap: 6px;
+            align-items: start;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .action-btn:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            color: #2563eb;
         }
 
         .chunk-marker {
-            display: inline-flex;
+            grid-column: 1 / -1;
+            display: flex;
             align-items: center;
             background: #eff6ff;
             border-left: 3px solid #2563eb;
-            padding: 4px 8px;
-            margin: 8px 0;
+            padding: 6px 12px;
+            margin: 16px 0 8px 0;
             font-size: 12px;
             color: #2563eb;
             border-radius: 4px;
-            user-select: none;
+            font-weight: 600;
         }
 
         .speaker-label {
-            display: inline-block;
+            display: inline;
             background: #f3f4f6;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
             font-weight: 600;
             color: #4b5563;
-            margin-right: 8px;
+            margin-right: 6px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .error {
@@ -249,7 +335,7 @@
             </div>
 
             <div class="editor-container">
-                <div class="editor" id="editor" contenteditable="true"></div>
+                <div class="editor" id="editor"></div>
             </div>
         </div>
 
@@ -263,6 +349,9 @@
             </button>
         </div>
     </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
 
     <script>
         // Configuration - will be replaced during deployment
@@ -279,6 +368,8 @@
         let currentSession = null;
         let transcriptData = null;
         let audioChunks = [];
+        let audioManager = null;
+        let currentPlayingSegment = null;
 
         // Auth helper functions
         function getAuthToken() {
@@ -525,45 +616,65 @@
                 `${transcriptData.totalSegments || 0} segments | ` +
                 `${transcriptData.wordCount || 0} words`;
 
-            // Build HTML from segments
-            let html = '';
+            // Build 3-column grid from segments
+            let html = '<div class="transcript-grid">';
             let lastChunkIndex = -1;
+            let cumulativeOffset = 0;
+            let segmentIndex = 0;
 
             for (const segment of transcriptData.segments || []) {
                 // Check if we need a chunk marker
                 const chunkIndex = segment.chunkIndex || 0;
                 if (chunkIndex !== lastChunkIndex) {
-                    const chunkTime = formatTime(segment.start || 0);
-                    html += `<div class="chunk-marker" data-chunk="${chunkIndex}">⏱️ Chunk ${chunkIndex} (${chunkTime})</div>`;
+                    html += `<div class="chunk-marker">⏱️ Audio Chunk ${chunkIndex}</div>`;
                     lastChunkIndex = chunkIndex;
+                }
+
+                // Calculate timestamp for this segment
+                const timestamp = formatTime(cumulativeOffset);
+
+                // Extract text from segment
+                let text = '';
+                if (segment.words && segment.words.length > 0) {
+                    // Use words if available
+                    text = segment.words.map(w => w.word).join(' ');
+                } else {
+                    // Fall back to segment text
+                    text = segment.text || '';
                 }
 
                 // Add speaker label if available
                 if (segment.speaker) {
-                    html += `<span class="speaker-label">${segment.speaker}</span>`;
+                    text = `<span class="speaker-label">${segment.speaker}</span>${text}`;
                 }
 
-                // Add words with timestamps
-                if (segment.words && segment.words.length > 0) {
-                    for (const word of segment.words) {
-                        const absoluteStart = (segment.start || 0) + (word.start || 0);
-                        const absoluteEnd = (segment.start || 0) + (word.end || 0);
-                        html += `<span class="word" data-start="${absoluteStart}" data-end="${absoluteEnd}">${word.word}</span> `;
-                    }
-                } else {
-                    // No word-level timestamps, just show the text
-                    html += `<span>${segment.text}</span> `;
-                }
+                // Create row with 3 columns
+                html += `
+                    <div class="segment-row" data-segment-index="${segmentIndex}">
+                        <div class="timestamp-col">
+                            <a href="#" class="timestamp-link" onclick="playSegment(${segmentIndex}); return false;">
+                                ${timestamp}
+                            </a>
+                        </div>
+                        <div class="text-col" id="segment-text-${segmentIndex}">
+                            ${text}
+                        </div>
+                        <div class="actions-col">
+                            <button class="action-btn" onclick="copySegmentText(${segmentIndex})">Copy</button>
+                        </div>
+                    </div>
+                `;
 
-                html += '<br>';
+                // Update cumulative offset for next segment
+                cumulativeOffset += (segment.end || 0) - (segment.start || 0);
+                segmentIndex++;
             }
 
+            html += '</div>';
             editor.innerHTML = html || '<p>No transcript available.</p>';
 
-            // Add click handlers for word playback
-            document.querySelectorAll('.word').forEach(word => {
-                word.addEventListener('click', () => playWord(word));
-            });
+            // Initialize AudioManager
+            audioManager = new AudioManager();
         }
 
         function formatDuration(seconds) {
@@ -579,19 +690,160 @@
             return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
         }
 
-        async function playWord(wordElement) {
-            const start = parseFloat(wordElement.dataset.start);
-            const end = parseFloat(wordElement.dataset.end);
+        // AudioManager class for loading and playing audio chunks
+        class AudioManager {
+            constructor() {
+                this.audioCache = new Map();
+                this.currentAudio = null;
+            }
 
-            console.log(`Playing word from ${start}s to ${end}s`);
+            async getChunkUrl(chunkIndex) {
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.webm`;
 
-            // Highlight the word
-            document.querySelectorAll('.word').forEach(w => w.classList.remove('playing'));
-            wordElement.classList.add('playing');
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkKey)}`);
+                    return downloadData.downloadUrl;
+                } catch (error) {
+                    console.error(`Failed to get URL for chunk ${chunkIndex}:`, error);
+                    return null;
+                }
+            }
 
-            // TODO: Load and play the corresponding audio chunk
-            // This will be implemented in the next phase
-            alert(`Playing word at ${formatTime(start)} - ${formatTime(end)}\n(Audio playback will be implemented next)`);
+            async loadChunk(chunkIndex) {
+                // Check cache first
+                if (this.audioCache.has(chunkIndex)) {
+                    return this.audioCache.get(chunkIndex);
+                }
+
+                const url = await this.getChunkUrl(chunkIndex);
+                if (!url) {
+                    throw new Error(`Could not load audio chunk ${chunkIndex}`);
+                }
+
+                // Fetch and cache the audio blob
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} for chunk ${chunkIndex}`);
+                }
+
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                this.audioCache.set(chunkIndex, blobUrl);
+
+                return blobUrl;
+            }
+
+            async playSegment(segment, segmentIndex) {
+                try {
+                    // Stop current audio if playing
+                    if (this.currentAudio) {
+                        this.currentAudio.pause();
+                        this.currentAudio = null;
+                    }
+
+                    // Remove previous playing highlights
+                    document.querySelectorAll('.text-col').forEach(col => {
+                        col.classList.remove('playing');
+                    });
+
+                    // Highlight current segment
+                    const textCol = document.getElementById(`segment-text-${segmentIndex}`);
+                    if (textCol) {
+                        textCol.classList.add('playing');
+                    }
+
+                    // Load the audio chunk
+                    const chunkIndex = segment.chunkIndex || 0;
+                    const audioUrl = await this.loadChunk(chunkIndex);
+
+                    // Create and play audio
+                    const audio = new Audio(audioUrl);
+                    this.currentAudio = audio;
+
+                    // Set playback to segment timing
+                    audio.currentTime = segment.start || 0;
+                    const endTime = segment.end || (segment.start + 5);
+
+                    // Play until segment end
+                    audio.play();
+
+                    audio.ontimeupdate = () => {
+                        if (audio.currentTime >= endTime) {
+                            audio.pause();
+                            if (textCol) {
+                                textCol.classList.remove('playing');
+                            }
+                        }
+                    };
+
+                    audio.onended = () => {
+                        if (textCol) {
+                            textCol.classList.remove('playing');
+                        }
+                    };
+
+                    audio.onerror = (e) => {
+                        console.error('Audio playback error:', e);
+                        showToast('Audio playback failed', 'error');
+                        if (textCol) {
+                            textCol.classList.remove('playing');
+                        }
+                    };
+
+                } catch (error) {
+                    console.error('Error playing segment:', error);
+                    showToast(`Failed to play audio: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Play segment by index (called from timestamp links)
+        async function playSegment(segmentIndex) {
+            if (!audioManager || !transcriptData || !transcriptData.segments) {
+                console.error('Audio manager or transcript data not available');
+                return;
+            }
+
+            const segment = transcriptData.segments[segmentIndex];
+            if (!segment) {
+                console.error(`Segment ${segmentIndex} not found`);
+                return;
+            }
+
+            currentPlayingSegment = segmentIndex;
+            await audioManager.playSegment(segment, segmentIndex);
+        }
+
+        // Copy segment text to clipboard
+        function copySegmentText(segmentIndex) {
+            const textCol = document.getElementById(`segment-text-${segmentIndex}`);
+            if (!textCol) {
+                return;
+            }
+
+            // Get plain text (strips HTML tags like speaker labels)
+            const text = textCol.innerText || textCol.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Text copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+                showToast('Failed to copy text', 'error');
+            });
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
         }
 
         function formatText(command) {

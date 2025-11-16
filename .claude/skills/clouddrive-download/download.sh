@@ -1,236 +1,199 @@
 #!/bin/bash
 #
-# CloudDrive File Downloader - Development Tool
-# Downloads files from CloudDrive S3 using AWS CLI
+# CloudDrive File Downloader - Efficient Direct S3 Access
+# Downloads files from CloudDrive S3 using AWS CLI with IAM credentials
 #
-# Prerequisites: AWS CLI configured with S3 access permissions
-#
-# Usage: ./download.sh <filename-or-path> [user-id]
+# Usage: ./download.sh <search-pattern>
 #
 # Examples:
-#   ./download.sh "Screenshot 2025-10-31 at 11.38.37 AM.png"
-#   ./download.sh "test/myfile.pdf"
-#   ./download.sh "*.png" (downloads all PNG files)
+#   ./download.sh "Screenshot"           # Find and download screenshots
+#   ./download.sh "2025-11-16"           # Files with date in name
+#   ./download.sh "*.png"                # All PNG files
 
 set -euo pipefail
 
-# Color output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Script directory
+# Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+DOWNLOAD_DIR="$PROJECT_ROOT/clouddrive-downloads"
 
-# Load environment variables
+# Load environment
 if [[ -f "$PROJECT_ROOT/.env" ]]; then
     source "$PROJECT_ROOT/.env"
 fi
 
-# Configuration - all from .env, no hardcoded defaults
+# Configuration
 BUCKET="${COGNITO_S3_BUCKET}"
 REGION="${AWS_REGION}"
-DOWNLOAD_DIR="$PROJECT_ROOT/clouddrive-downloads"
 
-# Validate required environment variables
+# Validate environment
 if [[ -z "$BUCKET" ]] || [[ -z "$REGION" ]]; then
-    echo -e "${RED}[ERROR]${NC} Missing required environment variables in .env:"
-    [[ -z "$BUCKET" ]] && echo "  - COGNITO_S3_BUCKET"
-    [[ -z "$REGION" ]] && echo "  - AWS_REGION"
-    echo ""
-    echo "Copy .env.example to .env and fill in your deployment values"
+    echo -e "${RED}ERROR: Missing COGNITO_S3_BUCKET or AWS_REGION in .env${NC}"
     exit 1
 fi
 
 # Create download directory
 mkdir -p "$DOWNLOAD_DIR"
 
-# Functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Check if AWS CLI is configured and can access the bucket
-check_aws_cli() {
-    if ! command -v aws &> /dev/null; then
-        log_error "AWS CLI is not installed"
-        log_info "Install with: pip install awscli"
-        return 1
-    fi
-
-    # Try to list bucket (suppress output)
-    if aws s3 ls "s3://$BUCKET/" &> /dev/null; then
-        return 0
-    else
-        log_error "Cannot access S3 bucket: $BUCKET"
-        log_info "Check AWS credentials with: aws configure list"
-        return 1
-    fi
-}
-
-# Get user ID - either from parameter, AWS CLI, or detect from bucket
+# Get user ID from bucket (assumes single user or uses first)
 get_user_id() {
-    local provided_user_id="$1"
-
-    if [[ -n "$provided_user_id" ]]; then
-        echo "$provided_user_id"
-        return
-    fi
-
-    # Try to detect user ID from bucket
-    log_info "Detecting user ID from S3 bucket..." >&2
-    local users=$(aws s3 ls "s3://$BUCKET/users/" 2>/dev/null | grep PRE | awk '{print $2}' | tr -d '/')
-
-    local user_count=$(echo "$users" | wc -l)
-
-    if [[ $user_count -eq 1 ]]; then
-        echo "$users"
-        log_info "Found user ID: $users" >&2
-    elif [[ $user_count -gt 1 ]]; then
-        log_warn "Multiple users found, using first: $(echo "$users" | head -1)" >&2
-        echo "$users" | head -1
-    else
-        log_error "No users found in bucket" >&2
+    local users=$(aws s3 ls "s3://$BUCKET/users/" 2>/dev/null | grep PRE | awk '{print $2}' | tr -d '/' | head -1)
+    if [[ -z "$users" ]]; then
+        echo -e "${RED}ERROR: No users found in bucket${NC}" >&2
         exit 1
     fi
+    echo "$users"
 }
 
-# Find file in S3 bucket for user
-find_file_in_s3() {
-    local search_pattern="$1"
+# Find files matching pattern
+find_files() {
+    local pattern="$1"
     local user_id="$2"
-    local user_prefix="users/$user_id/"
 
-    log_info "Searching for: $search_pattern in user folder..."
-
-    # Search for files matching pattern
-    local results=$(aws s3 ls "s3://$BUCKET/$user_prefix" --recursive 2>/dev/null | \
+    # Search recursively in user folder
+    aws s3 ls "s3://$BUCKET/users/$user_id/" --recursive 2>/dev/null | \
         grep -v '\.folder$' | \
-        grep -i "$search_pattern" || true)
-
-    if [[ -z "$results" ]]; then
-        log_error "No files found matching: $search_pattern"
-        return 1
-    fi
-
-    # Extract keys (4th column from ls output)
-    echo "$results" | awk '{for(i=4;i<=NF;i++) printf $i" "; print ""}' | sed 's/ $//'
+        grep -i "$pattern" | \
+        awk '{for(i=4;i<=NF;i++) printf "%s%s", $i, (i<NF?" ":""); print ""}'
 }
 
-# Download file from S3
+# Download file
 download_file() {
-    local file_key="$1"
-    local output_name="$2"
+    local s3_key="$1"
+    local user_id="$2"
 
-    log_info "Downloading from S3..."
+    # Clean path for local storage
+    local clean_path="${s3_key#users/$user_id/}"
+    local output_path="$DOWNLOAD_DIR/$clean_path"
+    local filename=$(basename "$s3_key")
 
-    local s3_path="s3://$BUCKET/$file_key"
-    local output_path="$DOWNLOAD_DIR/$output_name"
-
-    # Create subdirectories if needed
+    # Create subdirectories
     mkdir -p "$(dirname "$output_path")"
 
-    if aws s3 cp "$s3_path" "$output_path" 2>/dev/null; then
-        log_success "Downloaded: $output_path"
+    echo -e "${BLUE}Downloading: $filename${NC}"
 
-        # Show file info
-        local file_size=$(du -h "$output_path" | cut -f1)
-        log_info "File size: $file_size"
+    # Download with retries for S3 eventual consistency
+    local max_attempts=3
+    local attempt=1
 
-        return 0
-    else
-        log_error "Failed to download file"
-        return 1
-    fi
+    while [[ $attempt -le $max_attempts ]]; do
+        if aws s3 cp "s3://$BUCKET/$s3_key" "$output_path" --region "$REGION" 2>/dev/null; then
+            local size=$(du -h "$output_path" | cut -f1)
+            echo -e "${GREEN}✓ Downloaded: $output_path ($size)${NC}"
+            echo "$output_path"  # Return path for caller
+            return 0
+        else
+            if [[ $attempt -lt $max_attempts ]]; then
+                echo -e "${BLUE}  Retry $attempt/$max_attempts...${NC}"
+                sleep 2
+                ((attempt++))
+            else
+                echo -e "${RED}✗ Failed to download after $max_attempts attempts${NC}"
+                return 1
+            fi
+        fi
+    done
 }
 
-# Main execution
+# List files in a directory
+list_files() {
+    local folder="${1:-}"
+    local user_id=$(get_user_id)
+
+    echo -e "${BLUE}CloudDrive File Listing${NC}"
+    echo -e "${BLUE}==========================================${NC}"
+    echo -e "${BLUE}User ID: $user_id${NC}"
+    echo -e "${BLUE}Bucket: $BUCKET${NC}"
+    echo ""
+
+    local path="s3://$BUCKET/users/$user_id/"
+    if [[ -n "$folder" ]]; then
+        path="${path}${folder}/"
+    fi
+
+    echo -e "${BLUE}Listing: $path${NC}"
+    echo ""
+
+    aws s3 ls "$path" --recursive --region "$REGION" 2>/dev/null | \
+        grep -v '\.folder$' | \
+        awk '{printf "%s %s  %s", $1, $2, $4; for(i=5;i<=NF;i++) printf " %s", $i; print ""}'
+}
+
+# Main
 main() {
+    # Handle --list option
+    if [[ "$1" == "--list" ]]; then
+        list_files "${2:-}"
+        exit 0
+    fi
+
     if [[ $# -lt 1 ]]; then
-        log_error "Usage: $0 <filename-or-path> [user-id]"
+        echo "Usage: $0 <search-pattern-or-filename>"
+        echo "   or: $0 --list [folder]"
+        echo ""
+        echo "Examples:"
+        echo "  $0 'Screenshot'                      # Search for screenshots"
+        echo "  $0 '2025-11-16'                      # Files with date"
+        echo "  $0 'images/Screenshot 2025-11-16'    # Download specific file"
+        echo "  $0 --list                             # List all files"
+        echo "  $0 --list images                      # List files in images folder"
         exit 1
     fi
 
-    local search_pattern="$1"
-    local user_id="${2:-}"
+    local pattern="$1"
 
-    log_info "CloudDrive File Downloader"
-    log_info "=========================================="
-
-    # Check AWS CLI is available
-    if ! check_aws_cli; then
-        exit 1
-    fi
-
-    log_success "AWS CLI configured and ready"
+    echo -e "${BLUE}CloudDrive File Downloader${NC}"
+    echo -e "${BLUE}==========================================${NC}"
 
     # Get user ID
-    user_id=$(get_user_id "$user_id")
+    local user_id=$(get_user_id)
+    echo -e "${BLUE}User ID: $user_id${NC}"
+    echo -e "${BLUE}Bucket: $BUCKET${NC}"
+    echo ""
 
-    log_info "Bucket: $BUCKET"
-    log_info "User ID: $user_id"
+    # Find matching files
+    echo -e "${BLUE}Searching for: $pattern${NC}"
+    local files=$(find_files "$pattern" "$user_id")
 
-    # Find files matching pattern
-    local file_keys=$(find_file_in_s3 "$search_pattern" "$user_id")
-
-    if [[ -z "$file_keys" ]]; then
-        log_error "No files found"
+    if [[ -z "$files" ]]; then
+        echo -e "${RED}No files found matching: $pattern${NC}"
         exit 1
     fi
 
-    # Count files
-    local file_count=$(echo "$file_keys" | wc -l)
-    log_info "Found $file_count file(s) to download"
+    local file_count=$(echo "$files" | wc -l)
+    echo -e "${GREEN}Found $file_count file(s)${NC}"
+    echo ""
 
-    # Download each file
-    local success_count=0
-    while IFS= read -r file_key; do
-        [[ -z "$file_key" ]] && continue
+    # Download files
+    local success=0
+    local downloaded_paths=()
 
-        # Extract filename from key
-        local filename=$(basename "$file_key")
+    while IFS= read -r s3_key; do
+        [[ -z "$s3_key" ]] && continue
 
-        # Remove user prefix for cleaner output path
-        local clean_path="${file_key#users/$user_id/}"
-
-        log_info ""
-        log_info "Processing: $filename"
-
-        # Download file
-        if download_file "$file_key" "$clean_path"; then
-            ((success_count++))
+        if local_path=$(download_file "$s3_key" "$user_id"); then
+            downloaded_paths+=("$local_path")
+            ((success++))
         fi
-    done <<< "$file_keys"
+    done <<< "$files"
 
-    # Summary
-    log_info ""
-    log_info "=========================================="
-    log_success "Downloaded $success_count of $file_count file(s)"
-    log_info "Location: $DOWNLOAD_DIR"
+    echo ""
+    echo -e "${BLUE}==========================================${NC}"
+    echo -e "${GREEN}Downloaded: $success of $file_count file(s)${NC}"
+    echo -e "${BLUE}Location: $DOWNLOAD_DIR${NC}"
 
-    # If single image file, offer to display
-    if [[ $success_count -eq 1 ]] && [[ "$filename" =~ \.(png|jpg|jpeg|gif)$ ]]; then
-        log_info ""
-        log_info "Image file downloaded. You can view it with:"
-        log_info "  open '$DOWNLOAD_DIR/$clean_path'  # macOS"
-        log_info "  xdg-open '$DOWNLOAD_DIR/$clean_path'  # Linux"
+    # If single image downloaded, show path for easy viewing
+    if [[ $success -eq 1 ]] && [[ "${downloaded_paths[0]}" =~ \.(png|jpg|jpeg|gif)$ ]]; then
+        echo ""
+        echo -e "${BLUE}Image downloaded:${NC}"
+        echo "  ${downloaded_paths[0]}"
     fi
 }
 
-# Run main
 main "$@"
