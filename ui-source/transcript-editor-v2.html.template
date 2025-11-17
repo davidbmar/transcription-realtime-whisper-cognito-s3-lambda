@@ -251,6 +251,8 @@
             margin-bottom: 32px;
             position: relative;
             padding-left: 48px;
+            display: flex;
+            flex-direction: column;
         }
 
         .paragraph-number {
@@ -269,6 +271,10 @@
             color: var(--gray-600);
             cursor: pointer;
             transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .paragraph-number:hover {
@@ -317,6 +323,18 @@
             font-size: 12px;
             color: var(--gray-500);
             padding-left: 16px;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            pointer-events: all;
+        }
+
+        .paragraph-meta * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
         }
 
         .meta-item {
@@ -333,6 +351,10 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .chunk-badge:hover {
@@ -350,6 +372,10 @@
             font-size: 11px;
             font-weight: 600;
             transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .audio-btn:hover {
@@ -367,6 +393,10 @@
             font-weight: 600;
             color: var(--gray-600);
             transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .original-text-toggle:hover {
