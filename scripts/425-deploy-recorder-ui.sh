@@ -134,14 +134,14 @@ else
     log_warn "  - transcript-editor-v2.html.template not found (skipping)"
 fi
 
-# Copy JavaScript libraries
-if [ -f "$REPO_ROOT/scripts/transcript-preprocessor.js" ]; then
-    cp "$REPO_ROOT/scripts/transcript-preprocessor.js" ./
+# Copy JavaScript libraries from ui-source
+if [ -f "$SOURCE_UI_DIR/transcript-preprocessor.js" ]; then
+    cp "$SOURCE_UI_DIR/transcript-preprocessor.js" ./
     log_info "  - Copied transcript-preprocessor.js"
 fi
 
-if [ -f "$REPO_ROOT/scripts/transcript-plugins.js" ]; then
-    cp "$REPO_ROOT/scripts/transcript-plugins.js" ./
+if [ -f "$SOURCE_UI_DIR/transcript-plugins.js" ]; then
+    cp "$SOURCE_UI_DIR/transcript-plugins.js" ./
     log_info "  - Copied transcript-plugins.js"
 fi
 
