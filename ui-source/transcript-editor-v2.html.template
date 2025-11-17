@@ -285,6 +285,10 @@
             border: 2px solid transparent;
             transition: all 0.2s;
             outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
         }
 
         .paragraph-text:hover {
@@ -637,22 +641,28 @@
         <div class="editor-panel">
             <div class="editor-toolbar">
                 <div class="toolbar-group">
-                    <button class="toolbar-btn" title="Undo" onclick="document.execCommand('undo')">
+                    <button class="toolbar-btn" id="edit-mode-btn" title="Toggle Edit Mode" onclick="toggleEditMode()">
+                        ✏️ Edit Mode: OFF
+                    </button>
+                </div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" title="Undo" onclick="document.execCommand('undo')" id="undo-btn" disabled>
                         ↶
                     </button>
-                    <button class="toolbar-btn" title="Redo" onclick="document.execCommand('redo')">
+                    <button class="toolbar-btn" title="Redo" onclick="document.execCommand('redo')" id="redo-btn" disabled>
                         ↷
                     </button>
                 </div>
 
                 <div class="toolbar-group">
-                    <button class="toolbar-btn" title="Bold" onclick="document.execCommand('bold')">
+                    <button class="toolbar-btn" title="Bold" onclick="document.execCommand('bold')" id="bold-btn" disabled>
                         <strong>B</strong>
                     </button>
-                    <button class="toolbar-btn" title="Italic" onclick="document.execCommand('italic')">
+                    <button class="toolbar-btn" title="Italic" onclick="document.execCommand('italic')" id="italic-btn" disabled>
                         <em>I</em>
                     </button>
-                    <button class="toolbar-btn" title="Underline" onclick="document.execCommand('underline')">
+                    <button class="toolbar-btn" title="Underline" onclick="document.execCommand('underline')" id="underline-btn" disabled>
                         <u>U</u>
                     </button>
                 </div>
@@ -921,7 +931,7 @@
 
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
-                text.contentEditable = true;
+                text.contentEditable = false;  // Start in read-only mode for text selection
                 text.textContent = para.text;
                 text.dataset.paraIndex = index;
                 text.addEventListener('input', () => markEdited(index));
@@ -1034,6 +1044,32 @@
             } else {
                 originalDiv.classList.add('show');
                 toggle.textContent = 'Hide Original';
+            }
+        }
+
+        // Toggle edit mode
+        let editModeEnabled = false;
+        function toggleEditMode() {
+            editModeEnabled = !editModeEnabled;
+            const btn = document.getElementById('edit-mode-btn');
+            const paragraphs = document.querySelectorAll('.paragraph-text');
+
+            // Toggle editing buttons
+            const editButtons = ['undo-btn', 'redo-btn', 'bold-btn', 'italic-btn', 'underline-btn'];
+            editButtons.forEach(id => {
+                document.getElementById(id).disabled = !editModeEnabled;
+            });
+
+            if (editModeEnabled) {
+                btn.textContent = '✏️ Edit Mode: ON';
+                btn.classList.add('active');
+                paragraphs.forEach(p => p.contentEditable = true);
+                showToast('Edit mode enabled - you can now edit paragraphs');
+            } else {
+                btn.textContent = '✏️ Edit Mode: OFF';
+                btn.classList.remove('active');
+                paragraphs.forEach(p => p.contentEditable = false);
+                showToast('Edit mode disabled - you can now select and copy text');
             }
         }
 
