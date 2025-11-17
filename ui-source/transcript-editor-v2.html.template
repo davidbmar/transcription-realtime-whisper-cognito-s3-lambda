@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Collaborative Transcript Editor - CloudDrive</title>
+    <!-- Build: 2025-11-17-00:53 -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.us-east-2.amazonaws.com https://*.cloudfront.net https://*.s3.us-east-2.amazonaws.com https://*.s3.amazonaws.com; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
     <style>
         * {
@@ -801,11 +802,11 @@
             document.getElementById('logout-btn').onclick = logout;
 
             // Initialize preprocessor and plugin manager
+            console.log('Initializing TranscriptPreprocessor (boundary mode)...');
             preprocessor = new TranscriptPreprocessor({
-                similarityThreshold: 0.7,
-                pauseThreshold: 1.0,
-                minParagraphWords: 15
+                maxBoundaryWords: 10  // Only option for boundary preprocessor
             });
+            console.log('Preprocessor initialized:', preprocessor);
 
             pluginManager = new UIPluginManager();
 
@@ -815,7 +816,9 @@
         // Load latest session
         async function loadLatestSession() {
             try {
+                console.log('Loading latest session...');
                 const data = await apiCall('/api/audio/sessions');
+                console.log('Sessions loaded:', data.sessions?.length || 0);
 
                 if (!data.sessions || data.sessions.length === 0) {
                     showToast('No sessions found', 'error');
@@ -823,6 +826,7 @@
                 }
 
                 currentSession = data.sessions[0];
+                console.log('Current session:', currentSession);
                 await loadAndProcessTranscript();
             } catch (error) {
                 console.error('Error loading session:', error);
@@ -833,10 +837,14 @@
         // Load and process transcript
         async function loadAndProcessTranscript() {
             try {
+                console.log('Loading and processing transcript...');
                 const userId = getUserId();
                 const sessionFolder = currentSession.folder;
+                console.log('User ID:', userId);
+                console.log('Session folder:', sessionFolder);
 
                 // List all transcription chunk files
+                console.log('Listing transcription chunk files...');
                 const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
 
                 const chunkFiles = listResponse.files
@@ -847,11 +855,15 @@
                         return aNum - bNum;
                     });
 
+                console.log('Found chunk files:', chunkFiles.length);
+                console.log('Chunk files:', chunkFiles.map(f => f.displayKey).join(', '));
+
                 if (chunkFiles.length === 0) {
                     throw new Error('No transcription files found');
                 }
 
                 // Load all chunks
+                console.log('Loading chunk data...');
                 const chunks = [];
                 for (const chunkFile of chunkFiles) {
                     const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkFile.key)}`);
