@@ -713,6 +713,13 @@ transcribe_chunk_batch() {
     kill $rsync_pid 2>/dev/null || true
     wait $rsync_pid 2>/dev/null || true
 
+    # Echo GPU output for debugging
+    echo ""
+    echo "--- GPU Processing Output ---"
+    echo "$gpu_output"
+    echo "--- End GPU Output ---"
+    echo ""
+
     # Parse GPU output for actual success/failure counts
     # Expected format: "Files processed:      97/98"
     local gpu_success=$(echo "$gpu_output" | grep "Files processed:" | awk '{print $3}' | cut -d'/' -f1)
