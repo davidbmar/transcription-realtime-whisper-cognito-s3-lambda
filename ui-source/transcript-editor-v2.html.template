@@ -684,6 +684,7 @@
     <div id="toast" class="toast"></div>
 
     <!-- Preprocessor Scripts -->
+    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-boundary.js"></script>
     <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-simple.js"></script>
     <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor.js"></script>
     <script src="TO_BE_REPLACED_APP_URL/transcript-plugins.js"></script>
