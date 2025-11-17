@@ -135,6 +135,11 @@ else
 fi
 
 # Copy JavaScript libraries from ui-source
+if [ -f "$SOURCE_UI_DIR/transcript-preprocessor-simple.js" ]; then
+    cp "$SOURCE_UI_DIR/transcript-preprocessor-simple.js" ./
+    log_info "  - Copied transcript-preprocessor-simple.js"
+fi
+
 if [ -f "$SOURCE_UI_DIR/transcript-preprocessor.js" ]; then
     cp "$SOURCE_UI_DIR/transcript-preprocessor.js" ./
     log_info "  - Copied transcript-preprocessor.js"
