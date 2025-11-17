@@ -684,8 +684,8 @@
     <div id="toast" class="toast"></div>
 
     <!-- Preprocessor Script -->
-    <script src="https://unpkg.com/TO_BE_REPLACED_CLOUDFRONT_DOMAIN/transcript-preprocessor.js"></script>
-    <script src="https://unpkg.com/TO_BE_REPLACED_CLOUDFRONT_DOMAIN/transcript-plugins.js"></script>
+    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor.js"></script>
+    <script src="TO_BE_REPLACED_APP_URL/transcript-plugins.js"></script>
 
     <script>
         // Configuration
