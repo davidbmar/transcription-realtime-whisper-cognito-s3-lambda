@@ -33,6 +33,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 # Load environment and common functions
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
+source "$PROJECT_ROOT/scripts/riva-common-library.sh"
 
 echo "============================================"
 echo "500: Setup Batch Transcription System"
@@ -58,14 +59,27 @@ else
     SSH_KEY="$PROJECT_ROOT/$GPU_SSH_KEY_PATH"  # Relative path
 fi
 SSH_USER="ubuntu"
-GPU_IP="$GPU_INSTANCE_IP"
+
+# Dynamically resolve GPU IP from instance ID
+log_info "Resolving GPU IP from instance ID: ${GPU_INSTANCE_ID}"
+GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
+if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
+    log_error "Failed to resolve GPU IP from instance ID: ${GPU_INSTANCE_ID}"
+    log_info "Make sure:"
+    log_info "  - GPU instance is running"
+    log_info "  - GPU_INSTANCE_ID is correct in .env"
+    log_info "  - AWS credentials are configured"
+    exit 1
+fi
+log_success "Resolved GPU IP: $GPU_IP"
+echo ""
 
 log_info "Step 1/4: Verifying SSH access to GPU instance..."
 if ! ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$GPU_IP" "echo 'SSH OK'" &>/dev/null; then
     log_error "Cannot SSH to GPU instance at $GPU_IP"
     log_info "Make sure:"
     log_info "  - GPU instance is running"
-    log_info "  - GPU_INSTANCE_IP is correct in .env"
+    log_info "  - Security group allows SSH from this IP"
     log_info "  - SSH key path is correct: $GPU_SSH_KEY_PATH"
     exit 1
 fi

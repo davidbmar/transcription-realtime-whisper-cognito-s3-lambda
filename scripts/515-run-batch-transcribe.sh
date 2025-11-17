@@ -1015,6 +1015,16 @@ fi
 if [ "$GPU_STATE" = "running" ]; then
     log_info "GPU is already running"
     GPU_WAS_RUNNING=true
+
+    # Resolve GPU IP from instance ID (must do this even when already running)
+    log_info "Looking up GPU IP from running instance: $GPU_ID"
+    GPU_IP=$(get_instance_ip "$GPU_ID")
+    if [ -z "$GPU_IP" ] || [ "$GPU_IP" = "None" ]; then
+        log_error "Failed to get GPU IP from running instance"
+        exit 1
+    fi
+    log_success "GPU IP: $GPU_IP"
+    echo ""
 elif [ "$GPU_STATE" = "stopped" ]; then
     start_gpu
     echo ""
