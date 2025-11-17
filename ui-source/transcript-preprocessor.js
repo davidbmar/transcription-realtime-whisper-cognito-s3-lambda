@@ -12,9 +12,9 @@
 
 class TranscriptPreprocessor {
   constructor(options = {}) {
-    this.similarityThreshold = options.similarityThreshold || 0.7;
-    this.pauseThreshold = options.pauseThreshold || 1.0; // seconds between segments to merge
-    this.minParagraphWords = options.minParagraphWords || 15;
+    this.similarityThreshold = options.similarityThreshold || 0.8;
+    this.pauseThreshold = options.pauseThreshold || 0.5; // seconds between segments to merge
+    this.minParagraphWords = options.minParagraphWords || 10;
   }
 
   /**

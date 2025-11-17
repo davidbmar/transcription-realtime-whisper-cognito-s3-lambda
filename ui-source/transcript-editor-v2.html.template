@@ -803,7 +803,7 @@
 
             // Initialize preprocessor and plugin manager
             console.log('Initializing TranscriptPreprocessor (boundary mode)...');
-            preprocessor = new TranscriptPreprocessor({
+            preprocessor = new TranscriptPreprocessorBoundary({
                 maxBoundaryWords: 10  // Only option for boundary preprocessor
             });
             console.log('Preprocessor initialized:', preprocessor);
