@@ -19,8 +19,15 @@ class TranscriptPreprocessorBoundary {
    * Process transcript chunks
    */
   process(chunks) {
+    console.log(`[Boundary Preprocessor] Processing ${chunks.length} chunks`);
+
+    // IMPORTANT: Sort chunks by index to ensure correct order
+    const sortedChunks = [...chunks].sort((a, b) => (a.chunkIndex || 0) - (b.chunkIndex || 0));
+
+    console.log('[Boundary Preprocessor] Chunk order:', sortedChunks.map(c => c.chunkId || c.chunkIndex).join(', '));
+
     // Organize segments by chunk
-    const chunkGroups = this.organizeByChunk(chunks);
+    const chunkGroups = this.organizeByChunk(sortedChunks);
 
     // Deduplicate only at chunk boundaries
     const dedupedChunks = this.deduplicateBoundaries(chunkGroups);
@@ -30,6 +37,8 @@ class TranscriptPreprocessorBoundary {
 
     // Generate stats
     const stats = this.generateStats(paragraphs);
+
+    console.log(`[Boundary Preprocessor] Created ${paragraphs.length} paragraphs`);
 
     return {
       paragraphs,
@@ -112,8 +121,11 @@ class TranscriptPreprocessorBoundary {
 
       // Remove overlap from current chunk
       if (overlapLength > 0) {
-        console.log(`[Boundary Dedup] Chunk ${currChunk.chunkId}: Removing ${overlapLength} duplicate words from start`);
-        console.log(`  Removed: ${currWords.slice(0, overlapLength).map(w => w.word).join(' ')}`);
+        const removedWords = currWords.slice(0, overlapLength).map(w => w.word).join(' ');
+        console.log(`[Boundary Dedup] ${prevChunk.chunkId} → ${currChunk.chunkId}: Removing ${overlapLength} words`);
+        console.log(`  Previous chunk ends with: "${prevWords.slice(-overlapLength).map(w => w.word).join(' ')}"`);
+        console.log(`  Current chunk starts with: "${removedWords}" ← REMOVING THIS`);
+        console.log(`  Current chunk now starts: "${currWords.slice(overlapLength, overlapLength + 5).map(w => w.word).join(' ')}..."`);
 
         currChunk.words = currWords.slice(overlapLength);
 
@@ -121,6 +133,8 @@ class TranscriptPreprocessorBoundary {
         if (currChunk.words.length > 0) {
           currChunk.start = currChunk.words[0].start;
         }
+      } else {
+        console.log(`[Boundary Dedup] ${prevChunk.chunkId} → ${currChunk.chunkId}: No overlap detected`);
       }
 
       deduped.push(currChunk);
