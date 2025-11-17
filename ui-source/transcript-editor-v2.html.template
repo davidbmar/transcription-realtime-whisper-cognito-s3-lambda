@@ -683,11 +683,23 @@
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
-    <!-- Preprocessor Scripts -->
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-boundary.js"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-simple.js"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor.js"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-plugins.js"></script>
+    <!-- Preprocessor Scripts - Version 2 for cache busting -->
+    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
+    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
+    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
+    <script src="TO_BE_REPLACED_APP_URL/transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
+
+    <script>
+        // Verify scripts loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('=== Script Loading Status ===');
+            console.log('TranscriptPreprocessor:', typeof window.TranscriptPreprocessor);
+            console.log('TranscriptPreprocessorBoundary:', typeof window.TranscriptPreprocessorBoundary);
+            console.log('TranscriptPreprocessorSimple:', typeof window.TranscriptPreprocessorSimple);
+            console.log('TranscriptPluginManager:', typeof window.TranscriptPluginManager);
+            console.log('============================');
+        });
+    </script>
 
     <script>
         // Configuration
