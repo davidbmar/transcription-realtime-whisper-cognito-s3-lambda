@@ -66,9 +66,9 @@
         // Check for errors first
         if (error) {
             log(`Authentication error: ${error}`);
-            log('Redirecting to home page in 3 seconds...');
+            log('Redirecting to transcript editor in 3 seconds...');
             setTimeout(() => {
-                window.location.href = 'index.html';
+                window.location.href = 'transcript-editor-v2.html';
             }, 3000);
         }
         // Check for authorization code flow
@@ -99,11 +99,11 @@
             localStorage.setItem('access_token', simulatedToken);
             
             log('Created temporary authentication token');
-            log('Redirecting to home page...');
-            
-            // Redirect back to the main page
+            log('Redirecting to transcript editor...');
+
+            // Redirect back to the transcript editor
             setTimeout(() => {
-                window.location.href = 'index.html';
+                window.location.href = 'transcript-editor-v2.html';
             }, 1500);
         }
         // Check for implicit flow tokens
@@ -127,20 +127,20 @@
             }
             
             log('Authentication successful!');
-            log('Redirecting to home page...');
-            
-            // Redirect back to the main page
+            log('Redirecting to transcript editor...');
+
+            // Redirect back to the transcript editor
             setTimeout(() => {
-                window.location.href = 'index.html';
+                window.location.href = 'transcript-editor-v2.html';
             }, 1500);
         }
         // No authentication information found
         else {
             log('No authentication information found in URL');
-            log('Redirecting to home page in 3 seconds...');
-            
+            log('Redirecting to transcript editor in 3 seconds...');
+
             setTimeout(() => {
-                window.location.href = 'index.html';
+                window.location.href = 'transcript-editor-v2.html';
             }, 3000);
         }
     </script>
