@@ -3,7 +3,7 @@
   ✅ THIS IS THE SOURCE OF TRUTH - ALWAYS EDIT THIS FILE ✅
 
   File: ui-source/audio.html.template
-  Version: 6.7.0 (2025-11-18)
+  Version: 6.8.0 (2025-11-18)
 
   This template contains placeholders that get replaced during deployment:
   - TO_BE_REPLACED_USER_POOL_ID
@@ -1982,6 +1982,18 @@
 
         rec.ondataavailable = function(ev){
           if (ev.data && ev.data.size > 0){
+            // v6.8.0: Log blob size for debugging
+            log(`[Recorder] Received blob: ${ev.data.size} bytes`);
+
+            // v6.8.0: Reject blobs that are too small (likely corrupt/incomplete)
+            // Corrupted chunks from backgrounding are typically 5-10 bytes (just WebM header)
+            const MIN_VALID_CHUNK_SIZE = 1000; // 1KB minimum for ~5 seconds of audio
+            if (ev.data.size < MIN_VALID_CHUNK_SIZE){
+              log(`[Recorder] ERROR: Blob too small (${ev.data.size} bytes) - likely corrupted, skipping upload`);
+              log(`[Recorder] This usually happens when the page is backgrounded during recording`);
+              return; // Don't upload corrupt chunks to S3
+            }
+
             gotData = true;
             var typed = new Blob([ev.data], { type: (mime || ev.data.type || 'audio/webm') });
             var actualDuration = (Date.now() - startTime) / 1000;
@@ -1996,6 +2008,23 @@
           if (!gotData){
             log('WARN: recorder stopped without data');
           }
+        };
+
+        // v6.8.0: Additional MediaRecorder event handlers for diagnostics
+        rec.onstart = function() {
+          log('[Recorder] MediaRecorder started');
+        };
+
+        rec.onpause = function() {
+          log('[Recorder] WARNING: MediaRecorder paused unexpectedly');
+        };
+
+        rec.onresume = function() {
+          log('[Recorder] MediaRecorder resumed');
+        };
+
+        rec.onerror = function(err) {
+          log(`[Recorder] ERROR: ${err.error ? err.error.name : 'Unknown'} - ${err.error ? err.error.message : 'No details'}`);
         };
 
         activeRecorders.push(rec);
@@ -2982,8 +3011,20 @@
             try {
               wakeLock = await navigator.wakeLock.request('screen');
               log("[WakeLock] Screen wake lock acquired - device will stay awake during recording");
+              // v6.8.0: Enhanced wake lock release detection
               wakeLock.addEventListener('release', () => {
-                log("[WakeLock] Wake lock was released");
+                log("[WakeLock] WARNING: Wake lock was RELEASED by system!");
+                if (running) {
+                  log("[WakeLock] CRITICAL: Wake lock lost during active recording - chunks may be corrupted");
+                  log("[WakeLock] Attempting to re-acquire wake lock...");
+                  // Try to re-acquire
+                  navigator.wakeLock.request('screen').then(newLock => {
+                    wakeLock = newLock;
+                    log("[WakeLock] Successfully re-acquired wake lock");
+                  }).catch(err => {
+                    log(`[WakeLock] Failed to re-acquire wake lock: ${err.message}`);
+                  });
+                }
               });
             } catch (error) {
               log(`[WakeLock] WARNING: Failed to acquire wake lock: ${error.message}`);
@@ -3423,6 +3464,33 @@
       }
     });
   </script>
+
+  <!-- v6.8.0: Page Visibility Detection -->
+  <script>
+    // Detect when page is backgrounded/hidden during recording
+    // This helps diagnose corruption issues from browser backgrounding
+    document.addEventListener('visibilitychange', function() {
+      const state = document.hidden ? 'HIDDEN' : 'VISIBLE';
+      const timestamp = new Date().toISOString();
+
+      console.log(`[${timestamp}] [Visibility] Page is now ${state}`);
+
+      // Check if we have access to the log function from the main script
+      if (typeof log === 'function') {
+        log(`[Visibility] Page is now ${state}`);
+
+        // Only warn if recording is active (running variable from main script)
+        if (typeof running !== 'undefined' && running && document.hidden) {
+          log('[Visibility] WARNING: Page hidden during active recording!');
+          log('[Visibility] Audio chunks may be corrupted while page is in background');
+          log('[Visibility] Keep this tab in foreground for best results');
+        } else if (typeof running !== 'undefined' && running && !document.hidden) {
+          log('[Visibility] Page visible again - recording should resume normally');
+        }
+      }
+    });
+  </script>
+
     <script>
     // Authentication check for audio.html
     window.addEventListener('DOMContentLoaded', function() {
