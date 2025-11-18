@@ -3,7 +3,7 @@
   ✅ THIS IS THE SOURCE OF TRUTH - ALWAYS EDIT THIS FILE ✅
 
   File: ui-source/audio.html.template
-  Version: 6.8.0 (2025-11-18)
+  Version: 6.9.0 (2025-11-18)
 
   This template contains placeholders that get replaced during deployment:
   - TO_BE_REPLACED_USER_POOL_ID
@@ -392,7 +392,7 @@
         <button id="clearBtn" class="btn">🗑️ Clear</button>
         <button id="clearDbBtn" class="btn">🗄️ Clear DB</button>
         <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">Chunk:
-          <input id="timeslice" type="number" value="5000" min="500" step="500"
+          <input id="timeslice" type="number" value="120000" min="500" step="500"
                  style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
                         border-radius:6px;padding:4px 8px;color:var(--text);width:70px;font-size:12px;" />
         </label>
