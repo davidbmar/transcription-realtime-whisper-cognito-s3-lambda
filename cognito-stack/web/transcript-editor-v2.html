@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Transcript Editor - CloudDrive</title>
+    <!-- Build: 2025-11-17-00:53 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.us-east-2.amazonaws.com https://*.cloudfront.net https://*.s3.us-east-2.amazonaws.com https://*.s3.amazonaws.com; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-900);
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Two-Panel Layout */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+            min-height: calc(100vh - 80px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            height: fit-content;
+            position: sticky;
+            top: 100px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+
+        .sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .plugin-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .plugin-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            background: white;
+            color: var(--gray-700);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .plugin-btn:hover {
+            background: var(--gray-50);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .plugin-btn.active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: var(--gray-50);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-600);
+            margin-top: 4px;
+        }
+
+        /* Editor Panel */
+        .editor-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .editor-toolbar {
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 12px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding-right: 12px;
+            border-right: 1px solid var(--gray-300);
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-700);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--gray-100);
+            border-color: var(--primary);
+        }
+
+        .toolbar-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            max-width: 400px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        /* Editor Content */
+        .editor-content {
+            padding: 32px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .paragraph-container {
+            margin-bottom: 32px;
+            position: relative;
+            padding-left: 48px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .paragraph-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 36px;
+            height: 36px;
+            background: var(--gray-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .paragraph-number:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .paragraph-text {
+            line-height: 1.8;
+            font-size: 16px;
+            color: var(--gray-800);
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+
+        .paragraph-text:hover {
+            background: var(--gray-50);
+        }
+
+        .paragraph-text:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .paragraph-text.playing {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+
+        .paragraph-text.edited {
+            border-left: 4px solid var(--success);
+        }
+
+        .paragraph-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+            padding-left: 16px;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            pointer-events: all;
+        }
+
+        .paragraph-meta * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .chunk-badge {
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .chunk-badge:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .audio-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .audio-btn:hover {
+            background: #059669;
+        }
+
+        /* Original Text Dropdown */
+        .original-text-toggle {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-600);
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .original-text-toggle:hover {
+            background: var(--gray-200);
+        }
+
+        .original-text-content {
+            display: none;
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--gray-50);
+            border-left: 3px solid var(--gray-400);
+            border-radius: 4px;
+            font-size: 14px;
+            color: var(--gray-600);
+            font-style: italic;
+        }
+
+        .original-text-content.show {
+            display: block;
+        }
+
+        /* Word Highlighting */
+        .word-highlight {
+            background: #fde047;
+            padding: 2px 4px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .word-highlight:hover {
+            background: #facc15;
+        }
+
+        .word-highlight.playing {
+            background: #f59e0b;
+            color: white;
+        }
+
+        /* Plugin Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .modal-close {
+            float: right;
+            cursor: pointer;
+            font-size: 24px;
+            color: var(--gray-500);
+        }
+
+        .modal-close:hover {
+            color: var(--gray-700);
+        }
+
+        /* Loading & Toast */
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: var(--gray-600);
+        }
+
+        .spinner {
+            border: 3px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--success);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 3000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        /* Button Styles */
+        .btn {
+            padding: 10px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-700);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: var(--gray-50);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span>📝</span>
+                Collaborative Transcript Editor
+            </div>
+            <div class="header-actions">
+                <span id="user-email" style="color: var(--gray-600); font-size: 14px;"></span>
+                <button class="btn" onclick="window.location.href='index.html'">File Manager</button>
+                <button class="btn" id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div>Loading and processing transcript...</div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="main-container" class="main-container" style="display: none;">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Stats -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Statistics</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-paragraphs">0</div>
+                        <div class="stat-label">Paragraphs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-words">0</div>
+                        <div class="stat-label">Words</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-duration">0:00</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-wpm">0</div>
+                        <div class="stat-label">WPM</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Actions</div>
+                <div class="plugin-list">
+                    <button class="plugin-btn" onclick="pluginManager.showSearchDialog()">
+                        🔍 Search
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.showReplaceDialog()">
+                        🔄 Find & Replace
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.showHighlightDialog()">
+                        ✨ Highlight Keywords
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.extractActions()">
+                        ✅ Extract Action Items
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.showWordFrequency()">
+                        📊 Word Frequency
+                    </button>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Export</div>
+                <div class="plugin-list">
+                    <button class="plugin-btn" onclick="pluginManager.export('plain')">
+                        📄 Plain Text
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.export('markdown')">
+                        📝 Markdown
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.export('srt')">
+                        🎬 SRT Subtitles
+                    </button>
+                    <button class="plugin-btn" onclick="pluginManager.export('json')">
+                        💾 JSON
+                    </button>
+                </div>
+            </div>
+
+            <!-- Save -->
+            <button class="btn btn-primary" style="width: 100%;" onclick="saveTranscript()">
+                💾 Save Changes
+            </button>
+        </div>
+
+        <!-- Editor Panel -->
+        <div class="editor-panel">
+            <div class="editor-toolbar">
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" id="edit-mode-btn" title="Toggle Edit Mode" onclick="toggleEditMode()">
+                        ✏️ Edit Mode: OFF
+                    </button>
+                </div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" title="Undo" onclick="document.execCommand('undo')" id="undo-btn" disabled>
+                        ↶
+                    </button>
+                    <button class="toolbar-btn" title="Redo" onclick="document.execCommand('redo')" id="redo-btn" disabled>
+                        ↷
+                    </button>
+                </div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" title="Bold" onclick="document.execCommand('bold')" id="bold-btn" disabled>
+                        <strong>B</strong>
+                    </button>
+                    <button class="toolbar-btn" title="Italic" onclick="document.execCommand('italic')" id="italic-btn" disabled>
+                        <em>I</em>
+                    </button>
+                    <button class="toolbar-btn" title="Underline" onclick="document.execCommand('underline')" id="underline-btn" disabled>
+                        <u>U</u>
+                    </button>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" class="search-input" id="quick-search" placeholder="Quick search..." onkeyup="quickSearch(this.value)">
+                </div>
+
+                <button class="toolbar-btn" onclick="copyAllText()">
+                    📋 Copy All
+                </button>
+            </div>
+
+            <div class="editor-content" id="editor-content">
+                <!-- Paragraphs will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Plugin Modal -->
+    <div id="plugin-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <h2 class="modal-title" id="modal-title">Plugin</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Preprocessor Scripts - Version 2 for cache busting -->
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
+
+    <script>
+        // Verify scripts loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('=== Script Loading Status ===');
+            console.log('TranscriptPreprocessor:', typeof window.TranscriptPreprocessor);
+            console.log('TranscriptPreprocessorBoundary:', typeof window.TranscriptPreprocessorBoundary);
+            console.log('TranscriptPreprocessorSimple:', typeof window.TranscriptPreprocessorSimple);
+            console.log('TranscriptPluginManager:', typeof window.TranscriptPluginManager);
+            console.log('============================');
+        });
+    </script>
+
+    <script>
+        // Configuration
+        const config = {
+            userPoolId: 'us-east-2_6sN45GbIh',
+            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
+            identityPoolId: 'us-east-2:43b4ec02-d7c0-4c8b-a188-27b9d1f16287',
+            region: 'us-east-2',
+            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            s3ApiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            appUrl: 'https://d2l28rla2hk7np.cloudfront.net'
+        };
+
+        let transcriptData = null;
+        let processedData = null;
+        let currentSession = null;
+        let preprocessor = null;
+        let pluginManager = null;
+        let audioCache = new Map();
+
+        // Auth functions
+        function getAuthToken() {
+            return localStorage.getItem('id_token');
+        }
+
+        function getUserEmail() {
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.email || payload.sub || 'User';
+                }
+            } catch (e) {
+                console.error('Error parsing token:', e);
+            }
+            return 'User';
+        }
+
+        function getUserId() {
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.sub;
+                }
+            } catch (e) {
+                console.error('Error parsing token for userId:', e);
+            }
+            return null;
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            const token = getAuthToken();
+            const response = await fetch(`${config.apiUrl}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.statusText}`);
+            }
+
+            return await response.json();
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = getAuthToken();
+            if (!token) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Validate token
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const now = Math.floor(Date.now() / 1000);
+                if (payload.exp && payload.exp < now) {
+                    localStorage.clear();
+                    window.location.href = 'index.html';
+                    return;
+                }
+            } catch (e) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            document.getElementById('user-email').textContent = getUserEmail();
+            document.getElementById('logout-btn').onclick = logout;
+
+            // Initialize preprocessor and plugin manager
+            console.log('Initializing TranscriptPreprocessor (boundary mode)...');
+            preprocessor = new TranscriptPreprocessorBoundary({
+                maxBoundaryWords: 10  // Only option for boundary preprocessor
+            });
+            console.log('Preprocessor initialized:', preprocessor);
+
+            pluginManager = new UIPluginManager();
+
+            await loadLatestSession();
+        });
+
+        // Load latest session
+        async function loadLatestSession() {
+            try {
+                console.log('Loading latest session...');
+                const data = await apiCall('/api/audio/sessions');
+                console.log('Sessions loaded:', data.sessions?.length || 0);
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    showToast('No sessions found', 'error');
+                    return;
+                }
+
+                currentSession = data.sessions[0];
+                console.log('Current session:', currentSession);
+                await loadAndProcessTranscript();
+            } catch (error) {
+                console.error('Error loading session:', error);
+                showToast('Failed to load session: ' + error.message, 'error');
+            }
+        }
+
+        // Load and process transcript
+        async function loadAndProcessTranscript() {
+            try {
+                console.log('Loading and processing transcript...');
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                console.log('User ID:', userId);
+                console.log('Session folder:', sessionFolder);
+
+                // List all transcription chunk files
+                console.log('Listing transcription chunk files...');
+                const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
+
+                const chunkFiles = listResponse.files
+                    .filter(f => f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json'))
+                    .sort((a, b) => {
+                        const aNum = parseInt(a.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                        const bNum = parseInt(b.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                        return aNum - bNum;
+                    });
+
+                console.log('Found chunk files:', chunkFiles.length);
+                console.log('Chunk files:', chunkFiles.map(f => f.displayKey).join(', '));
+
+                if (chunkFiles.length === 0) {
+                    throw new Error('No transcription files found');
+                }
+
+                // Load all chunks
+                console.log('Loading chunk data...');
+                const chunks = [];
+                for (const chunkFile of chunkFiles) {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkFile.key)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        const chunkData = await response.json();
+                        const chunkNum = parseInt(chunkFile.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                        chunks.push({
+                            chunkIndex: chunkNum,
+                            chunkId: `chunk-${String(chunkNum).padStart(3, '0')}`,
+                            ...chunkData
+                        });
+                    }
+                }
+
+                // Process with preprocessor
+                processedData = preprocessor.process(chunks);
+
+                // Render
+                renderEditor();
+
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-container').style.display = 'grid';
+
+                showToast(`Processed ${processedData.paragraphs.length} paragraphs from ${chunks.length} chunks`);
+            } catch (error) {
+                console.error('Error loading transcript:', error);
+                showToast('Failed to load transcript: ' + error.message, 'error');
+            }
+        }
+
+        // Render editor
+        function renderEditor() {
+            const container = document.getElementById('editor-content');
+            container.innerHTML = '';
+
+            // Update stats
+            document.getElementById('stat-paragraphs').textContent = processedData.stats.paragraphCount;
+            document.getElementById('stat-words').textContent = processedData.stats.totalWords;
+            document.getElementById('stat-duration').textContent = formatDuration(processedData.stats.totalDuration);
+            document.getElementById('stat-wpm').textContent = Math.round(processedData.stats.wordsPerMinute);
+
+            // Render paragraphs
+            processedData.paragraphs.forEach((para, index) => {
+                const paraDiv = document.createElement('div');
+                paraDiv.className = 'paragraph-container';
+                paraDiv.id = `para-${index}`;
+
+                const number = document.createElement('div');
+                number.className = 'paragraph-number';
+                number.textContent = index + 1;
+                number.onclick = () => playParagraph(index);
+
+                const text = document.createElement('div');
+                text.className = 'paragraph-text';
+                text.contentEditable = false;  // Start in read-only mode for text selection
+                text.textContent = para.text;
+                text.dataset.paraIndex = index;
+                text.addEventListener('input', () => markEdited(index));
+
+                const meta = document.createElement('div');
+                meta.className = 'paragraph-meta';
+
+                // Time
+                const timeMeta = document.createElement('div');
+                timeMeta.className = 'meta-item';
+                timeMeta.innerHTML = `⏱️ ${formatTime(para.start)} - ${formatTime(para.end)}`;
+
+                // Audio button
+                const audioBtn = document.createElement('button');
+                audioBtn.className = 'audio-btn';
+                audioBtn.textContent = '▶ Play';
+                audioBtn.onclick = () => playParagraph(index);
+
+                // Chunk badges
+                const chunkMeta = document.createElement('div');
+                chunkMeta.className = 'meta-item';
+                para.chunkIds.forEach(chunkId => {
+                    const badge = document.createElement('span');
+                    badge.className = 'chunk-badge';
+                    badge.textContent = chunkId;
+                    badge.onclick = () => showChunkDetails(chunkId, index);
+                    chunkMeta.appendChild(badge);
+                });
+
+                // Original text toggle
+                const originalToggle = document.createElement('button');
+                originalToggle.className = 'original-text-toggle';
+                originalToggle.textContent = 'Show Original';
+                originalToggle.onclick = () => toggleOriginal(index);
+
+                meta.appendChild(timeMeta);
+                meta.appendChild(audioBtn);
+                meta.appendChild(chunkMeta);
+                meta.appendChild(originalToggle);
+
+                // Original text content (hidden by default)
+                const originalContent = document.createElement('div');
+                originalContent.className = 'original-text-content';
+                originalContent.id = `original-${index}`;
+                originalContent.textContent = para.segments.map(s => s.text).join(' ');
+
+                paraDiv.appendChild(number);
+                paraDiv.appendChild(text);
+                paraDiv.appendChild(meta);
+                paraDiv.appendChild(originalContent);
+
+                container.appendChild(paraDiv);
+            });
+        }
+
+        // Play paragraph audio
+        async function playParagraph(index) {
+            const para = processedData.paragraphs[index];
+            const firstChunkId = para.chunkIds[0];
+            const chunkIndex = parseInt(firstChunkId.match(/chunk-(\d+)/)?.[1] || '0');
+
+            try {
+                // Load audio chunk
+                const audioUrl = await getChunkUrl(chunkIndex);
+                const audio = new Audio(audioUrl);
+
+                // Highlight paragraph
+                document.querySelectorAll('.paragraph-text').forEach(el => el.classList.remove('playing'));
+                document.querySelector(`[data-para-index="${index}"]`).classList.add('playing');
+
+                // Play segment
+                audio.currentTime = para.start;
+                audio.play();
+
+                audio.ontimeupdate = () => {
+                    if (audio.currentTime >= para.end) {
+                        audio.pause();
+                        document.querySelector(`[data-para-index="${index}"]`).classList.remove('playing');
+                    }
+                };
+            } catch (error) {
+                console.error('Audio playback error:', error);
+                showToast('Failed to play audio', 'error');
+            }
+        }
+
+        // Get chunk URL
+        async function getChunkUrl(chunkIndex) {
+            if (audioCache.has(chunkIndex)) {
+                return audioCache.get(chunkIndex);
+            }
+
+            const userId = getUserId();
+            const sessionFolder = currentSession.folder;
+            const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.webm`;
+
+            const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkKey)}`);
+            audioCache.set(chunkIndex, downloadData.downloadUrl);
+            return downloadData.downloadUrl;
+        }
+
+        // Toggle original text
+        function toggleOriginal(index) {
+            const originalDiv = document.getElementById(`original-${index}`);
+            const toggle = event.target;
+
+            if (originalDiv.classList.contains('show')) {
+                originalDiv.classList.remove('show');
+                toggle.textContent = 'Show Original';
+            } else {
+                originalDiv.classList.add('show');
+                toggle.textContent = 'Hide Original';
+            }
+        }
+
+        // Toggle edit mode
+        let editModeEnabled = false;
+        function toggleEditMode() {
+            editModeEnabled = !editModeEnabled;
+            const btn = document.getElementById('edit-mode-btn');
+            const paragraphs = document.querySelectorAll('.paragraph-text');
+
+            // Toggle editing buttons
+            const editButtons = ['undo-btn', 'redo-btn', 'bold-btn', 'italic-btn', 'underline-btn'];
+            editButtons.forEach(id => {
+                document.getElementById(id).disabled = !editModeEnabled;
+            });
+
+            if (editModeEnabled) {
+                btn.textContent = '✏️ Edit Mode: ON';
+                btn.classList.add('active');
+                paragraphs.forEach(p => p.contentEditable = true);
+                showToast('Edit mode enabled - you can now edit paragraphs');
+            } else {
+                btn.textContent = '✏️ Edit Mode: OFF';
+                btn.classList.remove('active');
+                paragraphs.forEach(p => p.contentEditable = false);
+                showToast('Edit mode disabled - you can now select and copy text');
+            }
+        }
+
+        // Mark paragraph as edited
+        function markEdited(index) {
+            const textDiv = document.querySelector(`[data-para-index="${index}"]`);
+            textDiv.classList.add('edited');
+
+            const para = processedData.paragraphs[index];
+            para.text = textDiv.textContent;
+            para.edited = true;
+        }
+
+        // Show chunk details
+        function showChunkDetails(chunkId, paraIndex) {
+            const para = processedData.paragraphs[paraIndex];
+            const chunkSegments = para.segments.filter(s => s.chunkId === chunkId);
+
+            const modalBody = document.getElementById('modal-body');
+            modalBody.innerHTML = `
+                <p><strong>Chunk:</strong> ${chunkId}</p>
+                <p><strong>Segments in this paragraph:</strong> ${chunkSegments.length}</p>
+                <div style="margin-top: 16px;">
+                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Original Segments:</h3>
+                    ${chunkSegments.map(s => `<p style="margin: 8px 0; padding: 8px; background: var(--gray-50); border-radius: 4px;">${s.text}</p>`).join('')}
+                </div>
+            `;
+
+            document.getElementById('modal-title').textContent = `Chunk Details: ${chunkId}`;
+            document.getElementById('plugin-modal').classList.add('show');
+        }
+
+        // Quick search
+        function quickSearch(query) {
+            if (!query) {
+                document.querySelectorAll('.paragraph-text').forEach(el => {
+                    el.style.background = '';
+                });
+                return;
+            }
+
+            const lowerQuery = query.toLowerCase();
+            document.querySelectorAll('.paragraph-text').forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if (text.includes(lowerQuery)) {
+                    el.style.background = '#fef3c7';
+                } else {
+                    el.style.background = '';
+                }
+            });
+        }
+
+        // Copy all text
+        function copyAllText() {
+            const allText = processedData.paragraphs.map(p => p.text).join('\n\n');
+            navigator.clipboard.writeText(allText).then(() => {
+                showToast('Copied all text to clipboard');
+            }).catch(err => {
+                showToast('Failed to copy text', 'error');
+            });
+        }
+
+        // Save transcript
+        async function saveTranscript() {
+            try {
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+
+                // Save processed data
+                const blob = new Blob([JSON.stringify(processedData, null, 2)], { type: 'application/json' });
+
+                const uploadData = await apiCall('/api/s3/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        fileName: `audio/sessions/${sessionFolder}/transcript-processed.json`,
+                        contentType: 'application/json',
+                        fileSize: blob.size
+                    })
+                });
+
+                await fetch(uploadData.uploadUrl, {
+                    method: 'PUT',
+                    body: blob,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                showToast('Transcript saved successfully!');
+            } catch (error) {
+                console.error('Error saving:', error);
+                showToast('Failed to save transcript', 'error');
+            }
+        }
+
+        // UI Plugin Manager (extends base plugin manager)
+        class UIPluginManager extends TranscriptPluginManager {
+            constructor() {
+                super();
+            }
+
+            showSearchDialog() {
+                const modalBody = document.getElementById('modal-body');
+                modalBody.innerHTML = `
+                    <input type="text" id="search-query" class="search-input" placeholder="Enter search term..." style="width: 100%; margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 12px;">
+                        <input type="checkbox" id="search-case"> Case sensitive
+                    </label>
+                    <label style="display: block; margin-bottom: 16px;">
+                        <input type="checkbox" id="search-regex"> Regular expression
+                    </label>
+                    <button class="btn btn-primary" onclick="pluginManager.executeSearch()">Search</button>
+                `;
+
+                document.getElementById('modal-title').textContent = 'Search Transcript';
+                document.getElementById('plugin-modal').classList.add('show');
+            }
+
+            async executeSearch() {
+                const query = document.getElementById('search-query').value;
+                const caseSensitive = document.getElementById('search-case').checked;
+                const regex = document.getElementById('search-regex').checked;
+
+                const results = await this.execute('search', {
+                    paragraphs: processedData.paragraphs,
+                    query,
+                    options: { caseSensitive, regex }
+                });
+
+                // Highlight results
+                results.results.forEach(r => {
+                    const paraDiv = document.querySelector(`[data-para-index="${r.paragraphIndex}"]`);
+                    if (paraDiv) {
+                        paraDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        paraDiv.style.background = '#fef3c7';
+                        setTimeout(() => { paraDiv.style.background = ''; }, 3000);
+                    }
+                });
+
+                closeModal();
+                showToast(`Found ${results.totalMatches} matches`);
+            }
+
+            showReplaceDialog() {
+                const modalBody = document.getElementById('modal-body');
+                modalBody.innerHTML = `
+                    <input type="text" id="replace-find" class="search-input" placeholder="Find..." style="width: 100%; margin-bottom: 12px;">
+                    <input type="text" id="replace-with" class="search-input" placeholder="Replace with..." style="width: 100%; margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 16px;">
+                        <input type="checkbox" id="replace-all" checked> Replace all
+                    </label>
+                    <button class="btn btn-primary" onclick="pluginManager.executeReplace()">Replace</button>
+                `;
+
+                document.getElementById('modal-title').textContent = 'Find & Replace';
+                document.getElementById('plugin-modal').classList.add('show');
+            }
+
+            async executeReplace() {
+                const find = document.getElementById('replace-find').value;
+                const replace = document.getElementById('replace-with').value;
+                const replaceAll = document.getElementById('replace-all').checked;
+
+                const results = await this.execute('replace', {
+                    paragraphs: processedData.paragraphs,
+                    find,
+                    replace,
+                    options: { replaceAll }
+                });
+
+                renderEditor();
+                closeModal();
+                showToast(`Replaced ${results.modifiedCount} occurrences`);
+            }
+
+            showHighlightDialog() {
+                const modalBody = document.getElementById('modal-body');
+                modalBody.innerHTML = `
+                    <input type="text" id="highlight-keywords" class="search-input" placeholder="Enter keywords (comma separated)" style="width: 100%; margin-bottom: 16px;">
+                    <button class="btn btn-primary" onclick="pluginManager.executeHighlight()">Highlight</button>
+                `;
+
+                document.getElementById('modal-title').textContent = 'Highlight Keywords';
+                document.getElementById('plugin-modal').classList.add('show');
+            }
+
+            async executeHighlight() {
+                const keywords = document.getElementById('highlight-keywords').value.split(',').map(k => k.trim());
+
+                const results = await this.execute('highlight', {
+                    paragraphs: processedData.paragraphs,
+                    keywords
+                });
+
+                renderEditor();
+                closeModal();
+                showToast(`Highlighted ${results.highlightCount} instances`);
+            }
+
+            async extractActions() {
+                const results = await this.execute('extract-actions', {
+                    paragraphs: processedData.paragraphs
+                });
+
+                const modalBody = document.getElementById('modal-body');
+                modalBody.innerHTML = `
+                    <p><strong>Found ${results.actionCount} action items:</strong></p>
+                    <div style="margin-top: 16px;">
+                        ${results.actions.map(a => `
+                            <div style="margin: 12px 0; padding: 12px; background: var(--gray-50); border-left: 3px solid var(--primary); border-radius: 4px;">
+                                <p style="font-weight: 600;">${a.text}</p>
+                                <p style="font-size: 12px; color: var(--gray-600); margin-top: 4px;">
+                                    Time: ${formatTime(a.timestamp)} | Paragraph ${a.paragraphIndex + 1}
+                                </p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                document.getElementById('modal-title').textContent = 'Action Items';
+                document.getElementById('plugin-modal').classList.add('show');
+            }
+
+            async showWordFrequency() {
+                const results = await this.execute('word-frequency', {
+                    paragraphs: processedData.paragraphs,
+                    minLength: 4,
+                    excludeCommon: true
+                });
+
+                const modalBody = document.getElementById('modal-body');
+                modalBody.innerHTML = `
+                    <p><strong>Top 20 words:</strong></p>
+                    <div style="margin-top: 16px;">
+                        ${results.topWords.slice(0, 20).map((w, i) => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--gray-50); margin: 4px 0; border-radius: 4px;">
+                                <span><strong>${i + 1}.</strong> ${w.word}</span>
+                                <span style="background: var(--primary); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${w.count}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                document.getElementById('modal-title').textContent = 'Word Frequency';
+                document.getElementById('plugin-modal').classList.add('show');
+            }
+
+            async export(format) {
+                const results = await this.execute('export', {
+                    paragraphs: processedData.paragraphs,
+                    format
+                });
+
+                const blob = new Blob([results.content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `transcript-${currentSession.folder}.${format === 'plain' ? 'txt' : format}`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                showToast(`Exported as ${format.toUpperCase()}`);
+            }
+        }
+
+        // Utility functions
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function closeModal() {
+            document.getElementById('plugin-modal').classList.remove('show');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Close modal on outside click
+        document.getElementById('plugin-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'plugin-modal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

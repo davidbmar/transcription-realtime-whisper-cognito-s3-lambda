@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-11-18T03:54:07Z",
+  "bucket": "clouddrive-app-bucket",
+  "corruptedChunks": {
+    "found": 84,
+    "deleted": 84
+  },
+  "sessions": {
+    "usersAffected": 1,
+    "totalFilesDeleted": 3676,
+    "remainingFiles": 3676
+  },
+  "preserved": {
+    "userFiles": 4,
+    "staticAssets": 15
+  }
+}

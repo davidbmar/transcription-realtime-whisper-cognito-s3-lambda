@@ -1,0 +1,64 @@
+{
+  "totalMessages": 9,
+  "timestamp": "2025-11-17T01:59:02.100Z",
+  "url": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html",
+  "analysis": {
+    "boundaryModeInit": 0,
+    "preprocessorType": [],
+    "processingChunks": 0,
+    "chunkOrder": 0,
+    "boundaryDedups": 0,
+    "dedupDetails": [],
+    "previousChunkEnds": 0,
+    "currentChunkStarts": 0,
+    "errors": 0,
+    "warnings": 0
+  },
+  "allMessages": [
+    {
+      "timestamp": "2025-11-17T01:58:46.635Z",
+      "type": "log",
+      "text": "=== Script Loading Status ==="
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.636Z",
+      "type": "log",
+      "text": "TranscriptPreprocessor: function"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.638Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorBoundary: function"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.641Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorSimple: function"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.642Z",
+      "type": "log",
+      "text": "TranscriptPluginManager: function"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.642Z",
+      "type": "log",
+      "text": "============================"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.816Z",
+      "type": "log",
+      "text": "DOM loaded, checking authentication"
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.816Z",
+      "type": "log",
+      "text": "Checking authentication..."
+    },
+    {
+      "timestamp": "2025-11-17T01:58:46.816Z",
+      "type": "log",
+      "text": "No token found, displaying login section"
+    }
+  ]
+}

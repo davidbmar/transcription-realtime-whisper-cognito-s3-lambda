@@ -1,0 +1,56 @@
+[
+  {
+    "timestamp": "2025-11-17T01:46:04.285Z",
+    "type": "log",
+    "text": "=== Script Loading Status ===",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:695:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.287Z",
+    "type": "log",
+    "text": "TranscriptPreprocessor: function",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:696:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.287Z",
+    "type": "log",
+    "text": "TranscriptPreprocessorBoundary: function",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:697:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.287Z",
+    "type": "log",
+    "text": "TranscriptPreprocessorSimple: function",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:698:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.288Z",
+    "type": "log",
+    "text": "TranscriptPluginManager: function",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:699:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.288Z",
+    "type": "log",
+    "text": "============================",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:700:20"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.529Z",
+    "type": "log",
+    "text": "DOM loaded, checking authentication",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/app.js:93:12"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.532Z",
+    "type": "log",
+    "text": "Checking authentication...",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/app.js:29:12"
+  },
+  {
+    "timestamp": "2025-11-17T01:46:04.533Z",
+    "type": "log",
+    "text": "No token found, displaying login section",
+    "location": "https://d2l28rla2hk7np.cloudfront.net/app.js:71:16"
+  }
+]

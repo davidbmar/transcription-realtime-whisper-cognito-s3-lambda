@@ -62,10 +62,19 @@ Browser ──WSS──> Edge Box (Caddy) ──> GPU (WhisperLive:9090)
 **Frontend Source (Source of Truth):**
 - `ui-source/*.template` - **ALWAYS edit these, NEVER edit cognito-stack/web/**
 - `ui-source/app.js.template` - Main application config
-- `ui-source/audio.html.template` - Audio recorder UI
+- `ui-source/audio.html.template` - **Audio recorder UI (v6.7.0) - CRITICAL: Use template, not audio.html**
 - `ui-source/index.html` - Dashboard
 - `ui-source/viewer.html` - Transcript viewer
 - `ui-source/transcript-editor.html.template` - Transcript editor
+- `ui-source/README.md` - **Template system documentation (READ THIS FIRST)**
+
+**⚠️ CRITICAL - Template System (Updated 2025-11-18):**
+- **SOURCE OF TRUTH:** `ui-source/audio.html.template` (3,444 lines, full-featured)
+- **DEPRECATED:** `ui-source/audio.html` (kept for reference, DO NOT EDIT)
+- The template contains `TO_BE_REPLACED_*` placeholders that get replaced during deployment
+- Deployment script: `scripts/425-deploy-recorder-ui.sh`
+- See `CHANGELOG-v6.7.0.md` for recent changes
+- See `ui-source/README.md` for complete template documentation
 
 **Deployment Scripts:**
 - `scripts/` - Numbered deployment automation (000-899)

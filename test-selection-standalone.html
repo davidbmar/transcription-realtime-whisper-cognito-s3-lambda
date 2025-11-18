@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Selection Test - Transcript Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+            background: #f9fafb;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #2563eb;
+        }
+
+        /* Paragraph Styles - matching transcript-editor-v2.html */
+        .paragraph-container {
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .paragraph-number {
+            width: 40px;
+            height: 40px;
+            background: #f3f4f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .paragraph-text {
+            line-height: 1.7;
+            font-size: 16px;
+            color: #111827;
+            padding: 8px 0;
+            min-height: 40px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+
+        .paragraph-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #6b7280;
+            padding-left: 16px;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .meta-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .chunk-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .audio-btn {
+            background: #f3f4f6;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 6px;
+            color: #374151;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .original-text-toggle {
+            background: transparent;
+            border: 1px solid #d1d5db;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            transition: all 0.2s;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .test-controls {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
+
+        .test-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 12px;
+        }
+
+        .test-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            background: white;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .success {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .failure {
+            color: #ef4444;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Transcript Text Selection Test</h1>
+
+        <p style="margin-bottom: 24px; color: #6b7280;">
+            This page demonstrates that text selection in the transcript editor excludes metadata.
+            Try selecting text below, or use the automated test buttons.
+        </p>
+
+        <!-- Transcript Paragraphs -->
+        <div id="transcript-content">
+            <div class="paragraph-container">
+                <div class="paragraph-number">1</div>
+                <div>
+                    <div class="paragraph-text">This is for gentlemen's education in the Renaissance and for college writing classes now.</div>
+                    <div class="paragraph-meta">
+                        <div class="meta-item">⏱️ 0:00 - 0:03</div>
+                        <button class="audio-btn">▶ Play</button>
+                        <div class="meta-item">
+                            <span class="chunk-badge">chunk-001</span>
+                        </div>
+                        <button class="original-text-toggle">Show Original</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="paragraph-container">
+                <div class="paragraph-number">2</div>
+                <div>
+                    <div class="paragraph-text">Cicero's handbooks refer to the lawyer's strategy as narratio, which is where we get the word narrative.</div>
+                    <div class="paragraph-meta">
+                        <div class="meta-item">⏱️ 0:03 - 0:07</div>
+                        <button class="audio-btn">▶ Play</button>
+                        <div class="meta-item">
+                            <span class="chunk-badge">chunk-001</span>
+                        </div>
+                        <button class="original-text-toggle">Show Original</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="paragraph-container">
+                <div class="paragraph-number">3</div>
+                <div>
+                    <div class="paragraph-text">And also where we get the myth that story's purpose is communication.</div>
+                    <div class="paragraph-meta">
+                        <div class="meta-item">⏱️ 0:07 - 0:10</div>
+                        <button class="audio-btn">▶ Play</button>
+                        <div class="meta-item">
+                            <span class="chunk-badge">chunk-002</span>
+                        </div>
+                        <button class="original-text-toggle">Show Original</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="paragraph-container">
+                <div class="paragraph-number">4</div>
+                <div>
+                    <div class="paragraph-text">The real purpose of narrative is persuasion and emotional impact.</div>
+                    <div class="paragraph-meta">
+                        <div class="meta-item">⏱️ 0:10 - 0:14</div>
+                        <button class="audio-btn">▶ Play</button>
+                        <div class="meta-item">
+                            <span class="chunk-badge">chunk-002</span>
+                        </div>
+                        <button class="original-text-toggle">Show Original</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="paragraph-container">
+                <div class="paragraph-number">5</div>
+                <div>
+                    <div class="paragraph-text">Stories are designed to change minds and hearts, not just convey information.</div>
+                    <div class="paragraph-meta">
+                        <div class="meta-item">⏱️ 0:14 - 0:17</div>
+                        <button class="audio-btn">▶ Play</button>
+                        <div class="meta-item">
+                            <span class="chunk-badge">chunk-003</span>
+                        </div>
+                        <button class="original-text-toggle">Show Original</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="test-controls">
+            <h3 style="margin-bottom: 16px;">Automated Test</h3>
+            <button class="test-btn" onclick="selectAllParagraphs()">Select All Paragraphs</button>
+            <button class="test-btn" onclick="runTest()">Run Test & Verify</button>
+            <button class="test-btn" style="background: #6b7280;" onclick="clearSelection()">Clear Selection</button>
+
+            <div id="test-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        function selectAllParagraphs() {
+            const paragraphTexts = document.querySelectorAll('.paragraph-text');
+            if (paragraphTexts.length < 2) {
+                alert('Not enough paragraphs to select');
+                return;
+            }
+
+            const firstPara = paragraphTexts[0];
+            const lastPara = paragraphTexts[paragraphTexts.length - 1];
+
+            const range = document.createRange();
+            range.setStartBefore(firstPara.firstChild);
+            range.setEndAfter(lastPara.lastChild);
+
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            console.log('Selection created');
+        }
+
+        function clearSelection() {
+            window.getSelection().removeAllRanges();
+            document.getElementById('test-result').style.display = 'none';
+        }
+
+        function runTest() {
+            // First, select all paragraphs
+            selectAllParagraphs();
+
+            // Wait a moment for selection to complete
+            setTimeout(() => {
+                const selectedText = window.getSelection().toString();
+
+                console.log('=== SELECTED TEXT ===');
+                console.log(selectedText);
+                console.log('=== END ===');
+
+                // Verify that metadata is NOT included
+                const checks = [
+                    { pattern: /⏱️\s*\d+:\d+\s*-\s*\d+:\d+/, name: 'Timestamps' },
+                    { pattern: /▶\s*Play/i, name: 'Play buttons' },
+                    { pattern: /chunk-\d+/i, name: 'Chunk badges' },
+                    { pattern: /Show Original/i, name: '"Show Original" text' },
+                ];
+
+                let results = '';
+                let allChecksPassed = true;
+
+                results += 'Metadata Exclusion Tests:\n';
+                results += '='.repeat(50) + '\n\n';
+
+                for (const check of checks) {
+                    const found = check.pattern.test(selectedText);
+                    const status = found ? 'FAIL' : 'PASS';
+                    const symbol = found ? '✗' : '✓';
+
+                    results += `${symbol} ${status}: ${check.name}\n`;
+
+                    if (found) {
+                        allChecksPassed = false;
+                        const match = selectedText.match(check.pattern);
+                        results += `  Found: "${match[0]}"\n`;
+                    }
+                }
+
+                results += '\n' + '='.repeat(50) + '\n';
+                if (allChecksPassed) {
+                    results += 'SUCCESS: All metadata exclusion checks passed!\n';
+                    results += 'The selected text contains ONLY transcript content.\n';
+                } else {
+                    results += 'FAILURE: Some metadata was found in the selected text.\n';
+                }
+                results += '='.repeat(50) + '\n\n';
+
+                results += 'Selected Text:\n';
+                results += '-'.repeat(50) + '\n';
+                results += selectedText + '\n';
+                results += '-'.repeat(50) + '\n';
+
+                const resultDiv = document.getElementById('test-result');
+                resultDiv.textContent = results;
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result ' + (allChecksPassed ? 'success' : 'failure');
+            }, 100);
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, running automated test...');
+            runTest();
+        });
+    </script>
+</body>
+</html>

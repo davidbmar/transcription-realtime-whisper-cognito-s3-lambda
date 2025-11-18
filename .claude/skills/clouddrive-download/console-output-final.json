@@ -1,0 +1,138 @@
+{
+  "metadata": {
+    "timestamp": "2025-11-17T01:51:39.457Z",
+    "totalMessages": 18,
+    "authenticated": true
+  },
+  "pageInfo": {
+    "url": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html",
+    "title": "Collaborative Transcript Editor - CloudDrive",
+    "hasTranscriptData": false,
+    "transcriptDataLength": 0,
+    "hasPreprocessor": true,
+    "hasPreprocessorBoundary": true,
+    "hasPreprocessorSimple": true,
+    "hasPluginManager": true,
+    "bodyClasses": "",
+    "localStorageKeys": [
+      "CognitoIdentityServiceProvider.7sjtp1gd6buhs3a7b362pvod3a.512b3590-30b1-707d-ed46-bf68df7b52d5.accessToken",
+      "id_token",
+      "CognitoIdentityServiceProvider.7sjtp1gd6buhs3a7b362pvod3a.512b3590-30b1-707d-ed46-bf68df7b52d5.clockDrift",
+      "access_token",
+      "CognitoIdentityServiceProvider.7sjtp1gd6buhs3a7b362pvod3a.LastAuthUser",
+      "CognitoIdentityServiceProvider.7sjtp1gd6buhs3a7b362pvod3a.512b3590-30b1-707d-ed46-bf68df7b52d5.idToken"
+    ],
+    "preprocessorInstance": false,
+    "sessionInfo": null
+  },
+  "consoleMessages": [
+    {
+      "timestamp": "2025-11-17T01:51:02.693Z",
+      "type": "log",
+      "text": "=== Script Loading Status ===",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:695:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "TranscriptPreprocessor: function",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:696:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorBoundary: function",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:697:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorSimple: function",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:698:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "TranscriptPluginManager: function",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:699:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "============================",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:700:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.694Z",
+      "type": "log",
+      "text": "Initializing TranscriptPreprocessor (boundary mode)...",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:804:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.698Z",
+      "type": "log",
+      "text": "Preprocessor initialized: TranscriptPreprocessor",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:808:20"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:02.698Z",
+      "type": "log",
+      "text": "Loading latest session...",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:818:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.382Z",
+      "type": "log",
+      "text": "Sessions loaded: 42",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:820:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.383Z",
+      "type": "log",
+      "text": "Current session: {sessionId: 2025-11-16-session_2025-11-16T00_41_57_868Z, folder: 2025-11-16-session_2025-11-16T00_41_57_868Z, metadata: null}",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:828:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.383Z",
+      "type": "log",
+      "text": "Loading and processing transcript...",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:839:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.385Z",
+      "type": "log",
+      "text": "User ID: 512b3590-30b1-707d-ed46-bf68df7b52d5",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:842:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.385Z",
+      "type": "log",
+      "text": "Session folder: 2025-11-16-session_2025-11-16T00_41_57_868Z",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:843:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.385Z",
+      "type": "log",
+      "text": "Listing transcription chunk files...",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:846:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.543Z",
+      "type": "log",
+      "text": "Found chunk files: 36",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:857:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.544Z",
+      "type": "log",
+      "text": "Chunk files: audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-001.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-002.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-003.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-004.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-005.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-006.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-007.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-008.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-009.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-010.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-011.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-012.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-013.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-014.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-015.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-016.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-017.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-018.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-019.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-020.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-021.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-022.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-023.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-024.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-025.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-026.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-027.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-028.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-029.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-030.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-031.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-032.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-033.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-034.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-035.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-036.json",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:858:24"
+    },
+    {
+      "timestamp": "2025-11-17T01:51:04.544Z",
+      "type": "log",
+      "text": "Loading chunk data...",
+      "location": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:865:24"
+    }
+  ]
+}

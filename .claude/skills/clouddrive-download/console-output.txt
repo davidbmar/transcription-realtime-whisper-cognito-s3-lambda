@@ -1,0 +1,26 @@
+[2025-11-17T01:46:04.285Z] [LOG] === Script Loading Status ===
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:695:20
+
+[2025-11-17T01:46:04.287Z] [LOG] TranscriptPreprocessor: function
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:696:20
+
+[2025-11-17T01:46:04.287Z] [LOG] TranscriptPreprocessorBoundary: function
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:697:20
+
+[2025-11-17T01:46:04.287Z] [LOG] TranscriptPreprocessorSimple: function
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:698:20
+
+[2025-11-17T01:46:04.288Z] [LOG] TranscriptPluginManager: function
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:699:20
+
+[2025-11-17T01:46:04.288Z] [LOG] ============================
+  Location: https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html:700:20
+
+[2025-11-17T01:46:04.529Z] [LOG] DOM loaded, checking authentication
+  Location: https://d2l28rla2hk7np.cloudfront.net/app.js:93:12
+
+[2025-11-17T01:46:04.532Z] [LOG] Checking authentication...
+  Location: https://d2l28rla2hk7np.cloudfront.net/app.js:29:12
+
+[2025-11-17T01:46:04.533Z] [LOG] No token found, displaying login section
+  Location: https://d2l28rla2hk7np.cloudfront.net/app.js:71:16

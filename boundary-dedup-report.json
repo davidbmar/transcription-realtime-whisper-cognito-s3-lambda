@@ -1,0 +1,672 @@
+{
+  "totalMessages": 116,
+  "timestamp": "2025-11-17T02:02:55.131Z",
+  "url": "https://d2l28rla2hk7np.cloudfront.net/transcript-editor-v2.html",
+  "verification": {
+    "boundaryModeInitialized": true,
+    "preprocessorType": [
+      "Preprocessor initialized: TranscriptPreprocessorBoundary"
+    ],
+    "isBoundaryPreprocessor": true,
+    "boundaryDedupCount": 35,
+    "dedupDetails": [
+      "[Boundary Dedup] chunk-001 → chunk-002: No overlap detected",
+      "[Boundary Dedup] chunk-002 → chunk-003: Removing 3 words",
+      "[Boundary Dedup] chunk-003 → chunk-004: No overlap detected",
+      "[Boundary Dedup] chunk-004 → chunk-005: Removing 2 words",
+      "[Boundary Dedup] chunk-005 → chunk-006: Removing 1 words",
+      "[Boundary Dedup] chunk-006 → chunk-007: No overlap detected",
+      "[Boundary Dedup] chunk-007 → chunk-008: Removing 2 words",
+      "[Boundary Dedup] chunk-008 → chunk-009: No overlap detected",
+      "[Boundary Dedup] chunk-009 → chunk-010: Removing 1 words",
+      "[Boundary Dedup] chunk-010 → chunk-011: Removing 2 words",
+      "[Boundary Dedup] chunk-011 → chunk-012: No overlap detected",
+      "[Boundary Dedup] chunk-012 → chunk-013: Removing 1 words",
+      "[Boundary Dedup] chunk-013 → chunk-014: No overlap detected",
+      "[Boundary Dedup] chunk-014 → chunk-015: Removing 1 words",
+      "[Boundary Dedup] chunk-015 → chunk-016: Removing 2 words",
+      "[Boundary Dedup] chunk-016 → chunk-017: Removing 1 words",
+      "[Boundary Dedup] chunk-017 → chunk-018: Removing 1 words",
+      "[Boundary Dedup] chunk-018 → chunk-019: Removing 1 words",
+      "[Boundary Dedup] chunk-019 → chunk-020: No overlap detected",
+      "[Boundary Dedup] chunk-020 → chunk-021: No overlap detected",
+      "[Boundary Dedup] chunk-021 → chunk-022: No overlap detected",
+      "[Boundary Dedup] chunk-022 → chunk-023: No overlap detected",
+      "[Boundary Dedup] chunk-023 → chunk-024: No overlap detected",
+      "[Boundary Dedup] chunk-024 → chunk-025: No overlap detected",
+      "[Boundary Dedup] chunk-025 → chunk-026: No overlap detected",
+      "[Boundary Dedup] chunk-026 → chunk-027: No overlap detected",
+      "[Boundary Dedup] chunk-027 → chunk-028: No overlap detected",
+      "[Boundary Dedup] chunk-028 → chunk-029: No overlap detected",
+      "[Boundary Dedup] chunk-029 → chunk-030: No overlap detected",
+      "[Boundary Dedup] chunk-030 → chunk-031: Removing 1 words",
+      "[Boundary Dedup] chunk-031 → chunk-032: No overlap detected",
+      "[Boundary Dedup] chunk-032 → chunk-033: Removing 1 words",
+      "[Boundary Dedup] chunk-033 → chunk-034: Removing 2 words",
+      "[Boundary Dedup] chunk-034 → chunk-035: Removing 1 words",
+      "[Boundary Dedup] chunk-035 → chunk-036: No overlap detected"
+    ],
+    "chunkBoundaries": {
+      "previousChunkEnds": [
+        "  Previous chunk ends with: \" we  get  the\"",
+        "  Previous chunk ends with: \" we  use\"",
+        "  Previous chunk ends with: \" up.\"",
+        "  Previous chunk ends with: \" and  nations.\"",
+        "  Previous chunk ends with: \" language.\"",
+        "  Previous chunk ends with: \" of  millions.\"",
+        "  Previous chunk ends with: \" using\"",
+        "  Previous chunk ends with: \" do.\"",
+        "  Previous chunk ends with: \" the  20th\"",
+        "  Previous chunk ends with: \" Harvard.\"",
+        "  Previous chunk ends with: \" cognitive\"",
+        "  Previous chunk ends with: \" in\"",
+        "  Previous chunk ends with: \" cogitate\"",
+        "  Previous chunk ends with: \" probable\"",
+        "  Previous chunk ends with: \" from  past.\"",
+        "  Previous chunk ends with: \" could.\""
+      ],
+      "currentChunkStarts": [
+        "  Current chunk starts with: \" we  get  the\" ← REMOVING THIS",
+        "  Current chunk starts with: \" We  use\" ← REMOVING THIS",
+        "  Current chunk starts with: \" up\" ← REMOVING THIS",
+        "  Current chunk starts with: \" and  nations\" ← REMOVING THIS",
+        "  Current chunk starts with: \" language.\" ← REMOVING THIS",
+        "  Current chunk starts with: \" of  millions\" ← REMOVING THIS",
+        "  Current chunk starts with: \" using\" ← REMOVING THIS",
+        "  Current chunk starts with: \" do.\" ← REMOVING THIS",
+        "  Current chunk starts with: \" the  20th\" ← REMOVING THIS",
+        "  Current chunk starts with: \" Harvard.\" ← REMOVING THIS",
+        "  Current chunk starts with: \" cognitive\" ← REMOVING THIS",
+        "  Current chunk starts with: \" in\" ← REMOVING THIS",
+        "  Current chunk starts with: \" cogitate\" ← REMOVING THIS",
+        "  Current chunk starts with: \" Probable\" ← REMOVING THIS",
+        "  Current chunk starts with: \" from  past\" ← REMOVING THIS",
+        "  Current chunk starts with: \" could\" ← REMOVING THIS"
+      ]
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "allMessages": [
+    {
+      "timestamp": "2025-11-17T02:02:31.900Z",
+      "type": "log",
+      "text": "DOM loaded, checking authentication"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:31.913Z",
+      "type": "log",
+      "text": "Checking authentication..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:31.913Z",
+      "type": "log",
+      "text": "No token found, displaying login section"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:32.509Z",
+      "type": "log",
+      "text": "Login function called"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:32.528Z",
+      "type": "log",
+      "text": "Redirecting to: https://clouddrive-app-1762054794.auth.us-east-2.amazoncognito.com/login?client_id=7sjtp1gd6buhs3a7b362pvod3a&response_type=token&scope=email+openid+profile&redirect_uri=https%3A%2F%2Fd2l28rla2hk7np.cloudfront.net%2Fcallback.html"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:33.983Z",
+      "type": "log",
+      "text": "Tokens received: {hasIdToken: true, hasAccessToken: true}"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:33.983Z",
+      "type": "log",
+      "text": "Decoded username: 512b3590-30b1-707d-ed46-bf68df7b52d5"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:33.985Z",
+      "type": "log",
+      "text": "Tokens stored successfully for user: 512b3590-30b1-707d-ed46-bf68df7b52d5"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.230Z",
+      "type": "log",
+      "text": "DOM loaded, checking authentication"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.230Z",
+      "type": "log",
+      "text": "Checking authentication..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.230Z",
+      "type": "log",
+      "text": "Found ID token, verifying..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.230Z",
+      "type": "log",
+      "text": "Token valid, displaying dashboard"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.331Z",
+      "type": "log",
+      "text": "=== Script Loading Status ==="
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.331Z",
+      "type": "log",
+      "text": "TranscriptPreprocessor: function"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.331Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorBoundary: function"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.332Z",
+      "type": "log",
+      "text": "TranscriptPreprocessorSimple: function"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.332Z",
+      "type": "log",
+      "text": "TranscriptPluginManager: function"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.332Z",
+      "type": "log",
+      "text": "============================"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.332Z",
+      "type": "log",
+      "text": "Initializing TranscriptPreprocessor (boundary mode)..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.333Z",
+      "type": "log",
+      "text": "Preprocessor initialized: TranscriptPreprocessorBoundary"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:34.334Z",
+      "type": "log",
+      "text": "Loading latest session..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.414Z",
+      "type": "log",
+      "text": "Sessions loaded: 42"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.419Z",
+      "type": "log",
+      "text": "Current session: {sessionId: 2025-11-16-session_2025-11-16T00_41_57_868Z, folder: 2025-11-16-session_2025-11-16T00_41_57_868Z, metadata: null}"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.424Z",
+      "type": "log",
+      "text": "Loading and processing transcript..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.424Z",
+      "type": "log",
+      "text": "User ID: 512b3590-30b1-707d-ed46-bf68df7b52d5"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.430Z",
+      "type": "log",
+      "text": "Session folder: 2025-11-16-session_2025-11-16T00_41_57_868Z"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:37.430Z",
+      "type": "log",
+      "text": "Listing transcription chunk files..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:38.788Z",
+      "type": "log",
+      "text": "Found chunk files: 36"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:38.789Z",
+      "type": "log",
+      "text": "Chunk files: audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-001.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-002.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-003.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-004.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-005.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-006.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-007.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-008.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-009.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-010.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-011.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-012.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-013.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-014.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-015.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-016.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-017.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-018.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-019.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-020.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-021.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-022.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-023.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-024.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-025.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-026.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-027.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-028.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-029.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-030.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-031.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-032.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-033.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-034.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-035.json, audio/sessions/2025-11-16-session_2025-11-16T00_41_57_868Z/transcription-chunk-036.json"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:38.789Z",
+      "type": "log",
+      "text": "Loading chunk data..."
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.135Z",
+      "type": "log",
+      "text": "[Boundary Preprocessor] Processing 36 chunks"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.135Z",
+      "type": "log",
+      "text": "[Boundary Preprocessor] Chunk order: chunk-001, chunk-002, chunk-003, chunk-004, chunk-005, chunk-006, chunk-007, chunk-008, chunk-009, chunk-010, chunk-011, chunk-012, chunk-013, chunk-014, chunk-015, chunk-016, chunk-017, chunk-018, chunk-019, chunk-020, chunk-021, chunk-022, chunk-023, chunk-024, chunk-025, chunk-026, chunk-027, chunk-028, chunk-029, chunk-030, chunk-031, chunk-032, chunk-033, chunk-034, chunk-035, chunk-036"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.145Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-001 → chunk-002: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.146Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-002 → chunk-003: Removing 3 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.146Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" we  get  the\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.146Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" we  get  the\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.146Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" word  narrative  and  also  where...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.146Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-003 → chunk-004: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.147Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-004 → chunk-005: Removing 2 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.147Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" we  use\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.147Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" We  use\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.147Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" story  to  communicate.  We  make...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.147Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-005 → chunk-006: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.148Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" up.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.148Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" up\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.148Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" what  we're  doing  and  where...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.148Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-006 → chunk-007: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.155Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-007 → chunk-008: Removing 2 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.155Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" and  nations.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.156Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" and  nations\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.156Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" by  imparting  narratives  about  our...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.156Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-008 → chunk-009: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.156Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-009 → chunk-010: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.156Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" language.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.157Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" language.\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.157Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" Long,  long  before  language.  Millions...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.157Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-010 → chunk-011: Removing 2 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.157Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" of  millions.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.157Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" of  millions\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" of  years.  Prior  to  words,...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-011 → chunk-012: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-012 → chunk-013: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" using\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" using\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" Story  4.  Why  would  they...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-013 → chunk-014: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.158Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-014 → chunk-015: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.159Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" do.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.159Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" do.\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.159Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" Think.  This  biological  use  of...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.159Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-015 → chunk-016: Removing 2 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.159Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" the  20th\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.166Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" the  20th\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.166Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" century  by  Anna  Kraft.  Kraft...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.167Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-016 → chunk-017: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.167Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" Harvard.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.167Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" Harvard.\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.167Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" But  her  research  is  almost...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.167Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-017 → chunk-018: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.168Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" cognitive\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.168Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" cognitive\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.168Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" psychology  theoretical  physics  or  computer...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-018 → chunk-019: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" in\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" in\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" preschools,  where  she  observed  children...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-019 → chunk-020: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-020 → chunk-021: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.169Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-021 → chunk-022: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-022 → chunk-023: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-023 → chunk-024: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-024 → chunk-025: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-025 → chunk-026: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-026 → chunk-027: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-027 → chunk-028: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.170Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-028 → chunk-029: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-029 → chunk-030: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-030 → chunk-031: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" cogitate\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" cogitate\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" in  narrative.  The  reason  is,...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-031 → chunk-032: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-032 → chunk-033: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" probable\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" Probable\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.171Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" is  a  pattern  that  has...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-033 → chunk-034: Removing 2 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" from  past.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" from  past\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" statistics.  The  possible  is  an...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-034 → chunk-035: Removing 1 words"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Previous chunk ends with: \" could.\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Current chunk starts with: \" could\" ← REMOVING THIS"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.172Z",
+      "type": "log",
+      "text": "  Current chunk now starts: \" because  it  doesn't  contradict  the...\""
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.173Z",
+      "type": "log",
+      "text": "[Boundary Dedup] chunk-035 → chunk-036: No overlap detected"
+    },
+    {
+      "timestamp": "2025-11-17T02:02:44.173Z",
+      "type": "log",
+      "text": "[Boundary Preprocessor] Created 36 paragraphs"
+    }
+  ]
+}

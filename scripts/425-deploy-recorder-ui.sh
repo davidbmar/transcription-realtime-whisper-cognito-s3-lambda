@@ -3,12 +3,20 @@
 # 425-deploy-recorder-ui.sh
 # ============================================================================
 # Description: Deploy full audio recorder UI with Cognito authentication
-# 
+#
 # This script:
-#   1. Copies recorder UI files from audio-ui-cf-s3-lambda-cognito
+#   1. Copies recorder UI files from ui-source/ (USES TEMPLATES)
 #   2. Updates configuration with current Cognito deployment values
 #   3. Uploads files to S3
 #   4. Invalidates CloudFront cache
+#
+# IMPORTANT - TEMPLATE SYSTEM (Updated 2025-11-18):
+#   - SOURCE OF TRUTH: ui-source/audio.html.template (3,444 lines)
+#   - DO NOT EDIT: ui-source/audio.html (deprecated, gets overwritten)
+#   - Placeholders like TO_BE_REPLACED_USER_POOL_ID get replaced with .env values
+#   - See ui-source/README.md for full documentation
+#
+# Version: 6.7.0 (Added Wake Lock API + Chunk Size Validation)
 #
 # Prerequisites:
 #   - Script 420 completed successfully
@@ -116,8 +124,26 @@ cp "$SOURCE_UI_DIR/index.html" ./
 cp "$SOURCE_UI_DIR/audio-ui-styles.css" ./
 cp "$SOURCE_UI_DIR/styles.css" ./
 
-# Use audio.html with WhisperLive integration
-cp "$SOURCE_UI_DIR/audio.html" ./audio.html
+# ============================================================================
+# CRITICAL: Use audio.html.template (NOT audio.html)
+# ============================================================================
+# The template system was fixed on 2025-11-18 to use the correct source file:
+#
+# BEFORE (broken):
+#   - Used audio.html (old, incomplete, 1,025 lines)
+#   - Missing latest features (Wake Lock, chunk validation, etc.)
+#
+# AFTER (correct):
+#   - Uses audio.html.template (full version, 3,444 lines)
+#   - Has ALL features including v6.7.0 updates
+#   - Contains TO_BE_REPLACED_* placeholders
+#
+# The template gets copied to ./audio.html, then sed commands below
+# replace all placeholders with actual values from .env
+#
+# To make changes: ALWAYS edit ui-source/audio.html.template
+# ============================================================================
+cp "$SOURCE_UI_DIR/audio.html.template" ./audio.html
 
 # Copy transcript editor templates (will be processed later)
 if [ -f "$SOURCE_UI_DIR/transcript-editor.html.template" ]; then

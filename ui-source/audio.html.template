@@ -1,833 +1,3486 @@
-<!DOCTYPE html>
+<!doctype html>
+<!--
+  ✅ THIS IS THE SOURCE OF TRUTH - ALWAYS EDIT THIS FILE ✅
+
+  File: ui-source/audio.html.template
+  Version: 6.7.0 (2025-11-18)
+
+  This template contains placeholders that get replaced during deployment:
+  - TO_BE_REPLACED_USER_POOL_ID
+  - TO_BE_REPLACED_USER_POOL_CLIENT_ID
+  - TO_BE_REPLACED_IDENTITY_POOL_ID
+  - TO_BE_REPLACED_REGION
+  - TO_BE_REPLACED_AUDIO_API_URL
+  - TO_BE_REPLACED_APP_URL
+  - TO_BE_REPLACED_WHISPERLIVE_WS_URL
+  - TO_BE_REPLACED_GOOGLE_DOC_ID
+
+  Deployment: ./scripts/425-deploy-recorder-ui.sh
+  1. Copies this template to cognito-stack/web/audio.html
+  2. Replaces placeholders with values from .env
+  3. Uploads to S3 and invalidates CloudFront
+
+  DO NOT EDIT: ui-source/audio.html (deprecated, kept for reference only)
+-->
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Recorder - CloudDrive</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link rel="stylesheet" href="audio-ui-styles.css">
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8" />
+  <title>Real-Time Audio Recording & Transcription</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 wss://*.davidbmar.com https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <!-- app.js only needed on index.html, not audio.html -->
+  <style>
+    /* Step 4 IndexDB UI Styles */
+    :root{
+      --bg-top:#0b1220;
+      --bg-bottom:#090d16;
+      --glass: rgba(255,255,255,0.08);
+      --glass-strong: rgba(255,255,255,0.12);
+      --stroke: rgba(255,255,255,0.12);
+      --text:#e6edf3;
+      --muted:#9aa6b2;
+      --accent:#35e0ff;
+      --good:#3be38a;
+      --danger:#ff6b6b;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --radius-md: 12px;
+      --blur: blur(16px);
+    }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--text);
+      background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom)) fixed;
+    }
+    .app-shell{
+      min-height:100dvh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      padding:56px 16px 40px;
+      position:relative;
+      overflow:hidden;
+    }
+    .app-shell::after{
+      content:"";
+      position:fixed; inset:-10%;
+      pointer-events:none;
+      background: radial-gradient(60% 40% at 50% 0%, rgba(255,255,255,0.06), transparent 60%);
+      filter: blur(40px);
+      opacity:.8;
+    }
+
+    /* Context ribbon */
+    .ribbon{
+      position:fixed; top:10px; left:50%; transform:translateX(-50%);
+      color:var(--muted); font-size:13px; letter-spacing:.02em;
+      backdrop-filter: var(--blur);
+      background: rgba(255,255,255,0.04);
+      border:1px solid var(--stroke);
+      border-radius: 999px;
+      padding:6px 10px;
+      box-shadow: var(--shadow);
+      z-index: 100;
+    }
+    .kbd{
+      padding:2px 6px; border:1px solid var(--stroke); border-radius:6px; background: rgba(255,255,255,0.06);
+      font-size:12px; color:var(--muted)
+    }
+
+    /* Floating palette */
+    .palette{
+      position:fixed; top:54px; left:50%; transform:translateX(-50%);
+      width:min(92vw, 520px);
+      backdrop-filter: var(--blur);
+      background: var(--glass);
+      border:1px solid var(--stroke);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding:14px;
+      display:none;
+      z-index: 100;
+    }
+    .palette.open{ display:block; animation:pop .16s ease-out }
+    @keyframes pop{ from{ opacity:0; transform:translateX(-50%) translateY(-6px) } to{ opacity:1; transform:translateX(-50%) translateY(0) } }
+    .row{ display:flex; gap:10px; align-items:center }
+    .icon-dot{
+      width:10px; height:10px; border-radius:999px; background: var(--accent);
+      box-shadow: 0 0 14px rgba(53,224,255,.8);
+    }
+    .mic-dot{
+      width:10px; height:10px; border-radius:999px; background: var(--accent);
+      margin-left:8px; box-shadow:0 0 10px currentColor;
+      transition: background .3s ease, box-shadow .3s ease;
+    }
+    .mic-dot.good{ background: var(--good); }
+    .mic-dot.danger{ background: var(--danger); }
+    .palette input[type="text"]{
+      flex:1; border:none; outline:none; background:transparent; color:var(--text);
+      font-size:18px; padding:6px 2px;
+    }
+    .btn{
+      border:1px solid var(--stroke); background: rgba(255,255,255,0.06);
+      color:var(--text); padding:8px 12px; border-radius:999px; cursor:pointer;
+      transition: background .15s ease, transform .05s ease;
+      text-decoration:none; display:inline-flex; align-items:center; justify-content:center;
+    }
+    .btn:hover{ background: rgba(255,255,255,0.12) }
+    .btn:active{ transform: translateY(1px) }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .btn-accent{
+      border-color: rgba(53,224,255,.35);
+      background: linear-gradient(180deg, rgba(53,224,255,.18), rgba(53,224,255,.12));
+      color:#b8f4ff;
+    }
+
+    /* Control Panel */
+    .control-panel{
+      width:min(92vw, 920px);
+      border:1px solid var(--stroke);
+      background: var(--glass);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding:14px;
+      margin: 10px 0;
+      z-index: 10;
+    }
+
+    /* Recorder Card */
+    .recorder-card{
+      width:min(92vw, 920px);
+      border:1px solid var(--stroke);
+      background: var(--glass);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding:14px;
+      transition: box-shadow .2s ease, outline-color .2s ease;
+      outline:1px solid transparent;
+      z-index: 10;
+      margin-top: 10px;
+    }
+    .recorder-card.active{
+      outline-color: rgba(53,224,255,.5);
+      box-shadow: 0 0 0 2px rgba(53,224,255,.25), var(--shadow);
+    }
+    .recorder-header{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;
+    }
+    .title{ font-weight:600; letter-spacing:.2px }
+    .muted{ color:var(--muted); font-size:13px }
+
+    /* Transcription Display - NEW */
+    .transcription-display{
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin-top: 12px;
+      height: 220px;
+      font-size: 14px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .transcription-display.empty{
+      color: var(--muted);
+      text-align: center;
+      font-style: italic;
+    }
+    .partial-section {
+      min-height: 50px;
+      padding: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      border: 1px solid var(--stroke);
+    }
+    .completed-section {
+      flex: 1;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+      padding: 8px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 6px;
+      border: 1px solid var(--stroke);
+    }
+    .transcript-entry{
+      margin-bottom: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      border-left: 3px solid var(--accent);
+    }
+    .transcript-entry.final{
+      border-left-color: var(--good);
+    }
+    .transcript-entry.partial{
+      border-left-color: var(--muted);
+      opacity: 0.7;
+      font-style: italic;
+    }
+
+    /* Chunks Section */
+    .chunks-panel {
+      width:min(92vw, 920px);
+      border:1px solid var(--stroke);
+      background: var(--glass);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding:14px;
+      margin: 10px 0;
+      z-index: 10;
+    }
+    .list {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      height: 400px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    .chunk {
+      border:1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      background: rgba(255,255,255,0.04);
+      transition: box-shadow .15s ease, transform .1s ease;
+    }
+    .chunk:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .chunk-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .meta {
+      font-size:12px;
+      color:var(--muted);
+    }
+    .chunk-audio {
+      width:280px;
+      height: 32px;
+    }
+    .waveform-shell {
+      position:relative;
+      border-radius: var(--radius-md);
+      overflow:hidden;
+      background: rgba(255,255,255,0.03);
+      border:1px solid var(--stroke);
+      padding:10px 12px;
+    }
+    .waveform-canvas {
+      width:100%;
+      height:60px;
+      display:block;
+    }
+
+    /* Log Section */
+    .log-panel {
+      width:min(92vw, 920px);
+      border:1px solid var(--stroke);
+      background: var(--glass);
+      backdrop-filter: var(--blur);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding:18px;
+      margin: 20px 0;
+      z-index: 10;
+    }
+    .log {
+      width:100%;
+      height:140px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      color: var(--text);
+      resize: vertical;
+    }
+
+    /* Word-level highlighting (karaoke style) */
+    .word {
+      transition: background-color 0.15s ease, color 0.15s ease, font-weight 0.15s ease;
+      padding: 2px 4px;
+      border-radius: 3px;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .word.active {
+      background-color: rgba(251, 191, 36, 0.4);
+      font-weight: 600;
+      color: #fbbf24;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+    }
+
+    /* Confirmation sheet */
+    .confirm{
+      position:fixed; left:50%; transform:translateX(-50%);
+      bottom:-320px; width:min(92vw, 520px);
+      border-top-left-radius: var(--radius-xl);
+      border-top-right-radius: var(--radius-xl);
+      border:1px solid var(--stroke);
+      background: var(--glass-strong);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow);
+      padding:16px;
+      transition: bottom .22s ease;
+      z-index: 200;
+    }
+    .confirm.open{ bottom:10px }
+    .confirm .ok{ color:#b6f7d2 }
+
+    /* Helpers */
+    .row-wrap{ display:flex; gap:8px; flex-wrap:wrap }
+    .spacer{ flex:1 }
+    .hidden{ display:none !important }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
-    <div id="debug-log" class="debug-log collapsed"></div>
-    <div id="test-panel" class="test-panel collapsed">
-        <div class="panel-header" onclick="toggleTestPanel()">
-            <h4>Test Panel</h4>
-            <span class="toggle-btn">▼</span>
-        </div>
-        <div class="panel-content">
-            <button onclick="window.testRecord()">🎤 Test Record 10s</button><br>
-            <button onclick="window.testPlayback()">▶️ Test Playback</button><br>
-            <button onclick="window.clearDebug()">🗑️ Clear Debug</button><br>
-            <button onclick="window.exportLogs()">📋 Copy Logs</button><br>
-            <button onclick="toggleDebugLog()">👁️ Toggle Debug Log</button><br>
-            <small>Authenticated Audio</small>
-        </div>
+    <button class="logout-button" id="logout-button">Sign Out</button>
+  <div class="app-shell">
+
+    <!-- Context ribbon -->
+    <div id="context-ribbon" class="ribbon">
+      <span style="color:#3be38a;font-weight:600;">v6.7.0</span> &nbsp;•&nbsp;
+      In Browser › Audio Recorder › <span id="elapsed">00:00</span>
+      &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
+      &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
     </div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+    <!-- Floating command palette -->
+    <div id="palette" class="palette" aria-hidden="true">
+      <div class="row" style="margin-bottom:8px;">
+        <span class="icon-dot" aria-hidden="true"></span>
+        <input id="palette-input" type="text" placeholder="Ask: "Transcribe the latest recording and summarize…"" />
+        <button id="palette-start" class="btn btn-accent">🎙 Start</button>
+        <button id="palette-stop" class="btn hidden">⏹ Stop</button>
+      </div>
+      <div class="row-wrap muted">
+        <span>Suggestions:</span>
+        <span class="kbd">Summarize</span>
+        <span class="kbd">Export SRT</span>
+        <span class="kbd">Timestamps</span>
+      </div>
+    </div>
 
-        // Configuration - to be updated after deployment
-        const config = {
-            userPoolId: 'YOUR_USER_POOL_ID',
-            userPoolClientId: 'YOUR_USER_POOL_CLIENT_ID',
-            identityPoolId: 'YOUR_IDENTITY_POOL_ID',
-            region: 'YOUR_REGION',
-            apiUrl: 'YOUR_CLOUDFRONT_API_ENDPOINT',
-            audioApiUrl: 'YOUR_AUDIO_API_ENDPOINT',
-            appUrl: 'YOUR_CLOUDFRONT_URL'
-        };
+    <!-- Main Title - Hidden to save vertical space -->
+    <h1 style="display:none;">
+      Real-Time Recording & Transcription
+      <span id="mic-status" class="mic-dot" title="mic status"></span>
+    </h1>
 
-        // Debug logging
-        window.debugLogs = [];
-        const log = (message) => {
-            console.log(message);
-            const timestamp = new Date().toLocaleTimeString();
-            const logMessage = `${timestamp}: ${message}`;
-            window.debugLogs.push(logMessage);
-            
-            const debugElement = document.getElementById('debug-log');
-            if (debugElement) {
-                debugElement.innerHTML += `<div>${logMessage}</div>`;
-                debugElement.scrollTop = debugElement.scrollHeight;
+    <!-- Control Panel -->
+    <div class="control-panel">
+      <div class="row" style="flex-wrap:wrap;gap:8px;">
+        <button id="btn-start" class="btn btn-accent">🎙 Start Recording</button>
+        <button id="btn-stop" class="btn" disabled>⏹ Stop</button>
+        <button id="btn-share" class="btn" disabled title="Share live transcript link">👁️ Share Live Transcript</button>
+        <button id="clearBtn" class="btn">🗑️ Clear</button>
+        <button id="clearDbBtn" class="btn">🗄️ Clear DB</button>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">Chunk:
+          <input id="timeslice" type="number" value="5000" min="500" step="500"
+                 style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                        border-radius:6px;padding:4px 8px;color:var(--text);width:70px;font-size:12px;" />
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">Overlap:
+          <input id="overlap" type="number" value="500" min="0" max="2000" step="100"
+                 style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                        border-radius:6px;padding:4px 8px;color:var(--text);width:70px;font-size:12px;" />
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">TZ:
+          <select id="timezone-select"
+                  style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                         border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;">
+            <option value="America/Chicago">Central</option>
+            <option value="America/New_York">Eastern</option>
+            <option value="America/Denver">Mountain</option>
+            <option value="America/Los_Angeles">Pacific</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </label>
+        <div class="spacer"></div>
+        <div id="storage-status" style="color:var(--muted);font-size:11px;">
+          Storage: Loading...
+        </div>
+      </div>
+    </div>
+
+    <!-- Recorder card with live waveform AND transcription -->
+    <section id="recorder-card" class="recorder-card">
+      <div class="recorder-header">
+        <div>
+          <div class="title" style="font-size:16px;">Live Recording (newest at bottom)</div>
+          <div class="muted" style="font-size:12px;">Real-time transcription via WhisperLive</div>
+        </div>
+      </div>
+      <div id="recorder-body" class="recorder-body" style="padding:16px;">
+        <div id="live-placeholder" style="text-align:center;padding:20px;color:var(--muted);border:2px dashed var(--stroke);border-radius:8px;">
+          <div style="font-size:18px;margin-bottom:8px;">🎙️</div>
+          <div>Click "Start Recording" to see live waveform and transcription</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chunks Section -->
+    <div class="chunks-panel">
+      <h3 style="margin:0 0 10px 0;color:var(--text);font-size:16px;">Previous Chunks (newest at bottom)</h3>
+      <div id="chunkList" class="list"></div>
+    </div>
+
+    <!-- Log Section -->
+    <div class="log-panel">
+      <h3 style="margin:0 0 16px 0;color:var(--text);">Log</h3>
+      <textarea id="log" class="log" readonly></textarea>
+    </div>
+
+    <!-- Confirmation sheet -->
+    <section id="confirm" class="confirm" aria-hidden="true">
+      <div class="row" style="margin-bottom:8px;">
+        <div class="ok">✅ Recording Complete</div>
+        <div class="spacer"></div>
+        <button id="confirm-close" class="btn" type="button">Close</button>
+      </div>
+      <div class="muted" id="confirm-details">–</div>
+    </section>
+  </div>
+
+  <script>
+    // ============================================================
+    // INDEXEDDB STORAGE MANAGER
+    // ============================================================
+    class AudioStorageManager {
+      constructor() {
+        this.db = null;
+        this.dbName = 'AudioRecorderDB';
+        this.dbVersion = 3;  // Bumped to v3 for transcriptions table
+        this.initialized = false;
+      }
+
+      async init() {
+        if (this.initialized) return this.db;
+
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(this.dbName, this.dbVersion);
+
+          request.onerror = () => {
+            console.error('IndexedDB failed to open:', request.error);
+            reject(request.error);
+          };
+
+          request.onsuccess = () => {
+            this.db = request.result;
+            this.initialized = true;
+            console.log('IndexedDB opened successfully');
+            resolve(this.db);
+          };
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+
+            // Sessions table
+            if (!db.objectStoreNames.contains('sessions')) {
+              const sessionsStore = db.createObjectStore('sessions', { keyPath: 'id' });
+              sessionsStore.createIndex('timestamp', 'timestamp', { unique: false });
+              sessionsStore.createIndex('status', 'status', { unique: false });
             }
-        };
 
-        // Panel toggle functions
-        window.toggleTestPanel = () => {
-            const panel = document.getElementById('test-panel');
-            const toggleBtn = panel.querySelector('.toggle-btn');
-            
-            if (panel.classList.contains('collapsed')) {
-                panel.classList.remove('collapsed');
-                toggleBtn.textContent = '▲';
-            } else {
-                panel.classList.add('collapsed');
-                toggleBtn.textContent = '▼';
-            }
-        };
-
-        window.toggleDebugLog = () => {
-            const debugLog = document.getElementById('debug-log');
-            
-            if (debugLog.classList.contains('collapsed')) {
-                debugLog.classList.remove('collapsed');
-            } else {
-                debugLog.classList.add('collapsed');
-            }
-        };
-
-        // Test functions
-        window.clearDebug = () => {
-            document.getElementById('debug-log').innerHTML = '';
-            window.debugLogs = [];
-        };
-
-        window.exportLogs = () => {
-            const logs = window.debugLogs.join('\n');
-            navigator.clipboard.writeText(logs).then(() => {
-                alert('Debug logs copied to clipboard!');
-            });
-        };
-
-        // Authentication helper functions
-        const getAuthToken = () => {
-            return localStorage.getItem('id_token');
-        };
-
-        const getUserFromToken = () => {
-            const token = getAuthToken();
-            if (!token) return null;
-            
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                return {
-                    email: payload.email,
-                    userId: payload.sub,
-                    name: payload.given_name || payload.email
-                };
-            } catch (error) {
-                log('Error parsing token: ' + error.message);
-                return null;
-            }
-        };
-
-        const makeAuthenticatedRequest = async (url, options = {}) => {
-            const token = getAuthToken();
-            if (!token) {
-                throw new Error('No authentication token found');
+            // Chunks table
+            if (!db.objectStoreNames.contains('chunks')) {
+              const chunksStore = db.createObjectStore('chunks', { keyPath: 'id' });
+              chunksStore.createIndex('sessionId', 'sessionId', { unique: false });
+              chunksStore.createIndex('chunkIndex', 'chunkIndex', { unique: false });
+              chunksStore.createIndex('timestamp', 'timestamp', { unique: false });
             }
 
-            const headers = {
-                'Authorization': `Bearer ${token}`,
+            // Transcriptions table (NEW in v3)
+            if (!db.objectStoreNames.contains('transcriptions')) {
+              const transcriptionsStore = db.createObjectStore('transcriptions', {
+                keyPath: 'id',
+                autoIncrement: true
+              });
+              transcriptionsStore.createIndex('sessionId', 'sessionId', { unique: false });
+              transcriptionsStore.createIndex('start', 'start', { unique: false });
+              transcriptionsStore.createIndex('timestamp', 'timestamp', { unique: false });
+              console.log('✅ Created transcriptions table with indexes');
+            }
+
+            console.log('IndexedDB schema created/updated to version', db.version);
+          };
+        });
+      }
+
+      async createSession(settings = {}) {
+        await this.init();
+
+        if (!this.db.objectStoreNames.contains('sessions')) {
+          throw new Error('Sessions object store not found');
+        }
+
+        const sessionId = `session_${new Date().toISOString().replace(/[:.]/g, '_')}`;
+        const session = {
+          id: sessionId,
+          timestamp: Date.now(),
+          totalDuration: 0,
+          chunkCount: 0,
+          settings: {
+            chunkDuration: 5000,
+            mimeType: 'audio/webm',
+            ...settings
+          },
+          status: 'recording',
+          transcription: null,
+          created: new Date().toISOString()
+        };
+
+        const transaction = this.db.transaction(['sessions'], 'readwrite');
+        const store = transaction.objectStore('sessions');
+
+        return new Promise((resolve, reject) => {
+          const request = store.add(session);
+          request.onsuccess = () => resolve(session);
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async updateSession(sessionId, updates) {
+        await this.init();
+
+        const transaction = this.db.transaction(['sessions'], 'readwrite');
+        const store = transaction.objectStore('sessions');
+
+        return new Promise((resolve, reject) => {
+          const getRequest = store.get(sessionId);
+          getRequest.onsuccess = () => {
+            const session = getRequest.result;
+            if (!session) {
+              reject(new Error('Session not found'));
+              return;
+            }
+
+            Object.assign(session, updates);
+            const putRequest = store.put(session);
+            putRequest.onsuccess = () => resolve(session);
+            putRequest.onerror = () => reject(putRequest.error);
+          };
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+      }
+
+      async getAllSessions() {
+        await this.init();
+
+        if (!this.db.objectStoreNames.contains('sessions')) {
+          return [];
+        }
+
+        const transaction = this.db.transaction(['sessions'], 'readonly');
+        const store = transaction.objectStore('sessions');
+        const index = store.index('timestamp');
+
+        return new Promise((resolve, reject) => {
+          const request = index.getAll();
+          request.onsuccess = () => {
+            const sessions = request.result.sort((a, b) => b.timestamp - a.timestamp);
+            resolve(sessions);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async saveChunk(sessionId, chunkIndex, blob, duration) {
+        await this.init();
+
+        const chunkId = `chunk_${sessionId}_${String(chunkIndex).padStart(3, '0')}`;
+        const chunk = {
+          id: chunkId,
+          sessionId: sessionId,
+          chunkIndex: chunkIndex,
+          blob: blob,
+          duration: duration,
+          timestamp: Date.now(),
+          size: blob.size,
+          type: blob.type
+        };
+
+        const transaction = this.db.transaction(['chunks'], 'readwrite');
+        const store = transaction.objectStore('chunks');
+
+        return new Promise((resolve, reject) => {
+          const request = store.add(chunk);
+          request.onsuccess = () => resolve(chunk);
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async getChunksBySession(sessionId) {
+        await this.init();
+
+        const transaction = this.db.transaction(['chunks'], 'readonly');
+        const store = transaction.objectStore('chunks');
+        const index = store.index('sessionId');
+
+        return new Promise((resolve, reject) => {
+          const request = index.getAll(sessionId);
+          request.onsuccess = () => {
+            const chunks = request.result.sort((a, b) => a.chunkIndex - b.chunkIndex);
+            resolve(chunks);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async saveTranscription(sessionId, text, start, end, words, completed) {
+        await this.init();
+
+        const transcription = {
+          sessionId: sessionId,
+          text: text,
+          start: start,
+          end: end,
+          words: words || [],
+          completed: completed,
+          timestamp: Date.now()
+        };
+
+        const transaction = this.db.transaction(['transcriptions'], 'readwrite');
+        const store = transaction.objectStore('transcriptions');
+
+        return new Promise((resolve, reject) => {
+          const request = store.add(transcription);
+          request.onsuccess = () => {
+            console.log('💾 Saved transcription:', text.substring(0, 30), `[${start.toFixed(2)}s → ${end.toFixed(2)}s]`);
+            resolve(transcription);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async getTranscriptionsBySession(sessionId) {
+        await this.init();
+
+        const transaction = this.db.transaction(['transcriptions'], 'readonly');
+        const store = transaction.objectStore('transcriptions');
+        const index = store.index('sessionId');
+
+        return new Promise((resolve, reject) => {
+          const request = index.getAll(sessionId);
+          request.onsuccess = () => {
+            const transcriptions = request.result.sort((a, b) => a.start - b.start);
+            console.log('📖 Loaded', transcriptions.length, 'transcriptions for session', sessionId);
+            resolve(transcriptions);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async getStorageUsage() {
+        if (!navigator.storage || !navigator.storage.estimate) {
+          return { used: 0, available: 0, percentage: 0, usedMB: 0, availableMB: 0 };
+        }
+
+        try {
+          const estimate = await navigator.storage.estimate();
+          const used = estimate.usage || 0;
+          const available = estimate.quota || 0;
+
+          return {
+            usedMB: Math.round(used / (1024 * 1024)),
+            availableMB: Math.round(available / (1024 * 1024))
+          };
+        } catch (error) {
+          return { usedMB: 0, availableMB: 0 };
+        }
+      }
+
+      createObjectURL(blob) {
+        return URL.createObjectURL(blob);
+      }
+
+      async clearDatabase() {
+        return new Promise((resolve, reject) => {
+          if (this.db) {
+            this.db.close();
+            this.db = null;
+            this.initialized = false;
+          }
+
+          const deleteRequest = indexedDB.deleteDatabase(this.dbName);
+          deleteRequest.onsuccess = () => resolve();
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        });
+      }
+    }
+
+    window.audioStorage = new AudioStorageManager();
+  </script>
+
+  <script>
+    // ============================================================
+    // TRANSCRIPT ACCUMULATOR (from existing app)
+    // ============================================================
+    class TranscriptAccumulator {
+      constructor(cfg = {}) {
+        this.cfg = {
+          K: cfg.stabilityFrames ?? 2,
+          Lmin: cfg.minPrefixLength ?? 3,
+          T_ms: cfg.stabilityTimeMs ?? 1000,
+          W: cfg.overlapWindow ?? 8,
+          eps: cfg.refineEpsilon ?? 0.15,
+          alpha: cfg.slideThreshold ?? 0.4,
+          beta: cfg.minSlideLength ?? 5,
+          H: cfg.hysteresisFrames ?? 2,
+          cooldownMs: cfg.cooldownMs ?? 250,
+          finalAlignW: cfg.alignWindow ?? 10,
+          softTailTokens: cfg.softTailTokens ?? 12,
+          recentTailGuard: cfg.recentTailGuard ?? 35,
+          debug: cfg.debug ?? true,
+        };
+
+        this.accTokens = [];
+        this.accText = "";
+        this.hardCommitted = 0;
+        this.workingTokens = [];
+        this.workingOrig = "";
+        this.lastPartialTokens = [];
+        this.stableCounts = [];
+        this.stableSince = [];
+        this.slideStreak = 0;
+        this.lastSlideAt = 0;
+      }
+
+      ingestPartial(text) {
+        const now = Date.now();
+        const norm = this._normalize(text);
+        const curr = this._tokenize(norm);
+
+        if (this.workingTokens.length === 0) {
+          this.workingTokens = curr.slice();
+          this.workingOrig = text;
+          this.lastPartialTokens = curr.slice();
+          this._resetStability(curr.length, now);
+          this._alignCurrWithTail(curr);
+          return { slideDetected: false };
+        }
+
+        this._alignCurrWithTail(curr);
+
+        const lcp = this._lcp(this.lastPartialTokens, curr);
+        const limit = Math.min(lcp, this.workingTokens.length);
+
+        for (let i = 0; i < limit; i++) {
+          this.stableCounts[i] += 1;
+          if (this.stableCounts[i] === 1) this.stableSince[i] = now;
+        }
+        for (let i = limit; i < this.workingTokens.length; i++) {
+          this.stableCounts[i] = 0;
+          this.stableSince[i] = now;
+        }
+
+        const { K, Lmin, T_ms: Tms } = this.cfg;
+        let commitLen = 0;
+        for (let i = 0; i < limit; i++) {
+          const byFrames = this.stableCounts[i] >= K;
+          const byTime = (now - this.stableSince[i]) >= Tms;
+          if ((byFrames || byTime) && i >= (Lmin - 1)) commitLen = i + 1;
+          else break;
+        }
+
+        if (commitLen > 0) {
+          const prefix = this.workingTokens.slice(0, commitLen);
+          if (!this._recentTailDuplicate(prefix)) {
+            const display = this._detok(prefix);
+            this._appendToAccumulated(prefix, display);
+            if (this.cfg.debug) console.log(`[SPC] committed: "${display}"`);
+          }
+          this.workingTokens = this.workingTokens.slice(commitLen);
+          this.workingOrig = this._detok(this.workingTokens);
+          this.stableCounts = this.stableCounts.slice(commitLen);
+          this.stableSince = this.stableSince.slice(commitLen);
+
+          const desiredHard = Math.max(0, this.accTokens.length - this.cfg.softTailTokens);
+          if (desiredHard > this.hardCommitted) this.hardCommitted = desiredHard;
+        }
+
+        const slide = this._detectSlide(this.lastPartialTokens, curr, now);
+        if (slide && this.workingTokens.length >= this.cfg.beta) {
+          const overlapK = this._maxPrefixOverlapWithTail(this.workingTokens, this.accTokens, this.cfg.finalAlignW);
+          const remainder = this.workingTokens.slice(overlapK);
+
+          let rescuedText = '';
+          if (remainder.length > 0 && !this._recentTailDuplicate(remainder)) {
+            const disp = this._detok(remainder);
+            rescuedText = disp;
+            this._appendToAccumulated(remainder, disp, true);
+            if (this.cfg.debug) console.log(`[EW] RESCUED remainder: "${disp}"`);
+          }
+
+          this.workingTokens = curr.slice();
+          this.workingOrig = text;
+          this._resetStability(this.workingTokens.length, now);
+          this.hardCommitted = this.accTokens.length;
+
+          this.lastPartialTokens = curr.slice();
+          return { slideDetected: true, rescuedText: rescuedText };
+        }
+
+        this.workingTokens = curr.slice();
+        this.workingOrig = text;
+        this._ensureStabilityLength(this.workingTokens.length, now);
+        this.lastPartialTokens = curr.slice();
+        return { slideDetected: false };
+      }
+
+      ingestFinal(text) {
+        const finalTok = this._tokenize(this._normalize(text));
+        const drop = this._maxPrefixOverlapWithTail(finalTok, this.accTokens, this.cfg.finalAlignW);
+        const remainder = finalTok.slice(drop);
+        if (remainder.length === 0) return;
+        if (!this._recentTailDuplicate(remainder)) {
+          const disp = this._detok(remainder);
+          this._appendToAccumulated(remainder, disp, true);
+          if (this.cfg.debug) console.log(`[BoF] Added final: "${disp}"`);
+        }
+
+        const covered = this._lcp(this.workingTokens, finalTok);
+        if (covered > 0) {
+          this.workingTokens = this.workingTokens.slice(covered);
+          this.workingOrig = this._detok(this.workingTokens);
+          this.stableCounts = this.stableCounts.slice(covered);
+          this.stableSince = this.stableSince.slice(covered);
+        }
+        if (this.workingTokens.length === 0) {
+          this._resetStability(0, Date.now());
+        }
+
+        this.hardCommitted = this.accTokens.length;
+      }
+
+      getTranscript() { return this.accText.trim(); }
+
+      getTranscriptWithCurrent() {
+        const base = this.accText.trim();
+        const curr = this.workingOrig.trim();
+        return base ? (curr ? `${base} ${curr}` : base) : curr;
+      }
+
+      reset() {
+        this.accTokens = [];
+        this.accText = "";
+        this.hardCommitted = 0;
+        this.workingTokens = [];
+        this.workingOrig = "";
+        this.lastPartialTokens = [];
+        this.stableCounts = [];
+        this.stableSince = [];
+        this.slideStreak = 0;
+        this.lastSlideAt = 0;
+      }
+
+      flushWorking() {
+        if (this.workingTokens.length > 0) {
+          const text = this.workingOrig.trim();
+          if (text) {
+            this.ingestFinal(text);
+            return text;
+          }
+        }
+        return '';
+      }
+
+      _normalize(s) {
+        const numberWords = {
+          'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+          'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+          'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13',
+          'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17',
+          'eighteen': '18', 'nineteen': '19', 'twenty': '20', 'thirty': '30',
+          'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
+          'eighty': '80', 'ninety': '90', 'hundred': '100', 'thousand': '1000'
+        };
+
+        let normalized = String(s)
+          .toLowerCase()
+          .replace(/[""]/g, '"')
+          .replace(/['']/g, "'")
+          .replace(/[^\p{L}\p{N}\s'".,!?-]+/gu, " ")
+          .replace(/[,\.!?;:'"-]/g, '');
+
+        Object.keys(numberWords).forEach(word => {
+          const regex = new RegExp(`\\b${word}\\b`, 'g');
+          normalized = normalized.replace(regex, numberWords[word]);
+        });
+
+        return normalized.replace(/\s+/g, " ").trim();
+      }
+
+      _tokenize(norm) { return norm ? norm.split(" ") : []; }
+      _detok(toks) { return toks.join(" "); }
+
+      _resetStability(len, now) {
+        this.stableCounts = Array(len).fill(0);
+        this.stableSince = Array(len).fill(now);
+      }
+
+      _ensureStabilityLength(len, now) {
+        const d = len - this.stableCounts.length;
+        if (d > 0) {
+          this.stableCounts.push(...Array(d).fill(0));
+          this.stableSince.push(...Array(d).fill(now));
+        }
+      }
+
+      _lcp(a, b) {
+        const n = Math.min(a.length, b.length);
+        let i = 0;
+        while (i < n && a[i] === b[i]) i++;
+        return i;
+      }
+
+      _overlapSuffixPrefix(a, b, W) {
+        const maxk = Math.min(W, a.length, b.length);
+        for (let k = maxk; k > 0; k--) {
+          let ok = true;
+          for (let i = 0; i < k; i++) {
+            if (a[a.length - k + i] !== b[i]) { ok = false; break; }
+          }
+          if (ok) return k;
+        }
+        return 0;
+      }
+
+      _lcpRatio(oldT, newT) {
+        if (oldT.length === 0) return 1;
+        const l = this._lcp(oldT, newT);
+        return l / oldT.length;
+      }
+
+      _detectSlide(oldT, newT, now) {
+        const { W, eps, alpha, H, cooldownMs } = this.cfg;
+        const lcpR = this._lcpRatio(oldT, newT);
+        const sp = this._overlapSuffixPrefix(oldT, newT, W);
+
+        const refinement = (lcpR >= (1 - eps)) || (sp >= Math.min(3, Math.floor(oldT.length / 2)));
+        if (refinement) { this.slideStreak = 0; return false; }
+
+        const candidate = (sp === 0) && (lcpR < alpha) && (oldT.length >= this.cfg.beta);
+        if (!candidate) { this.slideStreak = 0; return false; }
+
+        if (now - this.lastSlideAt < cooldownMs) return false;
+
+        this.slideStreak += 1;
+        if (this.slideStreak >= H) {
+          this.slideStreak = 0;
+          this.lastSlideAt = now;
+          return true;
+        }
+        return false;
+      }
+
+      _maxPrefixOverlapWithTail(prefix, tail, W) {
+        const maxk = Math.min(W, prefix.length, tail.length);
+        for (let k = maxk; k > 0; k--) {
+          let ok = true;
+          for (let i = 0; i < k; i++) {
+            if (prefix[i] !== tail[tail.length - k + i]) { ok = false; break; }
+          }
+          if (ok) return k;
+        }
+        return 0;
+      }
+
+      _recentTailDuplicate(tokens) {
+        const guard = Math.max(this.cfg.recentTailGuard, tokens.length);
+        const tail = this.accTokens.slice(Math.max(0, this.accTokens.length - guard));
+        if (tokens.length > tail.length) return false;
+        const start = tail.length - tokens.length;
+        for (let i = 0; i < tokens.length; i++) {
+          if (tail[start + i] !== tokens[i]) return false;
+        }
+        return true;
+      }
+
+      _appendToAccumulated(tokens, display, isFromFinal = false) {
+        if (tokens.length === 0) return;
+        const separator = isFromFinal ? "\n" : " ";
+        const sep = this.accText.length ? separator : "";
+        this.accText = `${this.accText}${sep}${display}`.trim();
+        this.accTokens.push(...tokens);
+
+        const desiredHard = Math.max(0, this.accTokens.length - this.cfg.softTailTokens);
+        if (desiredHard > this.hardCommitted) this.hardCommitted = desiredHard;
+      }
+
+      _alignCurrWithTail(curr) {
+        const R = this.cfg.softTailTokens;
+        if (this.accTokens.length === 0) return;
+
+        const direct = this._maxPrefixOverlapWithTail(curr, this.accTokens, Math.max(R, this.cfg.finalAlignW));
+        if (direct > 0) return;
+
+        const editableStart = Math.max(this.hardCommitted, this.accTokens.length - R);
+        const editableLen = this.accTokens.length - editableStart;
+        if (editableLen <= 0) return;
+
+        for (let back = 1; back <= editableLen; back++) {
+          const newTailLen = this.accTokens.length - back;
+          const k = this._maxPrefixOverlapWithTail(curr, this.accTokens.slice(0, newTailLen), this.cfg.finalAlignW);
+          if (k > 0) {
+            this.accTokens = this.accTokens.slice(0, newTailLen);
+            this.accText = this._detok(this.accTokens);
+            if (this.cfg.debug) console.log(`[REWIND] tokensRolledBack=${back}`);
+            return;
+          }
+        }
+      }
+    }
+
+    const transcriptAccumulator = new TranscriptAccumulator({
+      stabilityFrames: 2,
+      minPrefixLength: 3,
+      stabilityTimeMs: 1000,
+      overlapWindow: 8,
+      slideThreshold: 0.95,
+      minSlideLength: 200,
+      hysteresisFrames: 10,
+      cooldownMs: 60000,
+      alignWindow: 10
+    });
+  </script>
+
+  <script>
+    // ============================================================
+    // CONFIGURATION - Replaces window.config from app.js
+    // ============================================================
+    window.config = {
+      userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+      userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+      identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
+      region: 'TO_BE_REPLACED_REGION',
+      apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+      s3ApiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+      appUrl: 'TO_BE_REPLACED_APP_URL',
+      whisperLiveWsUrl: 'TO_BE_REPLACED_WHISPERLIVE_WS_URL'
+      // googleDocId removed - Google Docs integration disabled
+    };
+
+    // ============================================================
+    // MAIN APPLICATION - Merged Recording + Transcription
+    // ============================================================
+    (() => {
+      // Helpers
+      function $(id){ return document.getElementById(id); }
+      var logEl = $('log');
+      function log(){
+        var parts=[];
+        for (var i=0;i<arguments.length;i++){
+          try{
+            parts.push(typeof arguments[i]==='string'?arguments[i]:JSON.stringify(arguments[i]));
+          }catch(_){
+            parts.push(String(arguments[i]));
+          }
+        }
+        var line = new Date().toISOString() + '  ' + parts.join(' ');
+        logEl.value += '\n' + line;
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log('[app]', line);
+      }
+      function pad3(n){ n=String(n); while(n.length<3) n='0'+n; return n; }
+      function fmt(t){
+        t = Math.max(0, t|0);
+        const m = String((t/60|0)).padStart(2,'0');
+        const s = String(t%60).padStart(2,'0');
+        return `${m}:${s}`;
+      }
+      function formatSessionId(sessionId){
+        // Extract timestamp from session_2025-10-28T19_30_45_123Z
+        // Convert to selected timezone and return format: [19:30:45 CST]
+        if (!sessionId) return '';
+        const match = sessionId.match(/session_(.+)/);
+        if (!match) return sessionId;
+
+        // Parse: 2025-10-28T04_25_38_242Z
+        // Need to convert to: 2025-10-28T04:25:38.242Z
+        const timestamp = match[1];
+        const parts = timestamp.split('T');
+        if (parts.length !== 2) return `[${sessionId}]`;
+
+        const datePart = parts[0];  // 2025-10-28
+        const timePart = parts[1];  // 04_25_38_242Z
+
+        // Replace underscores with colons/dots: 04_25_38_242Z -> 04:25:38.242Z
+        const timeFormatted = timePart
+          .replace(/_/g, ':')           // 04:25:38:242Z
+          .replace(/:(\d+Z)$/, '.$1');  // 04:25:38.242Z
+
+        const isoString = `${datePart}T${timeFormatted}`;
+
+        try {
+          const utcDate = new Date(isoString);
+
+          // Get user's preferred timezone (default to America/Chicago - Central Time)
+          const timezone = localStorage.getItem('displayTimezone') || 'America/Chicago';
+
+          // Format the date/time in the selected timezone
+          const options = {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          };
+
+          const formatter = new Intl.DateTimeFormat('en-US', options);
+          const parts = formatter.formatToParts(utcDate);
+
+          const year = parts.find(p => p.type === 'year').value;
+          const month = parts.find(p => p.type === 'month').value;
+          const day = parts.find(p => p.type === 'day').value;
+          const hour = parts.find(p => p.type === 'hour').value;
+          const minute = parts.find(p => p.type === 'minute').value;
+          const second = parts.find(p => p.type === 'second').value;
+
+          // Get timezone abbreviation
+          const tzAbbr = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            timeZoneName: 'short'
+          }).formatToParts(utcDate).find(p => p.type === 'timeZoneName')?.value || timezone;
+
+          // Friendly format: just show time, not full date
+          return `[${hour}:${minute}:${second} ${tzAbbr}]`;
+        } catch (e) {
+          console.error('Error formatting session ID:', e);
+          return `[${sessionId}]`;
+        }
+      }
+
+      // S3 Upload Configuration
+      const API_CONFIG = {
+        // Set during deployment - DO NOT CHANGE THIS PLACEHOLDER
+        apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+        getApiUrl: function() {
+          // If placeholder wasn't replaced, try to get from window.config
+          if (!this.apiUrl || this.apiUrl.startsWith('TO_BE_REPLACED')) {
+            if (window.config) {
+              this.apiUrl = window.config.s3ApiUrl || window.config.apiUrl || '';
+              if (this.apiUrl) {
+                console.log('📡 API URL configured from window.config:', this.apiUrl);
+              }
+            }
+          } else {
+            console.log('📡 API URL configured from deployment:', this.apiUrl);
+          }
+
+          if (!this.apiUrl || this.apiUrl.startsWith('TO_BE_REPLACED')) {
+            console.warn('⚠️ API URL not configured. window.config available:', !!window.config);
+            if (window.config) {
+              console.log('window.config contents:', window.config);
+            }
+            return '';
+          }
+          return this.apiUrl;
+        }
+      };
+
+      // Get authentication token
+      function getAuthToken() {
+        // First try the simple format
+        let token = localStorage.getItem('id_token');
+        if (token) return token;
+
+        // Try Cognito SDK format (used by the auth system)
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (lastAuthUser) {
+          token = localStorage.getItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+          if (token) return token;
+        }
+
+        return null;
+      }
+
+      // Upload chunk to S3
+      async function uploadChunkToS3(sessionId, chunkNumber, blob, statusIconEl) {
+        const idToken = getAuthToken();
+        if (!idToken) {
+          log('⚠️ No auth token found, skipping S3 upload');
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '⚠️';
+            statusIconEl.title = 'Not authenticated - chunk not uploaded';
+            statusIconEl.style.color = '#ff6b6b';
+          }
+          return false;
+        }
+
+        const apiUrl = API_CONFIG.getApiUrl();
+        if (!apiUrl) {
+          log('⚠️ API URL not configured, skipping S3 upload');
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '⚠️';
+            statusIconEl.title = 'API not configured';
+            statusIconEl.style.color = '#ff6b6b';
+          }
+          return false;
+        }
+
+        try {
+          // Step 1: Get pre-signed upload URL from API
+          log(`📤 Requesting upload URL for chunk ${chunkNumber}...`);
+
+          const uploadUrlResponse = await fetch(`${apiUrl}/api/audio/upload-chunk`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              chunkNumber: chunkNumber,
+              contentType: blob.type || 'audio/webm',
+              duration: 0 // Will be filled in by metadata
+            })
+          });
+
+          if (!uploadUrlResponse.ok) {
+            const errorText = await uploadUrlResponse.text();
+            throw new Error(`Failed to get upload URL: ${uploadUrlResponse.status} - ${errorText}`);
+          }
+
+          const uploadData = await uploadUrlResponse.json();
+          log(`✅ Got upload URL for chunk ${chunkNumber}`);
+
+          // Step 2: Upload blob to S3 using pre-signed URL
+          log(`📤 Uploading chunk ${chunkNumber} to S3 (${Math.round(blob.size / 1024)} KB)...`);
+
+          const s3UploadResponse = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': blob.type || 'audio/webm'
+            },
+            body: blob
+          });
+
+          if (!s3UploadResponse.ok) {
+            throw new Error(`S3 upload failed: ${s3UploadResponse.status}`);
+          }
+
+          log(`✅ Chunk ${chunkNumber} uploaded successfully to S3: ${uploadData.s3Key}`);
+
+          // Update status icon to show success - cloud with green checkmark overlay
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '<span style="position:relative;display:inline-block;">☁️<span style="position:absolute;top:-2px;right:-2px;color:#3be38a;font-size:14px;font-weight:bold;text-shadow:0 0 2px #000;">✓</span></span>';
+            statusIconEl.title = `Uploaded to S3: ${uploadData.s3Key}`;
+            statusIconEl.style.color = '#9aa6b2'; // Keep cloud its normal color
+          }
+
+          return true;
+        } catch (error) {
+          log(`❌ Error uploading chunk ${chunkNumber} to S3:`, error.message);
+
+          // Update status icon to show error
+          if (statusIconEl) {
+            statusIconEl.innerHTML = '❌';
+            statusIconEl.title = `Upload failed: ${error.message}`;
+            statusIconEl.style.color = '#ff6b6b';
+          }
+
+          return false;
+        }
+      }
+
+      // UI refs
+      var timesliceInput = $('timeslice');
+      var overlapInput = $('overlap');
+      var timezoneSelect = $('timezone-select');
+      var startBtn = $('btn-start');
+      var stopBtn  = $('btn-stop');
+      var palStart = $('palette-start');
+      var palStop  = $('palette-stop');
+      var clearBtn = $('clearBtn');
+      var clearDbBtn = $('clearDbBtn');
+      var list     = $('chunkList');
+      var dot      = $('mic-status');
+      var palette  = $('palette');
+      var elapsedEl = $('elapsed');
+      var card     = $('recorder-card');
+      var confirmEl = $('confirm');
+      var confirmDetails = $('confirm-details');
+      var confirmClose = $('confirm-close');
+      var storageStatus = $('storage-status');
+      var recorderBody = $('recorder-body');
+
+      // State
+      var mediaStream = null;
+      var running     = false;
+      var chunkIndex  = 0;
+      var chunkTimer  = null;
+      var preferredMime = null;
+      var startedAt = null;
+      var timerId = null;
+      var wakeLock = null;  // v6.7.0: Wake Lock API to prevent device sleep during recording
+      var currentSession = null;
+      var chunkStartTimes = [];
+      var liveWaveformCanvas = null;
+      var liveAnalyser = null;
+      var liveAnimationId = null;
+      var completedChunks = 0;
+      var activeRecorders = [];
+      var decodeCtx = null;
+      var transcriptionTimeOffset = null;  // Offset between recording time and WhisperLive time
+
+      // WhisperLive state
+      var ws = null;
+      var whisperAudioContext = null;
+      var whisperProcessor = null;
+      var whisperSource = null;
+      var transcriptDisplay = null;
+      var lastCommittedTimestamp = 0;
+      var transcriptionSegments = [];  // Store all final segments with timestamps
+
+      // Google Docs Integration - Two Section Model
+      var googleDocsEnabled = false;
+      var googleDocsId = null;
+      var googleDocsLiveStartIndex = null;  // Where the 🔴 LIVE section starts
+      var googleDocsUpdateThrottle = null;
+      var googleDocsCurrentText = '';  // Current text showing in live section
+      var GOOGLE_DOCS_PARAGRAPH_THRESHOLD = 2.0;  // Pause duration (seconds) to trigger paragraph break
+
+      // Transcription S3 Backup - Chunk-aligned storage
+      var currentChunkSegments = [];  // Accumulate segments for current audio chunk
+      var lastSavedChunkIndex = -1;   // Track which chunk we last saved
+
+      // Google Docs Helper Functions
+      async function initializeGoogleDocs() {
+        // Google Docs integration disabled
+        console.log('ℹ️ [GOOGLE-DOCS] Integration disabled');
+        return false;
+
+        // Original code kept for reference but never executed
+        /*
+        console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() called');
+        console.log('🔍 [GOOGLE-DOCS] window.config:', window.config);
+
+        // Check if Google Docs integration is configured
+        const docId = window.config?.googleDocId || localStorage.getItem('googleDocId');
+        console.log('🔍 [GOOGLE-DOCS] Extracted docId:', docId);
+
+        if (!docId || docId.startsWith('TO_BE_REPLACED_')) {
+          console.log('ℹ️ [GOOGLE-DOCS] Integration not configured (no docId or placeholder not replaced)');
+          return false;
+        }
+        */
+
+        googleDocsId = docId;
+        console.log('📄 [GOOGLE-DOCS] Initializing with docId:', googleDocsId);
+
+        try {
+          // Get ID token for authentication
+          console.log('🔍 [GOOGLE-DOCS] Getting ID token...');
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [GOOGLE-DOCS] Failed to get ID token');
+            return false;
+          }
+          console.log('✅ [GOOGLE-DOCS] Got ID token');
+
+          // Initialize live section
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          console.log('🔍 [GOOGLE-DOCS] API URL:', apiUrl);
+          console.log('🔍 [GOOGLE-DOCS] Calling initialize endpoint...');
+
+          const response = await fetch(`${apiUrl}/api/google-docs/initialize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ documentId: googleDocsId })
+          });
+
+          console.log('🔍 [GOOGLE-DOCS] Response status:', response.status);
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ [GOOGLE-DOCS] API returned error:', error);
+            console.error('❌ [GOOGLE-DOCS] Response status:', response.status);
+            return false;
+          }
+
+          const result = await response.json();
+          console.log('🔍 [GOOGLE-DOCS] API response:', result);
+
+          googleDocsLiveStartIndex = result.liveStartIndex;
+          googleDocsEnabled = true;
+          googleDocsCurrentText = '';  // Reset
+
+          console.log('✅ [GOOGLE-DOCS] Live section initialized');
+          console.log('📄 [GOOGLE-DOCS] Document URL:', result.documentUrl);
+          console.log('📄 [GOOGLE-DOCS] Live start index:', googleDocsLiveStartIndex);
+          console.log('✅ [GOOGLE-DOCS] googleDocsEnabled = true');
+          console.log('ℹ️  [GOOGLE-DOCS] Two-section model: live updates + finalized chunks');
+
+          return true;
+        } catch (error) {
+          console.error('❌ [GOOGLE-DOCS] Exception during initialization:', error);
+          console.error('❌ [GOOGLE-DOCS] Error stack:', error.stack);
+          return false;
+        }
+      }
+
+      // Update Google Docs with inline formatting (finalized=normal, in-progress=italic+gray)
+      // Update Google Docs live section - simple two-section model
+      async function updateGoogleDocsLive(segment) {
+        if (!googleDocsEnabled || !googleDocsId) {
+          console.log('🔍 [GOOGLE-DOCS-UPDATE] Skipped - googleDocsEnabled:', googleDocsEnabled, 'googleDocsId:', googleDocsId);
+          return;
+        }
+
+        // Extract text, is_final flag, and paragraph_break flag
+        const text = segment?.text || segment;  // Handle both object and string
+        const isFinal = segment?.is_final || false;
+        const paragraphBreak = segment?.paragraph_break || false;
+
+        console.log('🔍 [GOOGLE-DOCS-UPDATE] Received segment:', {
+          textLength: text.length,
+          isFinal,
+          paragraphBreak,
+          textPreview: text.substring(0, 50)
+        });
+
+        // If finalized, call finalize endpoint (moves to permanent section)
+        if (isFinal) {
+          console.log('✅ [GOOGLE-DOCS-UPDATE] Segment is final, calling finalize endpoint');
+          await finalizeGoogleDocsSegment(text, paragraphBreak);
+          return;
+        }
+
+        // Otherwise, update the live section with in-progress text
+        googleDocsCurrentText = text;
+
+        // Throttle updates to respect Google Docs API rate limits (60/min = 1/sec)
+        if (googleDocsUpdateThrottle) {
+          clearTimeout(googleDocsUpdateThrottle);
+        }
+
+        googleDocsUpdateThrottle = setTimeout(async () => {
+          try {
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Updating live section...');
+            console.log('📤 [GOOGLE-DOCS-UPDATE] Text length:', googleDocsCurrentText.length);
+
+            const idToken = await getIdToken();
+            if (!idToken) {
+              console.error('❌ [GOOGLE-DOCS-UPDATE] No ID token');
+              return;
+            }
+
+            const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+
+            const response = await fetch(`${apiUrl}/api/google-docs/update`, {
+              method: 'POST',
+              headers: {
                 'Content-Type': 'application/json',
-                ...options.headers
-            };
-
-            const response = await fetch(url, {
-                ...options,
-                headers
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({
+                documentId: googleDocsId,
+                liveStartIndex: googleDocsLiveStartIndex,
+                text: googleDocsCurrentText
+              })
             });
+
+            console.log('📥 [GOOGLE-DOCS-UPDATE] Response status:', response.status);
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            return response.json();
-        };
-
-        // Icons (same as original)
-        const MicIcon = ({size = 24}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-        );
-
-        const SquareIcon = ({size = 24}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
-        );
-
-        const PlayIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5,3 19,12 5,21"/>
-            </svg>
-        );
-
-        const PauseIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16"/>
-                <rect x="14" y="4" width="4" height="16"/>
-            </svg>
-        );
-
-        const CheckIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="20,6 9,17 4,12"/>
-            </svg>
-        );
-
-        const EditIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-        );
-
-        const TrashIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="3,6 5,6 21,6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-        );
-
-        const CloudIcon = ({size = 14}) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-            </svg>
-        );
-
-        function AudioRecorderApp() {
-            const [user, setUser] = useState(null);
-            const [isRecording, setIsRecording] = useState(false);
-            const [currentTime, setCurrentTime] = useState(0);
-            const [chunkDuration, setChunkDuration] = useState(5);
-            const [theme, setTheme] = useState('default');
-            const [uploadStatus, setUploadStatus] = useState({});
-            const [sessions, setSessions] = useState([]);
-            
-            // Audio recording state
-            const mediaRecorderRef = useRef(null);
-            const streamRef = useRef(null);
-            const audioElementRef = useRef(null);
-            const sessionStartRef = useRef(null);
-            const currentChunkRef = useRef(0);
-            const recordingSessionRef = useRef(null);
-            const sessionIdRef = useRef(null);
-            const chunksQueueRef = useRef([]);
-            
-            const [recordings, setRecordings] = useState([]);
-            const [playingId, setPlayingId] = useState(null);
-
-            // Check authentication on mount
-            useEffect(() => {
-                const currentUser = getUserFromToken();
-                if (!currentUser) {
-                    // Redirect to login
-                    window.location.href = '/';
-                    return;
-                }
-                
-                setUser(currentUser);
-                log(`Audio recorder initialized for user: ${currentUser.email}`);
-                
-                // Load previous sessions
-                loadSessions();
-            }, []);
-
-            // Load user's audio sessions
-            const loadSessions = async () => {
-                try {
-                    const response = await makeAuthenticatedRequest(`${config.audioApiUrl}/sessions`);
-                    setSessions(response.sessions || []);
-                    log(`Loaded ${response.sessions?.length || 0} audio sessions`);
-                } catch (error) {
-                    log(`Error loading sessions: ${error.message}`);
-                }
-            };
-
-            // Generate session ID
-            const generateSessionId = () => {
-                const timestamp = Date.now();
-                const random = Math.random().toString(36).substring(2, 8);
-                return `session-${timestamp}-${random}`;
-            };
-
-            // Upload chunk to S3
-            const uploadChunk = async (chunkBlob, chunkNumber) => {
-                try {
-                    log(`Uploading chunk ${chunkNumber} (${chunkBlob.size} bytes)`);
-                    
-                    // Get pre-signed URL
-                    const uploadRequest = await makeAuthenticatedRequest(`${config.audioApiUrl}/upload-chunk`, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            sessionId: sessionIdRef.current,
-                            chunkNumber: chunkNumber,
-                            contentType: 'audio/webm',
-                            duration: chunkDuration
-                        })
-                    });
-
-                    // Upload to S3
-                    const uploadResponse = await fetch(uploadRequest.uploadUrl, {
-                        method: 'PUT',
-                        body: chunkBlob,
-                        headers: {
-                            'Content-Type': 'audio/webm'
-                        }
-                    });
-
-                    if (!uploadResponse.ok) {
-                        throw new Error(`Upload failed: ${uploadResponse.status}`);
-                    }
-
-                    // Update upload status
-                    setUploadStatus(prev => ({
-                        ...prev,
-                        [chunkNumber]: 'uploaded'
-                    }));
-
-                    log(`Chunk ${chunkNumber} uploaded successfully`);
-                    return true;
-                } catch (error) {
-                    log(`Error uploading chunk ${chunkNumber}: ${error.message}`);
-                    setUploadStatus(prev => ({
-                        ...prev,
-                        [chunkNumber]: 'failed'
-                    }));
-                    return false;
-                }
-            };
-
-            // Update session metadata
-            const updateSessionMetadata = async (metadata) => {
-                try {
-                    await makeAuthenticatedRequest(`${config.audioApiUrl}/session-metadata`, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            sessionId: sessionIdRef.current,
-                            metadata: metadata
-                        })
-                    });
-                    log('Session metadata updated');
-                } catch (error) {
-                    log(`Error updating metadata: ${error.message}`);
-                }
-            };
-
-            // Timer effect
-            useEffect(() => {
-                let interval;
-                if (isRecording) {
-                    interval = setInterval(() => {
-                        setCurrentTime(prev => {
-                            const newTime = prev + 1;
-                            
-                            // Check if we need to create a new chunk
-                            if (newTime > 0 && newTime % chunkDuration === 0) {
-                                log(`Chunk ${currentChunkRef.current + 1} completed at ${newTime}s`);
-                                createChunkFromCurrentRecording();
-                            }
-                            
-                            return newTime;
-                        });
-                    }, 1000);
-                }
-                return () => clearInterval(interval);
-            }, [isRecording, chunkDuration]);
-
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-            };
-
-            const createChunkFromCurrentRecording = async () => {
-                if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
-                    log("ERROR: Cannot create chunk - MediaRecorder not recording");
-                    return;
-                }
-
-                try {
-                    const chunks = [];
-                    const oldRecorder = mediaRecorderRef.current;
-                    
-                    const chunkPromise = new Promise((resolve) => {
-                        oldRecorder.ondataavailable = (event) => {
-                            if (event.data.size > 0) {
-                                chunks.push(event.data);
-                            }
-                        };
-                        
-                        oldRecorder.onstop = () => {
-                            if (chunks.length > 0) {
-                                const audioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
-                                resolve(audioBlob);
-                            } else {
-                                resolve(null);
-                            }
-                        };
-                    });
-
-                    oldRecorder.stop();
-                    const audioBlob = await chunkPromise;
-                    
-                    if (audioBlob) {
-                        const chunkNumber = currentChunkRef.current + 1;
-                        currentChunkRef.current = chunkNumber;
-                        
-                        // Add to local recordings for playback
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        const newRecording = {
-                            id: `${sessionIdRef.current}-chunk-${chunkNumber}`,
-                            name: `${sessionIdRef.current} (Chunk ${chunkNumber})`,
-                            duration: chunkDuration,
-                            size: Number((audioBlob.size / (1024 * 1024)).toFixed(2)),
-                            timestamp: new Date(),
-                            chunkNumber: chunkNumber,
-                            sessionId: sessionIdRef.current,
-                            syncStatus: "uploading",
-                            audioBlob,
-                            audioUrl
-                        };
-                        
-                        setRecordings(prev => [newRecording, ...prev]);
-                        
-                        // Upload chunk in background
-                        setUploadStatus(prev => ({
-                            ...prev,
-                            [chunkNumber]: 'uploading'
-                        }));
-                        
-                        uploadChunk(audioBlob, chunkNumber).then(success => {
-                            if (success) {
-                                setRecordings(prev => prev.map(r => 
-                                    r.id === newRecording.id 
-                                        ? { ...r, syncStatus: 'synced' }
-                                        : r
-                                ));
-                            } else {
-                                setRecordings(prev => prev.map(r => 
-                                    r.id === newRecording.id 
-                                        ? { ...r, syncStatus: 'failed' }
-                                        : r
-                                ));
-                            }
-                        });
-                    }
-
-                    // Start a new recorder if still recording
-                    if (streamRef.current && isRecording) {
-                        await startNewChunkRecording();
-                    }
-
-                } catch (error) {
-                    log(`ERROR creating chunk: ${error.message}`);
-                }
-            };
-
-            const startNewChunkRecording = async () => {
-                try {
-                    const mimeTypes = [
-                        'audio/webm;codecs=opus',
-                        'audio/webm',
-                        'audio/mp4',
-                        'audio/ogg;codecs=opus',
-                        'audio/wav'
-                    ];
-                    
-                    let selectedMimeType = '';
-                    for (const mimeType of mimeTypes) {
-                        if (MediaRecorder.isTypeSupported(mimeType)) {
-                            selectedMimeType = mimeType;
-                            break;
-                        }
-                    }
-                    
-                    const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
-                    const mediaRecorder = new MediaRecorder(streamRef.current, options);
-                    
-                    mediaRecorderRef.current = mediaRecorder;
-                    
-                    mediaRecorder.onerror = (event) => {
-                        log(`MediaRecorder error: ${event.error}`);
-                    };
-                    
-                    mediaRecorder.start();
-                    log("New chunk recording started");
-                    
-                } catch (error) {
-                    log(`ERROR starting new chunk: ${error.message}`);
-                }
-            };
-
-            const initializeRecording = async () => {
-                try {
-                    log("Requesting microphone access...");
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        } 
-                    });
-                    
-                    streamRef.current = stream;
-                    sessionIdRef.current = generateSessionId();
-                    sessionStartRef.current = Date.now();
-                    currentChunkRef.current = 0;
-                    
-                    // Create initial session metadata
-                    await updateSessionMetadata({
-                        status: 'recording',
-                        chunkDuration: chunkDuration,
-                        createdAt: new Date().toISOString(),
-                        conversationContext: 'Voice recording session'
-                    });
-                    
-                    await startNewChunkRecording();
-                    log(`Recording session ${sessionIdRef.current} initialized`);
-                    return true;
-                    
-                } catch (error) {
-                    log(`ERROR: Failed to initialize recording: ${error.message}`);
-                    alert(`Microphone access failed: ${error.message}`);
-                    return false;
-                }
-            };
-
-            const handleRecord = async () => {
-                if (isRecording) {
-                    log("Stopping recording...");
-                    
-                    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-                        await createChunkFromCurrentRecording();
-                    }
-                    
-                    if (streamRef.current) {
-                        streamRef.current.getTracks().forEach(track => {
-                            track.stop();
-                        });
-                    }
-                    
-                    // Update final session metadata
-                    await updateSessionMetadata({
-                        status: 'completed',
-                        duration: currentTime,
-                        chunkCount: currentChunkRef.current,
-                        completedAt: new Date().toISOString()
-                    });
-                    
-                    setIsRecording(false);
-                    setCurrentTime(0);
-                    currentChunkRef.current = 0;
-                    
-                    // Reload sessions
-                    loadSessions();
-                    
-                } else {
-                    log("Starting recording...");
-                    const initialized = await initializeRecording();
-                    if (initialized) {
-                        setIsRecording(true);
-                        setCurrentTime(0);
-                        setUploadStatus({});
-                    }
-                }
-            };
-
-            const handlePlay = (id) => {
-                const recording = recordings.find(r => r.id === id);
-                if (!recording?.audioUrl) return;
-                
-                if (playingId === id) {
-                    if (audioElementRef.current) {
-                        audioElementRef.current.pause();
-                        audioElementRef.current = null;
-                    }
-                    setPlayingId(null);
-                } else {
-                    if (audioElementRef.current) {
-                        audioElementRef.current.pause();
-                    }
-                    
-                    const audio = new Audio(recording.audioUrl);
-                    audioElementRef.current = audio;
-                    
-                    audio.onended = () => {
-                        setPlayingId(null);
-                        audioElementRef.current = null;
-                    };
-                    
-                    audio.play().then(() => {
-                        setPlayingId(id);
-                    }).catch(error => {
-                        log(`Audio playback failed: ${error.message}`);
-                        setPlayingId(null);
-                    });
-                }
-            };
-
-            const handleDelete = async (id) => {
-                const recording = recordings.find(r => r.id === id);
-                if (!recording) return;
-
-                try {
-                    log(`Deleting chunk ${recording.chunkNumber} from S3...`);
-
-                    // Call delete API
-                    await makeAuthenticatedRequest(`${config.audioApiUrl}/delete-chunk`, {
-                        method: 'DELETE',
-                        body: JSON.stringify({
-                            sessionId: recording.sessionId,
-                            chunkNumber: recording.chunkNumber
-                        })
-                    });
-
-                    log(`Chunk ${recording.chunkNumber} deleted successfully from S3`);
-
-                    // Clean up local resources
-                    if (recording?.audioUrl) {
-                        URL.revokeObjectURL(recording.audioUrl);
-                    }
-
-                    if (playingId === id) {
-                        if (audioElementRef.current) {
-                            audioElementRef.current.pause();
-                            audioElementRef.current = null;
-                        }
-                        setPlayingId(null);
-                    }
-
-                    // Remove from local state
-                    setRecordings(prev => prev.filter(r => r.id !== id));
-                } catch (error) {
-                    log(`Error deleting chunk: ${error.message}`);
-                    alert(`Failed to delete: ${error.message}`);
-                }
-            };
-
-            const getSyncStatusIcon = (syncStatus) => {
-                switch (syncStatus) {
-                    case 'synced': return <CheckIcon />;
-                    case 'uploading': return <CloudIcon />;
-                    case 'failed': return '❌';
-                    default: return '⏳';
-                }
-            };
-
-            const getSyncStatusColor = (syncStatus) => {
-                switch (syncStatus) {
-                    case 'synced': return '#22c55e';
-                    case 'uploading': return '#3b82f6';
-                    case 'failed': return '#ef4444';
-                    default: return '#6b7280';
-                }
-            };
-
-            const themeClass = theme === 'default' ? '' : theme === 'dark' ? 'dark' : `theme-${theme}`;
-            const currentChunkTime = currentTime % chunkDuration;
-            const currentChunkNumber = Math.floor(currentTime / chunkDuration) + 1;
-
-            if (!user) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center">
-                        <div className="text-center">
-                            <h1>Loading...</h1>
-                            <p>Checking authentication...</p>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className={`min-h-screen ${themeClass}`}>
-                    {/* Status Bar */}
-                    <div className="flex items-center justify-between p-4" style={{backgroundColor: 'hsl(var(--muted))'}}>
-                        <div className="flex items-center gap-2">
-                            <span style={{color: '#22c55e'}}>●</span>
-                            <span style={{fontSize: '14px', color: '#22c55e'}}>Online</span>
-                            <span style={{fontSize: '14px', marginLeft: '16px'}}>
-                                {user.email}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div style={{fontSize: '14px'}}>
-                                {sessions.length} sessions
-                            </div>
-                            <a href="/" className="btn btn-outline" style={{fontSize: '12px', padding: '4px 8px'}}>
-                                ← Back to Files
-                            </a>
-                        </div>
-                    </div>
-
-                    <div className="container">
-                        <div className="grid grid-cols-2 gap-4 p-3">
-                            {/* Recording Controls - Compact */}
-                            <div className="card p-3">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <MicIcon size={16} />
-                                    <h2 className="text-base font-bold">Audio Recorder</h2>
-                                </div>
-                                
-                                <div className="flex items-center gap-3 mb-3">
-                                    <button
-                                        className={`btn btn-lg ${isRecording ? 'btn-destructive animate-pulse' : 'btn-primary'}`}
-                                        onClick={handleRecord}
-                                        style={{width: '60px', height: '60px'}}
-                                    >
-                                        {isRecording ? <SquareIcon size={20} /> : <MicIcon size={20} />}
-                                    </button>
-                                    
-                                    <div className="flex-1">
-                                        <div className="text-lg font-mono font-bold">
-                                            {formatTime(currentChunkTime)} / {formatTime(chunkDuration)}
-                                        </div>
-                                        <div className="text-muted text-sm">
-                                            {isRecording ? `Chunk ${currentChunkNumber}` : "Ready"}
-                                        </div>
-                                        {isRecording && (
-                                            <div className="text-muted text-xs">
-                                                Total: {formatTime(currentTime)} • {currentChunkRef.current} uploaded
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span>Duration</span>
-                                        <span className="badge text-xs">{chunkDuration}s</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        className="slider"
-                                        min="5"
-                                        max="300"
-                                        step="5"
-                                        value={chunkDuration}
-                                        onChange={(e) => setChunkDuration(parseInt(e.target.value))}
-                                        disabled={isRecording}
-                                        style={{'--value': `${((chunkDuration - 5) / (300 - 5)) * 100}%`}}
-                                    />
-                                    <div className="flex justify-between text-muted text-xs">
-                                        <span>5s</span>
-                                        <span>5min</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Recordings List - Compact */}
-                            <div className="card p-3">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <span style={{fontSize: '14px'}}>🎵</span>
-                                        <h2 className="text-base font-bold">Session</h2>
-                                        <span className="badge text-xs">({recordings.length})</span>
-                                    </div>
-                                    
-                                    <select 
-                                        className="select" 
-                                        value={theme} 
-                                        onChange={(e) => setTheme(e.target.value)}
-                                        style={{width: 'auto', fontSize: '11px', padding: '3px 6px'}}
-                                    >
-                                        <option value="default">Gray</option>
-                                        <option value="dark">Dark</option>
-                                        <option value="purple">Purple</option>
-                                        <option value="green">Green</option>
-                                        <option value="blue">Blue</option>
-                                    </select>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                    {recordings.map((recording) => (
-                                        <div key={recording.id} className="recording-item">
-                                            <div className="recording-col-left">
-                                                <div className="recording-name">{recording.name}</div>
-                                                <div className="recording-date">
-                                                    {recording.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="recording-col-right">
-                                                <div className="recording-metadata">
-                                                    <span style={{color: getSyncStatusColor(recording.syncStatus)}}>
-                                                        {getSyncStatusIcon(recording.syncStatus)}
-                                                    </span>
-                                                    <span>{recording.duration}s • {(recording.size * 1000).toFixed(0)}KB</span>
-                                                </div>
-                                                <div className="recording-actions">
-                                                    <button
-                                                        className="btn btn-outline icon-btn"
-                                                        onClick={() => handlePlay(recording.id)}
-                                                    >
-                                                        {playingId === recording.id ? <PauseIcon /> : <PlayIcon />}
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-outline icon-btn"
-                                                        onClick={() => handleDelete(recording.id)}
-                                                    >
-                                                        <TrashIcon />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Initialize when page loads - try multiple approaches
-        function initializeApp() {
-            console.log('Initializing AudioRecorderApp...');
-            console.log('React available:', typeof React !== 'undefined');
-            console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
-            console.log('AudioRecorderApp available:', typeof AudioRecorderApp !== 'undefined');
-            console.log('Root element exists:', !!document.getElementById('root'));
-            
-            if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined' && typeof AudioRecorderApp !== 'undefined') {
-                try {
-                    ReactDOM.render(React.createElement(AudioRecorderApp), document.getElementById('root'));
-                    console.log('AudioRecorderApp rendered successfully');
-                } catch (error) {
-                    console.error('Error rendering AudioRecorderApp:', error);
-                }
+              const error = await response.json();
+              console.error('❌ [GOOGLE-DOCS-UPDATE] Failed to update Google Docs:', error);
             } else {
-                console.log('Dependencies not ready, retrying in 500ms...');
-                setTimeout(initializeApp, 500);
+              const result = await response.json();
+              console.log('✅ [GOOGLE-DOCS-UPDATE] Successfully updated live section:', result);
             }
+          } catch (error) {
+            console.error('❌ [GOOGLE-DOCS-UPDATE] Error updating Google Docs:', error);
+            console.error('❌ [GOOGLE-DOCS-UPDATE] Error stack:', error.stack);
+          }
+        }, 1000); // Update at most once per second
+      }
+
+      // Finalize a segment - move from live to permanent section
+      async function finalizeGoogleDocsSegment(text, paragraphBreak = false) {
+        try {
+          console.log('📤 [GOOGLE-DOCS-FINALIZE] Finalizing segment...');
+          console.log('📤 [GOOGLE-DOCS-FINALIZE] Paragraph break:', paragraphBreak);
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/google-docs/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              documentId: googleDocsId,
+              liveStartIndex: googleDocsLiveStartIndex,
+              text: text,
+              paragraph_break: paragraphBreak
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] Failed to finalize:', error);
+          } else {
+            const result = await response.json();
+            console.log('✅ [GOOGLE-DOCS-FINALIZE] Segment finalized:', result);
+          }
+        } catch (error) {
+          console.error('❌ [GOOGLE-DOCS-FINALIZE] Error finalizing:', error);
+        }
+      }
+
+      async function finalizeGoogleDocsTranscription() {
+        if (!googleDocsEnabled || !googleDocsId) return;
+
+        try {
+          console.log('📤 [GOOGLE-DOCS-FINALIZE] Finalizing transcription...');
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/google-docs/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              documentId: googleDocsId,
+              finalizedEndIndex: googleDocsFinalizedEndIndex
+            })
+          });
+
+          if (!response.ok) {
+            console.error('❌ [GOOGLE-DOCS-FINALIZE] Failed to finalize Google Docs transcription');
+          } else {
+            const result = await response.json();
+            console.log('✅ [GOOGLE-DOCS-FINALIZE] Transcription finalized:', result);
+          }
+        } catch (error) {
+          console.error('❌ [GOOGLE-DOCS-FINALIZE] Error finalizing Google Docs:', error);
+        }
+      }
+
+      // Transcription S3 Backup Functions
+
+      // Save transcription segments for current audio chunk
+      async function saveTranscriptionChunk(chunkIndex, segments) {
+        if (!segments || segments.length === 0) {
+          console.log(`⚠️ [S3-TRANSCRIPTION] No segments to save for chunk ${chunkIndex}`);
+          return;
         }
 
-        // Try multiple initialization approaches
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeApp);
+        if (!currentSession) {
+          console.error('❌ [S3-TRANSCRIPTION] No current session');
+          return;
+        }
+
+        try {
+          console.log(`📤 [S3-TRANSCRIPTION] Saving ${segments.length} segments for chunk ${chunkIndex}`);
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [S3-TRANSCRIPTION] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/transcription/save-chunk`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              sessionId: currentSession.id,
+              chunkIndex: chunkIndex,
+              segments: segments
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error(`❌ [S3-TRANSCRIPTION] Failed to save chunk ${chunkIndex}:`, error);
+          } else {
+            const result = await response.json();
+            console.log(`✅ [S3-TRANSCRIPTION] Chunk ${chunkIndex} saved:`, result);
+            lastSavedChunkIndex = chunkIndex;
+          }
+        } catch (error) {
+          console.error(`❌ [S3-TRANSCRIPTION] Error saving chunk ${chunkIndex}:`, error);
+        }
+      }
+
+      // Finalize transcription session - consolidate all chunks
+      async function finalizeTranscriptionSession() {
+        if (!currentSession) {
+          console.log('ℹ️ [S3-TRANSCRIPTION] No session to finalize');
+          return;
+        }
+
+        try {
+          console.log('📤 [S3-TRANSCRIPTION] Finalizing transcription session...');
+
+          const idToken = await getIdToken();
+          if (!idToken) {
+            console.error('❌ [S3-TRANSCRIPTION] No ID token');
+            return;
+          }
+
+          const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+          const response = await fetch(`${apiUrl}/api/transcription/finalize`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              sessionId: currentSession.id
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('❌ [S3-TRANSCRIPTION] Failed to finalize:', error);
+          } else {
+            const result = await response.json();
+            console.log('✅ [S3-TRANSCRIPTION] Session finalized:', result);
+          }
+        } catch (error) {
+          console.error('❌ [S3-TRANSCRIPTION] Error finalizing session:', error);
+        }
+      }
+
+      // Helper to get ID token
+      async function getIdToken() {
+        try {
+          const userPoolId = 'TO_BE_REPLACED_USER_POOL_ID';
+          const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
+
+          // Get username from localStorage
+          const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${userPoolClientId}.LastAuthUser`);
+          if (!lastAuthUser) return null;
+
+          // Get ID token
+          const idToken = localStorage.getItem(`CognitoIdentityServiceProvider.${userPoolClientId}.${lastAuthUser}.idToken`);
+          return idToken;
+        } catch (error) {
+          console.error('Error getting ID token:', error);
+          return null;
+        }
+      }
+
+      function chooseMime(){
+        var c = ['audio/ogg;codecs=opus','audio/ogg','audio/webm;codecs=opus','audio/webm'];
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported){
+          for (var i=0; i<c.length; i++){
+            try{ if (MediaRecorder.isTypeSupported(c[i])) return c[i]; }catch(e){}
+          }
+        }
+        return '';
+      }
+
+      // Waveform rendering (from step4)
+      function getCanvasSize(canvas){
+        const rect = canvas.getBoundingClientRect();
+        if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)){
+          canvas.width  = Math.floor(rect.width);
+          canvas.height = Math.floor(rect.height);
+        }
+        return { W: canvas.width, H: canvas.height };
+      }
+
+      function drawRoundRect(ctx, x, y, w, h, r){
+        r = Math.min(r, w/2, h/2);
+        ctx.beginPath();
+        ctx.moveTo(x+r, y);
+        ctx.lineTo(x+w-r, y);
+        ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+        ctx.lineTo(x+w, y+h-r);
+        ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+        ctx.lineTo(x+r, y+h);
+        ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+        ctx.lineTo(x, y+r);
+        ctx.quadraticCurveTo(x, y, x+r, y);
+        ctx.closePath();
+      }
+
+      function computePeaksFromBuffer(buffer, barCount){
+        var data = buffer.getChannelData(0);
+        var total = data.length;
+        var samplesPerBar = Math.max(1, Math.floor(total / barCount));
+        var peaks = new Float32Array(barCount);
+
+        for (var i=0; i<barCount; i++){
+          var start = i * samplesPerBar;
+          var end   = Math.min(total, start + samplesPerBar);
+          var sum=0, cnt=0;
+          for (var j=start; j<end; j++){ var v=data[j]; sum += v*v; cnt++; }
+          var rms = Math.sqrt(sum / Math.max(1, cnt));
+          peaks[i] = rms;
+        }
+        var max = 0; for (var k=0;k<barCount;k++){ if (peaks[k] > max) max = peaks[k]; }
+        var scale = max > 0 ? (1 / max) : 1;
+        for (var m=0;m<barCount;m++){ peaks[m] *= scale; }
+        return peaks;
+      }
+
+      function drawBars(ctx, canvas, peaks, progressRatio){
+        const size = getCanvasSize(canvas);
+        const W = size.W, H = size.H;
+        ctx.clearRect(0,0,W,H);
+
+        const bars = peaks.length;
+        const padX = 12;
+        const gap  = 1;
+        const bw   = Math.max(2, Math.floor((W - padX*2) / bars) - gap);
+        const cy   = H / 2;
+        const maxH = H - 18;
+        const playedBars = Math.floor(Math.max(0, Math.min(1, progressRatio)) * bars);
+
+        function drawCenteredBar(i, color){
+          const amp = peaks[i];
+          const h   = Math.max(2, amp * maxH);
+          const y   = cy - (h / 2);
+          const x   = padX + i * (bw + gap);
+          ctx.fillStyle = color;
+          const ry = Math.min(4, h/2);
+          if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, bw, h, ry); ctx.fill(); }
+          else { drawRoundRect(ctx, x, y, bw, h, ry); ctx.fill(); }
+        }
+
+        for (let i = 0; i < playedBars; i++) drawCenteredBar(i, '#35e0ff');
+        for (let i = playedBars; i < bars; i++) drawCenteredBar(i, '#475569');
+
+        ctx.fillStyle = '#ffffff10';
+        ctx.fillRect(padX, Math.floor(cy) - 0.5, W - padX*2, 1);
+      }
+
+      function renderWaveform(canvas, audioEl, blob){
+        getCanvasSize(canvas);
+
+        if (!decodeCtx){
+          var AC = window.AudioContext || window.webkitAudioContext;
+          decodeCtx = new AC();
+        }
+        blob.arrayBuffer().then(function(ab){
+          return decodeCtx.decodeAudioData(ab);
+        }).then(function(buffer){
+          var desiredPxPerBar = 4;
+          var W = canvas.getBoundingClientRect().width;
+          var barCount = Math.max(60, Math.min(800, Math.floor(W / desiredPxPerBar)));
+          var peaks = computePeaksFromBuffer(buffer, barCount);
+          var ctx = canvas.getContext('2d');
+
+          function repaint(){
+            var ratio = (!audioEl.duration || !isFinite(audioEl.duration)) ? 0
+                      : Math.max(0, Math.min(1, audioEl.currentTime / audioEl.duration));
+            drawBars(ctx, canvas, peaks, ratio);
+          }
+          repaint();
+
+          audioEl.addEventListener('timeupdate', repaint);
+          audioEl.addEventListener('seeked', repaint);
+          audioEl.addEventListener('loadedmetadata', repaint);
+          audioEl.addEventListener('play', repaint);
+          audioEl.addEventListener('pause', repaint);
+
+          canvas.style.cursor = 'pointer';
+          canvas.title = 'Click to seek';
+          canvas.onclick = function(ev){
+            var rect = canvas.getBoundingClientRect();
+            var x = ev.clientX - rect.left;
+            var ratio = Math.min(1, Math.max(0, x / rect.width));
+            if (!isNaN(audioEl.duration) && isFinite(audioEl.duration)){
+              audioEl.currentTime = ratio * audioEl.duration;
+              audioEl.play().catch(function(){});
+            }
+          };
+
+          window.addEventListener('resize', function(){
+            getCanvasSize(canvas);
+            var W2 = canvas.getBoundingClientRect().width;
+            var barCount2 = Math.max(60, Math.min(800, Math.floor(W2 / desiredPxPerBar)));
+            peaks = computePeaksFromBuffer(buffer, barCount2);
+            repaint();
+          });
+        }).catch(function(err){
+          console.warn('decode/waveform error', err);
+        });
+      }
+
+      async function renderChunk(blob, idx, duration){
+        var row = document.createElement('div');
+        row.className = 'chunk';
+
+        var top = document.createElement('div');
+        top.className = 'chunk-header';
+
+        // Create upload status icon (initially pending)
+        var statusIcon = document.createElement('span');
+        statusIcon.className = 'upload-status-icon';
+        statusIcon.innerHTML = '⏳';
+        statusIcon.title = 'Pending upload to S3';
+        statusIcon.style.cssText = 'font-size:20px;margin-right:8px;color:var(--muted);';
+
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+
+        var chunkStartTime = chunkStartTimes[idx - 1] || 0;
+        var chunkEndTime = Date.now();
+        var startOffset = chunkStartTime ? ((chunkStartTime - startedAt) / 1000) : 0;
+        var endOffset = (chunkEndTime - startedAt) / 1000;
+        var startTimeStr = fmt(startOffset);
+        var endTimeStr = fmt(endOffset);
+
+        // Add session timestamp prefix to chunk name
+        var sessionPrefix = currentSession ? formatSessionId(currentSession.id) + ' ' : '';
+        meta.innerHTML = sessionPrefix + 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
+                         '<span style="color:var(--accent);font-size:11px;">' +
+                         startTimeStr + ' → ' + endTimeStr + ' (' + Math.round(blob.size / 1024) + 'KB)</span>';
+
+        var audioEl = document.createElement('audio');
+        var localUrl = URL.createObjectURL(blob);
+        audioEl.controls = true;
+        audioEl.preload = 'metadata';
+        audioEl.src = localUrl;
+        audioEl.className = 'chunk-audio';
+        audioEl.addEventListener('loadedmetadata', function(){
+          log('seg-' + pad3(idx) + ' loadedmetadata duration=' + (audioEl.duration || 0));
+        });
+
+        top.appendChild(statusIcon);
+        top.appendChild(meta);
+        top.appendChild(audioEl);
+
+        var shell = document.createElement('div');
+        shell.className = 'waveform-shell';
+
+        var canvas = document.createElement('canvas');
+        canvas.className = 'waveform-canvas';
+        shell.appendChild(canvas);
+
+        // Create transcription container for this chunk
+        var transcriptionContainer = document.createElement('div');
+        transcriptionContainer.className = 'chunk-transcription';
+        transcriptionContainer.style.cssText = 'margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;min-height:24px;font-size:13px;line-height:1.5;color:var(--text);border:1px solid var(--stroke);';
+        transcriptionContainer.innerHTML = '<span style="color:var(--muted);font-style:italic;">Transcription will appear here...</span>';
+
+        // Store chunk timing data for later lookup
+        row.dataset.chunkIndex = idx;
+        row.dataset.startTime = startOffset.toFixed(3);
+        row.dataset.endTime = endOffset.toFixed(3);
+
+        row.appendChild(top);
+        row.appendChild(shell);
+        row.appendChild(transcriptionContainer);
+
+        // Always append to bottom (newest at bottom)
+        list.appendChild(row);
+
+        // Auto-scroll to bottom to show newest chunk
+        list.scrollTop = list.scrollHeight;
+
+        renderWaveform(canvas, audioEl, blob);
+
+        // Setup word-level highlighting for this chunk
+        setupWordHighlighting(audioEl, row);
+
+        completedChunks++;
+
+        var chunkCountEl = $('chunk-count');
+        if (chunkCountEl) chunkCountEl.textContent = completedChunks;
+
+        if (currentSession && window.audioStorage) {
+          try {
+            await window.audioStorage.saveChunk(
+              currentSession.id,
+              idx,
+              blob,
+              duration || audioEl.duration || 0
+            );
+            log('Chunk saved to IndexedDB');
+
+            await window.audioStorage.updateSession(currentSession.id, {
+              chunkCount: chunkIndex,
+              totalDuration: ((Date.now() - startedAt) / 1000)
+            });
+
+            updateStorageStatus();
+          } catch (error) {
+            log('Error saving chunk:', error.message);
+          }
+        }
+
+        // Upload chunk to S3 (async, non-blocking)
+        if (currentSession) {
+          uploadChunkToS3(currentSession.id, idx, blob, statusIcon).catch(err => {
+            log('Error in S3 upload:', err.message);
+          });
+
+          // NEW v6.6.0: Upload transcription segments for this chunk (chunk-aligned backup)
+          if (currentChunkSegments.length > 0 && idx > lastSavedChunkIndex) {
+            console.log(`📤 [S3-TRANSCRIPTION] Uploading ${currentChunkSegments.length} segments for chunk ${idx}`);
+
+            // Save the current chunk's segments
+            saveTranscriptionChunk(idx, [...currentChunkSegments]).catch(err => {
+              log('Error in transcription S3 upload:', err.message);
+            });
+
+            // Clear accumulated segments for next chunk
+            currentChunkSegments = [];
+          }
+        }
+      }
+
+      function recordOverlappingChunk(stream, chunkMs, overlapMs, mime, onBlob){
+        var opts = mime ? { mimeType: mime } : {};
+        var rec;
+        try { rec = new MediaRecorder(stream, opts); }
+        catch(e){ log('MediaRecorder ctor failed:', e && e.message ? e.message : e); throw e; }
+
+        var gotData = false;
+        var startTime = Date.now();
+
+        rec.ondataavailable = function(ev){
+          if (ev.data && ev.data.size > 0){
+            gotData = true;
+            var typed = new Blob([ev.data], { type: (mime || ev.data.type || 'audio/webm') });
+            var actualDuration = (Date.now() - startTime) / 1000;
+            onBlob(typed, actualDuration);
+          }
+        };
+
+        rec.onstop = function(){
+          var index = activeRecorders.indexOf(rec);
+          if (index > -1) activeRecorders.splice(index, 1);
+
+          if (!gotData){
+            log('WARN: recorder stopped without data');
+          }
+        };
+
+        activeRecorders.push(rec);
+        rec.start();
+
+        setTimeout(function(){
+          try { rec.stop(); } catch(_){}
+        }, chunkMs + overlapMs);
+
+        return rec;
+      }
+
+      function stopAllRecorders(){
+        log('Stopping all active recorders:', activeRecorders.length);
+        activeRecorders.forEach(function(rec){
+          try {
+            if (rec.state === 'recording') {
+              rec.stop();
+            }
+          } catch(_){}
+        });
+        activeRecorders = [];
+      }
+
+      // Live waveform (frequency bars)
+      function setupLiveWaveform(stream) {
+        try {
+          log('Setting up live waveform...');
+
+          if (!decodeCtx) {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            decodeCtx = new AC();
+          }
+
+          if (decodeCtx.state === 'suspended') {
+            decodeCtx.resume().then(() => log('Audio context resumed'));
+          }
+
+          var source = decodeCtx.createMediaStreamSource(stream);
+          liveAnalyser = decodeCtx.createAnalyser();
+          liveAnalyser.fftSize = 256;
+          liveAnalyser.smoothingTimeConstant = 0.8;
+          source.connect(liveAnalyser);
+
+          log('Web Audio API setup complete');
+
+          var placeholder = recorderBody.querySelector('#live-placeholder');
+          if (placeholder) placeholder.remove();
+
+          var existingCanvas = recorderBody.querySelector('.live-waveform');
+          if (existingCanvas) existingCanvas.remove();
+
+          liveWaveformCanvas = document.createElement('canvas');
+          liveWaveformCanvas.className = 'live-waveform';
+          liveWaveformCanvas.style.cssText = 'width:100%;height:60px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid var(--stroke);display:block;';
+          recorderBody.appendChild(liveWaveformCanvas);
+
+          getCanvasSize(liveWaveformCanvas);
+          log('Canvas created');
+
+          var existingStats = recorderBody.querySelector('#live-stats');
+          if (existingStats) existingStats.remove();
+
+          var liveStats = document.createElement('div');
+          liveStats.id = 'live-stats';
+          liveStats.style.cssText = 'display:flex;justify-content:space-between;margin-top:12px;font-size:14px;color:var(--accent);';
+          liveStats.innerHTML = '<span>Recording chunk: <strong id="current-chunk">1</strong></span>' +
+                               '<span>Total time: <strong id="total-time">00:00</strong></span>' +
+                               '<span>Chunks recorded: <strong id="chunk-count">0</strong></span>';
+          recorderBody.appendChild(liveStats);
+
+          // Add transcription display with split sections
+          transcriptDisplay = document.createElement('div');
+          transcriptDisplay.id = 'transcription-display';
+          transcriptDisplay.className = 'transcription-display';
+
+          // Partial section (always visible at top)
+          var partialSection = document.createElement('div');
+          partialSection.className = 'partial-section';
+          partialSection.id = 'partial-section';
+          partialSection.innerHTML = '<div style="opacity:0.6;font-size:12px;">Listening...</div>';
+          transcriptDisplay.appendChild(partialSection);
+
+          // Completed section (scrollable)
+          var completedSection = document.createElement('div');
+          completedSection.className = 'completed-section';
+          completedSection.id = 'completed-section';
+          transcriptDisplay.appendChild(completedSection);
+
+          recorderBody.appendChild(transcriptDisplay);
+
+          startLiveWaveform();
+        } catch (error) {
+          log('Error setting up live waveform:', error.message);
+        }
+      }
+
+      function startLiveWaveform() {
+        if (!liveAnalyser || !liveWaveformCanvas) return;
+
+        log('Starting live waveform animation...');
+
+        var ctx = liveWaveformCanvas.getContext('2d');
+        var bufferLength = liveAnalyser.frequencyBinCount;
+        var dataArray = new Uint8Array(bufferLength);
+
+        function drawLiveWaveform() {
+          if (!running) return;
+
+          liveAnimationId = requestAnimationFrame(drawLiveWaveform);
+          liveAnalyser.getByteFrequencyData(dataArray);
+
+          var size = getCanvasSize(liveWaveformCanvas);
+          var W = size.W, H = size.H;
+
+          if (W === 0 || H === 0) return;
+
+          ctx.clearRect(0, 0, W, H);
+
+          var barWidth = Math.max(2, (W / bufferLength) * 2);
+          var barHeight;
+          var x = 0;
+
+          var hasAudio = false;
+          for (var j = 0; j < bufferLength; j++) {
+            if (dataArray[j] > 10) {
+              hasAudio = true;
+              break;
+            }
+          }
+
+          if (!hasAudio) {
+            ctx.fillStyle = '#35e0ff';
+            ctx.fillRect(0, H - 2, W, 2);
+          } else {
+            for (var i = 0; i < bufferLength; i++) {
+              barHeight = Math.max(2, (dataArray[i] / 255) * H * 0.8);
+
+              if (dataArray[i] > 128) {
+                ctx.fillStyle = '#3be38a';
+              } else {
+                ctx.fillStyle = '#35e0ff';
+              }
+
+              ctx.fillRect(x, H - barHeight, barWidth, barHeight);
+
+              x += barWidth + 1;
+              if (x >= W) break;
+            }
+          }
+        }
+
+        drawLiveWaveform();
+      }
+
+      function stopLiveWaveform() {
+        if (liveAnimationId) {
+          cancelAnimationFrame(liveAnimationId);
+          liveAnimationId = null;
+        }
+        if (liveWaveformCanvas) {
+          liveWaveformCanvas.remove();
+          liveWaveformCanvas = null;
+        }
+
+        var liveStats = $('live-stats');
+        if (liveStats) liveStats.remove();
+
+        if (transcriptDisplay) {
+          transcriptDisplay.remove();
+          transcriptDisplay = null;
+        }
+
+        var placeholder = document.createElement('div');
+        placeholder.id = 'live-placeholder';
+        placeholder.style.cssText = 'text-align:center;padding:20px;color:var(--muted);border:2px dashed var(--stroke);border-radius:8px;';
+        placeholder.innerHTML = '<div style="font-size:18px;margin-bottom:8px;">🎙️</div>' +
+                               '<div>Click "Start Recording" to see live waveform and transcription</div>';
+        recorderBody.appendChild(placeholder);
+
+        liveAnalyser = null;
+      }
+
+      // WhisperLive WebSocket connection
+      async function connectWhisperLive(stream) {
+        try {
+          log('Connecting to WhisperLive...');
+
+          // Connect to WhisperLive (no authentication required)
+          let wsUrl = window.config?.whisperLiveWsUrl || 'wss://your-edge-box.com/ws';
+          log(`Connecting to: ${wsUrl}`);
+
+          ws = new WebSocket(wsUrl);
+
+          ws.onopen = async () => {
+            log('WhisperLive WebSocket connected');
+
+            const config = {
+              uid: 'browser-' + Date.now(),
+              task: 'transcribe',
+              language: 'en',
+              model: 'Systran/faster-whisper-small.en',
+              use_vad: true,
+              word_timestamps: true  // Request word-level timestamps from WhisperLive
+            };
+            console.log('%c📤 Sending WhisperLive Config:', 'font-weight:bold;color:#00d4ff;', config);
+            ws.send(JSON.stringify(config));
+            log('Sent config to WhisperLive');
+
+            // Set up audio streaming to WhisperLive
+            whisperAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+              sampleRate: 16000
+            });
+            whisperSource = whisperAudioContext.createMediaStreamSource(stream);
+            whisperProcessor = whisperAudioContext.createScriptProcessor(4096, 1, 1);
+
+            whisperProcessor.onaudioprocess = (e) => {
+              if (!running || ws.readyState !== WebSocket.OPEN) return;
+              const audioData = e.inputBuffer.getChannelData(0);
+              ws.send(audioData.buffer);
+            };
+
+            whisperSource.connect(whisperProcessor);
+            whisperProcessor.connect(whisperAudioContext.destination);
+
+            log('Audio streaming to WhisperLive started');
+          };
+
+          ws.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+
+              if (data.segments && data.segments.length > 0) {
+                for (const segment of data.segments) {
+                  const text = segment.text || '';
+                  const isFinal = segment.completed === true;
+                  const start = parseFloat(segment.start || 0);
+                  const end = parseFloat(segment.end || 0);
+
+                  // DEBUG: Log full segment data to see what's available
+                  console.log('📊 WhisperLive Segment:', {
+                    text: text.substring(0, 50),
+                    start: start.toFixed(3),
+                    end: end.toFixed(3),
+                    duration: (end - start).toFixed(3),
+                    completed: isFinal,
+                    hasWords: !!segment.words,
+                    wordCount: segment.words ? segment.words.length : 0,
+                    allKeys: Object.keys(segment)
+                  });
+
+                  // If word-level timestamps exist, log them
+                  if (segment.words && segment.words.length > 0) {
+                    // One-time celebration when we first get word data
+                    if (!window.wordDataReceived) {
+                      window.wordDataReceived = true;
+                      console.log('%c🎉 SUCCESS! Word-level timestamps are working!', 'font-size:16px;font-weight:bold;color:#3be38a;background:#0b1220;padding:8px;');
+                    }
+                    console.log('📝 Word-level timestamps:', segment.words.map(w => ({
+                      word: w.word || w.text,
+                      start: w.start ? w.start.toFixed(3) : 'N/A',
+                      end: w.end ? w.end.toFixed(3) : 'N/A',
+                      probability: w.probability ? w.probability.toFixed(2) : 'N/A'
+                    })));
+                  }
+
+                  // Deduplication for finals
+                  if (isFinal && end <= lastCommittedTimestamp) {
+                    console.log(`⏭️ Skipping duplicate final`);
+                    continue;
+                  }
+
+                  if (text.trim()) {
+                    updateTranscription(text, isFinal, start, end, segment.words);
+
+                    if (isFinal && end > lastCommittedTimestamp) {
+                      lastCommittedTimestamp = end;
+                    }
+                  }
+                }
+              } else if (data.message === 'SERVER_READY') {
+                log('WhisperLive ready');
+              } else if (data.type === 'error') {
+                log('WhisperLive error:', data.message);
+              }
+            } catch (e) {
+              console.error('Failed to parse WhisperLive message:', e);
+            }
+          };
+
+          ws.onerror = (error) => {
+            log('WhisperLive WebSocket error:', error);
+          };
+
+          ws.onclose = (event) => {
+            log('WhisperLive WebSocket closed:', event.code);
+          };
+
+        } catch (error) {
+          log('Failed to connect to WhisperLive:', error.message);
+        }
+      }
+
+      function updateTranscription(text, isFinal, start, end, words) {
+        if (!transcriptDisplay) return;
+
+        if (transcriptDisplay.classList.contains('empty')) {
+          transcriptDisplay.classList.remove('empty');
+          // Recreate the split sections structure
+          transcriptDisplay.innerHTML = '';
+
+          const partialSection = document.createElement('div');
+          partialSection.className = 'partial-section';
+          partialSection.id = 'partial-section';
+          partialSection.innerHTML = '<div style="opacity:0.6;font-size:12px;">Listening...</div>';
+          transcriptDisplay.appendChild(partialSection);
+
+          const completedSection = document.createElement('div');
+          completedSection.className = 'completed-section';
+          completedSection.id = 'completed-section';
+          transcriptDisplay.appendChild(completedSection);
+        }
+
+        if (isFinal) {
+          transcriptAccumulator.ingestFinal(text);
+
+          // Store in global array for chunk association
+          if (start !== undefined && end !== undefined) {
+            // Calculate time offset on first transcription segment
+            if (transcriptionTimeOffset === null && start !== undefined) {
+              // WhisperLive timestamps start from when it receives first audio
+              // Recording timestamps start from when recording button was clicked
+              // Calculate the offset: recording_start = whisper_start + offset
+              const firstChunkRecordTime = (chunkStartTimes[0] - startedAt) / 1000;  // In seconds
+              transcriptionTimeOffset = firstChunkRecordTime - start;
+              console.log('%c⏱️ TIME OFFSET DETECTED', 'font-weight:bold;color:#FF6B00;background:#0b1220;padding:4px;', {
+                whisperLiveFirstSegmentStart: start.toFixed(3) + 's',
+                recordingFirstChunkTime: firstChunkRecordTime.toFixed(3) + 's',
+                calculatedOffset: transcriptionTimeOffset.toFixed(3) + 's',
+                explanation: 'All word timestamps will be adjusted by this offset for correct highlighting'
+              });
+            }
+
+            transcriptionSegments.push({
+              text: text,
+              start: start,
+              end: end,
+              words: words || []
+            });
+
+            // NEW v6.6.0: Accumulate segment for chunk-aligned S3 backup
+            currentChunkSegments.push({
+              text: text,
+              start: start,
+              end: end,
+              is_final: true,
+              paragraph_break: false,  // Will be calculated later when we detect pauses
+              words: words || [],
+              timestamp: new Date().toISOString()
+            });
+
+            // Save to IndexedDB for persistence
+            if (currentSession && window.audioStorage) {
+              window.audioStorage.saveTranscription(
+                currentSession.id,
+                text,
+                start,
+                end,
+                words || [],
+                true  // completed = true for finals
+              ).catch(err => {
+                console.error('Failed to save transcription:', err);
+              });
+            }
+          }
+
+          const entry = document.createElement('div');
+          entry.className = 'transcript-entry final';
+
+          // Add timestamp info if available
+          if (start !== undefined && end !== undefined) {
+            const timestampSpan = document.createElement('div');
+            timestampSpan.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:4px;';
+            timestampSpan.textContent = `${start.toFixed(2)}s → ${end.toFixed(2)}s (${(end - start).toFixed(2)}s)`;
+            entry.appendChild(timestampSpan);
+          }
+
+          const textDiv = document.createElement('div');
+          textDiv.textContent = text;
+          entry.appendChild(textDiv);
+
+          // Store word-level timestamps if available (for later use)
+          if (words && words.length > 0) {
+            entry.dataset.words = JSON.stringify(words);
+            console.log('✅ Stored word-level timestamps for segment:', words.length, 'words');
+          }
+
+          // Append to completed section (scrollable)
+          const completedSection = document.getElementById('completed-section');
+          if (completedSection) {
+            completedSection.appendChild(entry);
+            // Auto-scroll completed section to bottom
+            completedSection.scrollTop = completedSection.scrollHeight;
+          }
+
+          // Update all existing chunks with new transcription
+          updateChunkTranscriptions();
+
+          // Detect paragraph breaks based on pause duration
+          let paragraphBreak = false;
+          if (transcriptionSegments.length > 1 && start !== undefined) {
+            const previousSegment = transcriptionSegments[transcriptionSegments.length - 2];
+            if (previousSegment.end !== undefined) {
+              const pauseDuration = start - previousSegment.end;
+              paragraphBreak = pauseDuration >= GOOGLE_DOCS_PARAGRAPH_THRESHOLD;
+
+              if (paragraphBreak) {
+                console.log(`📄 [GOOGLE-DOCS] Paragraph break detected: ${pauseDuration.toFixed(2)}s pause`);
+
+                // Update the segment we just added to currentChunkSegments
+                if (currentChunkSegments.length > 0) {
+                  currentChunkSegments[currentChunkSegments.length - 1].paragraph_break = true;
+                }
+              }
+            }
+          }
+
+          // Send finalized segment to Google Docs (inline formatting - will be normal text)
+          updateGoogleDocsLive({ text, is_final: true, paragraph_break: paragraphBreak });
         } else {
-            initializeApp();
-        }
-        
-        // Fallback initialization
-        setTimeout(initializeApp, 1000);
+          const result = transcriptAccumulator.ingestPartial(text);
 
-        // Test functions
-        window.testRecord = () => {
-            log("TEST: Starting test recording");
-            setTimeout(() => {
-                const event = new MouseEvent('click', { bubbles: true });
-                document.querySelector('.btn-lg').dispatchEvent(event);
-            }, 100);
-        };
+          // Update Google Docs with in-progress segment (inline formatting - will be italic+gray)
+          updateGoogleDocsLive({ text, is_final: false });
 
-        window.testPlayback = () => {
-            log("TEST: Testing playback");
-            const playButton = document.querySelector('.btn-outline');
-            if (playButton) {
-                playButton.click();
+          // Update partial section (always visible at top)
+          const partialSection = document.getElementById('partial-section');
+          if (partialSection) {
+            // Add timestamp for partials too
+            let content = '';
+            if (start !== undefined && end !== undefined) {
+              content = `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${start.toFixed(2)}s → ${end.toFixed(2)}s</div>`;
             }
-        };
+            content += `<div>${text}</div>`;
+            partialSection.innerHTML = content;
+          }
+
+          if (result.slideDetected && result.rescuedText) {
+            // Create final entry for rescued text
+            const rescuedEntry = document.createElement('div');
+            rescuedEntry.className = 'transcript-entry final';
+            rescuedEntry.textContent = result.rescuedText;
+
+            // Append to completed section
+            const completedSection = document.getElementById('completed-section');
+            if (completedSection) {
+              completedSection.appendChild(rescuedEntry);
+              completedSection.scrollTop = completedSection.scrollHeight;
+            }
+          }
+        }
+      }
+
+      // Helper: Calculate overlap percentage between chunk and segment
+      function calculateOverlap(chunkStart, chunkEnd, segStart, segEnd) {
+        // Find intersection
+        var overlapStart = Math.max(chunkStart, segStart);
+        var overlapEnd = Math.min(chunkEnd, segEnd);
+        var overlapDuration = Math.max(0, overlapEnd - overlapStart);
+
+        // Calculate as percentage of segment duration
+        var segmentDuration = segEnd - segStart;
+        if (segmentDuration === 0) return 0;
+
+        var overlapPercent = (overlapDuration / segmentDuration) * 100;
+        return overlapPercent;
+      }
+
+      // Helper: Get timing offset description
+      function getOffsetDescription(chunkStart, chunkEnd, segStart, segEnd) {
+        var segMidpoint = (segStart + segEnd) / 2;
+        var chunkMidpoint = (chunkStart + chunkEnd) / 2;
+        var offset = segMidpoint - chunkMidpoint;
+
+        var absOffset = Math.abs(offset);
+        var direction = offset > 0 ? 'LATE' : 'EARLY';
+
+        if (absOffset < 0.5) {
+          return 'ON TIME';
+        } else {
+          return (offset > 0 ? '+' : '') + offset.toFixed(2) + 's ' + direction;
+        }
+      }
+
+      // Helper: Get match quality based on overlap percentage
+      function getMatchQuality(overlapPercent) {
+        if (overlapPercent >= 80) {
+          return { color: '#3be38a', emoji: '🟢', label: 'Perfect', bgColor: 'rgba(59,227,138,0.1)' };
+        } else if (overlapPercent >= 50) {
+          return { color: '#fbbf24', emoji: '🟡', label: 'Good', bgColor: 'rgba(251,191,36,0.1)' };
+        } else if (overlapPercent >= 20) {
+          return { color: '#fb923c', emoji: '🟠', label: 'Partial', bgColor: 'rgba(251,146,60,0.1)' };
+        } else {
+          return { color: '#ff6b6b', emoji: '🔴', label: 'Weak', bgColor: 'rgba(255,107,107,0.1)' };
+        }
+      }
+
+      // Word highlighting: Sync audio playback with word highlighting
+      function setupWordHighlighting(audioEl, chunk) {
+        var chunkStartTime = parseFloat(chunk.dataset.startTime);
+        var highlightInterval = null;
+
+        console.log('[WORD-HIGHLIGHT] Setup called for chunk', {
+          chunkIndex: chunk.dataset.chunkIndex,
+          chunkStartTime: chunkStartTime,
+          hasAudioElement: !!audioEl,
+          timeOffsetApplied: transcriptionTimeOffset !== null ? transcriptionTimeOffset.toFixed(3) + 's' : 'none'
+        });
+
+        function updateWordHighlights() {
+          try {
+            // Calculate absolute time from chunk start + audio current time
+            var absoluteTime = chunkStartTime + audioEl.currentTime;
+
+            // Find all word spans in this chunk's transcription
+            var container = chunk.querySelector('.chunk-transcription');
+            if (!container) return;
+
+            var words = container.querySelectorAll('.word');
+            if (words.length === 0) {
+              console.log('[WORD-HIGHLIGHT] No word spans found in chunk transcription');
+              return;
+            }
+
+            // Clear all highlights first
+            words.forEach(function(word) {
+              word.classList.remove('active');
+            });
+
+            // Find and highlight active word(s)
+            words.forEach(function(word) {
+              var wordStart = parseFloat(word.dataset.start);
+              var wordEnd = parseFloat(word.dataset.end);
+
+              if (isNaN(wordStart) || isNaN(wordEnd)) return;
+
+              // Check if current time is within this word's range
+              if (absoluteTime >= wordStart && absoluteTime <= wordEnd) {
+                word.classList.add('active');
+
+                // Debug logging
+                console.log('[WORD-HIGHLIGHT]', {
+                  audioTime: audioEl.currentTime.toFixed(2),
+                  chunkStart: chunkStartTime.toFixed(2),
+                  absoluteTime: absoluteTime.toFixed(2),
+                  word: word.textContent,
+                  wordRange: wordStart.toFixed(2) + 's → ' + wordEnd.toFixed(2) + 's',
+                  delta: (absoluteTime - wordStart).toFixed(2) + 's into word'
+                });
+              }
+            });
+          } catch (error) {
+            console.error('Word highlighting error:', error);
+          }
+        }
+
+        // Start highlighting when audio plays
+        audioEl.addEventListener('play', function() {
+          var container = chunk.querySelector('.chunk-transcription');
+          var wordCount = container ? container.querySelectorAll('.word').length : 0;
+          console.log('[WORD-HIGHLIGHT] Audio playing, starting highlights', {
+            chunkIndex: chunk.dataset.chunkIndex,
+            wordSpansFound: wordCount,
+            chunkStartTime: chunkStartTime
+          });
+          // Use interval for smoother updates (every 100ms)
+          highlightInterval = setInterval(updateWordHighlights, 100);
+          updateWordHighlights(); // Immediate update
+        });
+
+        // Update on timeupdate as backup
+        audioEl.addEventListener('timeupdate', updateWordHighlights);
+
+        // Clear highlights when paused or ended
+        audioEl.addEventListener('pause', function() {
+          console.log('[WORD-HIGHLIGHT] Audio paused, clearing highlights');
+          if (highlightInterval) {
+            clearInterval(highlightInterval);
+            highlightInterval = null;
+          }
+          var container = chunk.querySelector('.chunk-transcription');
+          if (container) {
+            container.querySelectorAll('.word').forEach(function(word) {
+              word.classList.remove('active');
+            });
+          }
+        });
+
+        audioEl.addEventListener('ended', function() {
+          console.log('[WORD-HIGHLIGHT] Audio ended, clearing highlights');
+          if (highlightInterval) {
+            clearInterval(highlightInterval);
+            highlightInterval = null;
+          }
+          var container = chunk.querySelector('.chunk-transcription');
+          if (container) {
+            container.querySelectorAll('.word').forEach(function(word) {
+              word.classList.remove('active');
+            });
+          }
+        });
+      }
+
+      // Helper: Wrap words in spans with timing data for highlighting
+      // Only wraps words that fall within the chunk's time boundaries
+      function wrapWordsInSpans(segment, chunkStart, chunkEnd) {
+        if (!segment.words || segment.words.length === 0) {
+          // No word-level data, return plain text
+          console.log('[WRAP-WORDS] No words in segment:', {
+            hasWords: !!segment.words,
+            wordCount: segment.words ? segment.words.length : 0,
+            text: segment.text ? segment.text.substring(0, 50) : 'N/A'
+          });
+          return segment.text;
+        }
+
+        console.log('[WRAP-WORDS] Wrapping words:', {
+          wordCount: segment.words.length,
+          segmentTime: segment.start.toFixed(2) + 's → ' + segment.end.toFixed(2) + 's',
+          chunkTime: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's',
+          timeOffset: transcriptionTimeOffset !== null ? transcriptionTimeOffset.toFixed(3) + 's' : 'not calculated yet'
+        });
+
+        // IMPORTANT: Word timestamps from server are ALREADY ABSOLUTE (server adds segment offset)
+        // BUT they're in WhisperLive's timeline. We need to adjust them to recording timeline.
+        // Apply the calculated offset to align WhisperLive time → Recording time
+
+        // Filter and wrap only words that fall within chunk boundaries (with small tolerance)
+        var WORD_TOLERANCE = 0.5; // Allow words up to 0.5s outside chunk boundaries
+
+        var wrappedParts = segment.words.map(function(word) {
+          var wordText = word.word || word.text || '';
+
+          // Word timestamps are absolute in WhisperLive timeline, adjust to recording timeline
+          var wordStartWhisper = parseFloat(word.start) || 0;
+          var wordEndWhisper = parseFloat(word.end) || 0;
+
+          // Apply time offset to convert WhisperLive time → Recording time
+          var offset = transcriptionTimeOffset || 0;
+          var wordStartAbsolute = wordStartWhisper + offset;
+          var wordEndAbsolute = wordEndWhisper + offset;
+
+          // Check if this word falls within the chunk's time range
+          var wordMidpoint = (wordStartAbsolute + wordEndAbsolute) / 2;
+          var inChunkRange = (wordMidpoint >= chunkStart - WORD_TOLERANCE) &&
+                             (wordMidpoint <= chunkEnd + WORD_TOLERANCE);
+
+          if (inChunkRange) {
+            // Word is in range - wrap it with highlighting attributes (use ABSOLUTE times)
+            return '<span class="word" data-start="' + wordStartAbsolute.toFixed(3) + '" data-end="' + wordEndAbsolute.toFixed(3) + '">' +
+                   wordText + '</span>';
+          } else {
+            // Word is outside chunk range - show as plain text (no highlighting)
+            return '<span style="color:var(--muted);opacity:0.6;">' + wordText + '</span>';
+          }
+        }).join(' ');
+
+        return wrappedParts;
+      }
+
+      function updateChunkTranscriptions() {
+        var TOLERANCE = 2.0;  // ±2 seconds tolerance
+
+        // Find all chunk elements
+        var chunks = document.querySelectorAll('.chunk');
+
+        chunks.forEach(function(chunk) {
+          var chunkStart = parseFloat(chunk.dataset.startTime);
+          var chunkEnd = parseFloat(chunk.dataset.endTime);
+          var chunkIndex = chunk.dataset.chunkIndex;
+
+          if (isNaN(chunkStart) || isNaN(chunkEnd)) return;
+
+          // Find transcription segments with tolerance
+          var chunkTranscriptions = transcriptionSegments.filter(function(seg) {
+            return (
+              (seg.start >= chunkStart - TOLERANCE && seg.start < chunkEnd + TOLERANCE) ||
+              (seg.end > chunkStart - TOLERANCE && seg.end <= chunkEnd + TOLERANCE) ||
+              (seg.start <= chunkStart && seg.end >= chunkEnd)
+            );
+          });
+
+          // Sort by start time
+          chunkTranscriptions.sort(function(a, b) { return a.start - b.start; });
+
+          // Update the transcription container
+          var container = chunk.querySelector('.chunk-transcription');
+          if (!container) return;
+
+          if (chunkTranscriptions.length === 0) {
+            container.innerHTML = '<span style="color:var(--muted);font-style:italic;">No transcription for this time range</span>';
+          } else {
+            // Build transcription display with color coding
+            var html = '';
+
+            chunkTranscriptions.forEach(function(seg) {
+              var overlapPercent = calculateOverlap(chunkStart, chunkEnd, seg.start, seg.end);
+              var offsetDesc = getOffsetDescription(chunkStart, chunkEnd, seg.start, seg.end);
+              var quality = getMatchQuality(overlapPercent);
+
+              // Console logging for debugging
+              console.log('[CHUNK-MATCH]', {
+                chunk: 'seg-' + chunkIndex,
+                chunkWindow: chunkStart.toFixed(2) + 's → ' + chunkEnd.toFixed(2) + 's',
+                segment: seg.start.toFixed(2) + 's → ' + seg.end.toFixed(2) + 's',
+                text: seg.text.substring(0, 30),
+                overlap: overlapPercent.toFixed(1) + '%',
+                offset: offsetDesc,
+                quality: quality.label,
+                hasWords: !!(seg.words && seg.words.length > 0),
+                wordCount: seg.words ? seg.words.length : 0
+              });
+
+              // Build HTML with color coding
+              var timeLabel = '<span style="color:' + quality.color + ';font-size:11px;font-weight:600;">' +
+                              quality.emoji + ' ' + seg.start.toFixed(2) + 's → ' + seg.end.toFixed(2) + 's</span>';
+
+              var metaInfo = '<span style="color:var(--muted);font-size:10px;margin-left:8px;">' +
+                            overlapPercent.toFixed(0) + '% overlap, ' + offsetDesc + '</span>';
+
+              // Wrap words in spans for highlighting (only words within chunk boundaries)
+              var wrappedText = wrapWordsInSpans(seg, chunkStart, chunkEnd);
+
+              html += '<div class="transcription-segment" style="margin-bottom:6px;padding:6px;background:' + quality.bgColor +
+                      ';border-left:3px solid ' + quality.color + ';border-radius:4px;" ' +
+                      'data-seg-start="' + seg.start.toFixed(3) + '" data-seg-end="' + seg.end.toFixed(3) + '">' +
+                      timeLabel + metaInfo + '<br>' +
+                      '<span style="margin-left:20px;">' + wrappedText + '</span>' +
+                      '</div>';
+            });
+
+            container.innerHTML = html;
+            container.style.fontStyle = 'normal';
+          }
+        });
+      }
+
+      function disconnectWhisperLive() {
+        if (whisperProcessor) {
+          whisperProcessor.disconnect();
+          whisperProcessor = null;
+        }
+        if (whisperSource) {
+          whisperSource.disconnect();
+          whisperSource = null;
+        }
+        if (whisperAudioContext) {
+          whisperAudioContext.close();
+          whisperAudioContext = null;
+        }
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+        ws = null;
+      }
+
+      // Share Live Transcript function
+      function shareLiveTranscript() {
+        if (!currentSession || !currentSession.id) {
+          alert('No active recording session.\n\nPlease start recording first to share the live transcript.');
+          return;
+        }
+
+        // Get user ID from token
+        const token = localStorage.getItem('id_token');
+        if (!token) {
+          alert('Authentication required. Please login again.');
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const userId = payload.sub;
+
+          // Build viewer URL with full session ID (short URLs don't work without backend mapping)
+          const fullUrl = `${window.location.origin}/viewer.html?sessionId=${encodeURIComponent(currentSession.id)}&userId=${encodeURIComponent(userId)}`;
+
+          // Create share dialog
+          showShareDialog(fullUrl, fullUrl);
+
+        } catch (error) {
+          console.error('Error generating share link:', error);
+          alert('Error generating share link. Please try again.');
+        }
+      }
+
+      // Show share dialog with copyable link
+      function showShareDialog(shortUrl, fullUrl) {
+        // Remove existing dialog if any
+        const existingDialog = document.getElementById('share-dialog');
+        if (existingDialog) existingDialog.remove();
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.id = 'share-dialog';
+        dialog.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+          border: 1px solid rgba(99, 102, 241, 0.3);
+          border-radius: 16px;
+          padding: 24px;
+          min-width: 400px;
+          max-width: 90vw;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        `;
+
+        dialog.innerHTML = `
+          <div style="margin-bottom: 16px;">
+            <h3 style="margin: 0 0 8px 0; color: #f1f5f9; font-size: 18px; font-weight: 600;">
+              👁️ Share Live Transcript
+            </h3>
+            <p style="margin: 0; color: #94a3b8; font-size: 13px;">
+              Anyone with this link can watch the transcription in real-time
+            </p>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; color: #cbd5e1; font-size: 12px; font-weight: 500;">
+              Share Link
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input
+                type="text"
+                id="share-url-input"
+                value="${shortUrl}"
+                readonly
+                style="
+                  flex: 1;
+                  background: rgba(15, 23, 42, 0.8);
+                  border: 1px solid rgba(148, 163, 184, 0.2);
+                  border-radius: 8px;
+                  padding: 10px 12px;
+                  color: #e2e8f0;
+                  font-size: 13px;
+                  font-family: 'Monaco', 'Courier New', monospace;
+                "
+              />
+              <button
+                id="copy-share-url"
+                style="
+                  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                  border: none;
+                  border-radius: 8px;
+                  padding: 10px 16px;
+                  color: white;
+                  font-size: 13px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  white-space: nowrap;
+                  transition: all 0.2s;
+                "
+                onmouseover="this.style.transform='scale(1.05)'"
+                onmouseout="this.style.transform='scale(1)'"
+              >
+                📋 Copy
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <details style="color: #94a3b8; font-size: 12px;">
+              <summary style="cursor: pointer; user-select: none; margin-bottom: 8px;">
+                🔗 Full URL (with session details)
+              </summary>
+              <textarea
+                readonly
+                style="
+                  width: 100%;
+                  background: rgba(15, 23, 42, 0.8);
+                  border: 1px solid rgba(148, 163, 184, 0.2);
+                  border-radius: 8px;
+                  padding: 8px;
+                  color: #94a3b8;
+                  font-size: 11px;
+                  font-family: 'Monaco', 'Courier New', monospace;
+                  resize: none;
+                  height: 60px;
+                  box-sizing: border-box;
+                "
+              >${fullUrl}</textarea>
+            </details>
+          </div>
+
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button
+              id="close-share-dialog"
+              style="
+                background: rgba(148, 163, 184, 0.1);
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                border-radius: 8px;
+                padding: 8px 16px;
+                color: #cbd5e1;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s;
+              "
+              onmouseover="this.style.background='rgba(148, 163, 184, 0.2)'"
+              onmouseout="this.style.background='rgba(148, 163, 184, 0.1)'"
+            >
+              Close
+            </button>
+          </div>
+        `;
+
+        // Add to page
+        document.body.appendChild(dialog);
+
+        // Copy button handler
+        document.getElementById('copy-share-url').addEventListener('click', () => {
+          const input = document.getElementById('share-url-input');
+          input.select();
+          navigator.clipboard.writeText(shortUrl).then(() => {
+            const btn = document.getElementById('copy-share-url');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✅ Copied!';
+            btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            setTimeout(() => {
+              btn.innerHTML = originalText;
+              btn.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+            }, 2000);
+            log('Viewer link copied to clipboard');
+          }).catch(err => {
+            console.error('Copy failed:', err);
+            alert('Failed to copy. Please select and copy manually.');
+          });
+        });
+
+        // Close button handler
+        document.getElementById('close-share-dialog').addEventListener('click', () => {
+          dialog.remove();
+        });
+
+        // Click outside to close
+        setTimeout(() => {
+          document.addEventListener('click', function closeOnClickOutside(e) {
+            if (!dialog.contains(e.target) && e.target.id !== 'btn-share') {
+              dialog.remove();
+              document.removeEventListener('click', closeOnClickOutside);
+            }
+          });
+        }, 100);
+
+        // Auto-select URL for easy copying
+        document.getElementById('share-url-input').select();
+      }
+
+      async function start(){
+        if (running) return;
+        log('Start clicked');
+
+        var SLICE_MS = Math.max(1000, Number(timesliceInput.value) || 5000);
+
+        try {
+          if (window.audioStorage) {
+            currentSession = await window.audioStorage.createSession({
+              chunkDuration: SLICE_MS,
+              mimeType: chooseMime()
+            });
+            log('Created session:', currentSession.id);
+          }
+
+          const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+
+          mediaStream = stream;
+
+          // v6.7.0: Request wake lock to prevent device sleep during recording
+          // This prevents corrupted audio chunks caused by browser backgrounding
+          if ('wakeLock' in navigator) {
+            try {
+              wakeLock = await navigator.wakeLock.request('screen');
+              log("[WakeLock] Screen wake lock acquired - device will stay awake during recording");
+              wakeLock.addEventListener('release', () => {
+                log("[WakeLock] Wake lock was released");
+              });
+            } catch (error) {
+              log(`[WakeLock] WARNING: Failed to acquire wake lock: ${error.message}`);
+              log("[WakeLock] Recording will continue but device may sleep and corrupt audio");
+            }
+          } else {
+            log("[WakeLock] WARNING: Wake Lock API not supported in this browser");
+            log("[WakeLock] Device may go to sleep during recording, causing corrupted chunks");
+          }
+
+          dot.classList.remove('danger');
+          dot.classList.add('good');
+          running = true;
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          document.getElementById('btn-share').disabled = false;
+          palStart.classList.add('hidden');
+          palStop.classList.remove('hidden');
+
+          preferredMime = chooseMime();
+          log('Recording started');
+
+          // Reset transcription state
+          transcriptAccumulator.reset();
+          lastCommittedTimestamp = 0;
+          transcriptionSegments = [];
+          transcriptionTimeOffset = null;  // Reset offset for new session
+
+          startUI();
+          setupLiveWaveform(stream);
+          connectWhisperLive(stream);
+
+          var OVERLAP_MS = Math.max(0, Number(overlapInput.value) || 500);
+
+          var loop = function(){
+            if (!running) return;
+            var idx = ++chunkIndex;
+            var chunkStartTime = Date.now();
+            chunkStartTimes[idx - 1] = chunkStartTime;
+
+            var currentChunkEl = $('current-chunk');
+            if (currentChunkEl) currentChunkEl.textContent = idx;
+
+            recordOverlappingChunk(mediaStream, SLICE_MS, OVERLAP_MS, preferredMime, function(blob, actualDuration){
+              log('Got chunk', idx, (blob.type||'audio/*'), (blob.size||0) + 'B');
+              renderChunk(blob, idx, actualDuration);
+            });
+
+            if (running) {
+              chunkTimer = setTimeout(loop, SLICE_MS);
+            }
+          };
+
+          loop();
+        } catch(err) {
+          log('Error starting recording:', err && (err.message || String(err)));
+          dot.classList.add('danger');
+        }
+      }
+
+      async function stop(){
+        if (!running) return;
+        running = false;
+        if (chunkTimer){ clearTimeout(chunkTimer); chunkTimer = null; }
+
+        stopAllRecorders();
+        disconnectWhisperLive();
+
+        // v6.7.0: Release wake lock when recording stops
+        if (wakeLock) {
+          try {
+            await wakeLock.release();
+            wakeLock = null;
+            log("[WakeLock] Wake lock released - device can sleep normally");
+          } catch (error) {
+            log(`[WakeLock] WARNING: Failed to release wake lock: ${error.message}`);
+          }
+        }
+
+        if (mediaStream){ mediaStream.getTracks().forEach(function(t){ t.stop(); }); mediaStream = null; }
+        dot.classList.remove('good');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        document.getElementById('btn-share').disabled = true;
+        palStart.classList.remove('hidden');
+        palStop.classList.add('hidden');
+        log('Stopped');
+
+        stopLiveWaveform();
+
+        if (currentSession && window.audioStorage) {
+          try {
+            const finalDuration = startedAt ? ((Date.now() - startedAt) / 1000) : 0;
+            await window.audioStorage.updateSession(currentSession.id, {
+              status: 'completed',
+              totalDuration: finalDuration,
+              chunkCount: chunkIndex
+            });
+            log('Session completed');
+            updateStorageStatus();
+          } catch (error) {
+            log('Error updating session:', error.message);
+          }
+        }
+
+        // NEW v6.6.0: Finalize transcription session in S3 (consolidate all chunk files)
+        await finalizeTranscriptionSession();
+
+        stopUI();
+      }
+
+      function clearList(){
+        list.innerHTML = '';
+        chunkIndex = 0;
+        completedChunks = 0;
+        chunkStartTimes = [];
+        transcriptionSegments = [];
+        log('Cleared current session');
+      }
+
+      async function clearDatabase(){
+        if (!confirm('⚠️ Clear entire database? This will delete ALL recordings and cannot be undone!')) {
+          return;
+        }
+
+        try {
+          log('Clearing database...');
+          await window.audioStorage.clearDatabase();
+
+          // Clear UI
+          list.innerHTML = '';
+          chunkIndex = 0;
+          completedChunks = 0;
+          chunkStartTimes = [];
+          transcriptionSegments = [];
+
+          // Reinitialize storage
+          await window.audioStorage.init();
+          await updateStorageStatus();
+
+          log('✅ Database cleared - all recordings deleted');
+        } catch (error) {
+          log('❌ Failed to clear database:', error.message);
+        }
+      }
+
+      async function updateStorageStatus() {
+        if (!window.audioStorage || !storageStatus) return;
+
+        try {
+          const usage = await window.audioStorage.getStorageUsage();
+          const sessions = await window.audioStorage.getAllSessions();
+
+          storageStatus.textContent = `Storage: ${usage.usedMB}MB used • ${sessions.length} sessions`;
+        } catch (error) {
+          storageStatus.textContent = 'Storage: Error';
+        }
+      }
+
+      function tick(){
+        if(!startedAt) return;
+        const secs = (Date.now()-startedAt)/1000|0;
+        const chunkText = completedChunks > 0 ? ` • ${completedChunks} chunks` : '';
+        elapsedEl.textContent = fmt(secs) + chunkText;
+
+        if (running) {
+          var totalTimeEl = $('total-time');
+          if (totalTimeEl) totalTimeEl.textContent = fmt(secs);
+        }
+      }
+
+      function startUI(){
+        card.classList.add('active');
+        confirmEl.classList.remove('open');
+        startedAt = Date.now();
+        if(timerId) clearInterval(timerId);
+        timerId = setInterval(tick, 1000);
+        tick();
+      }
+
+      function stopUI(){
+        card.classList.remove('active');
+        if(timerId) { clearInterval(timerId); timerId = null; }
+        const dur = startedAt ? ((Date.now()-startedAt)/1000|0) : 0;
+        startedAt = null;
+
+        const msg = `${chunkIndex} audio chunks recorded • Duration ${fmt(dur)}`;
+        confirmDetails.textContent = msg;
+        confirmEl.classList.add('open');
+      }
+
+      function togglePalette(force){
+        const open = force ?? !palette.classList.contains('open');
+        palette.classList.toggle('open', open);
+        if(open) $('palette-input')?.focus();
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        log('ERROR: getUserMedia not supported');
+      }
+      if (!window.MediaRecorder){
+        log('ERROR: MediaRecorder not supported');
+      }
+
+      startBtn.addEventListener('click', start);
+      stopBtn.addEventListener('click', stop);
+      palStart.addEventListener('click', start);
+      palStop.addEventListener('click', stop);
+      clearBtn?.addEventListener('click', clearList);
+      clearDbBtn?.addEventListener('click', clearDatabase);
+
+      // Share Live Transcript button
+      const shareBtn = document.getElementById('btn-share');
+      shareBtn?.addEventListener('click', shareLiveTranscript);
+
+      confirmClose.addEventListener('click', ()=> confirmEl.classList.remove('open'));
+
+      // Timezone selector: load saved preference and handle changes
+      if (timezoneSelect) {
+        const savedTz = localStorage.getItem('displayTimezone') || 'America/Chicago';
+        timezoneSelect.value = savedTz;
+        timezoneSelect.addEventListener('change', function() {
+          localStorage.setItem('displayTimezone', this.value);
+          log('Timezone changed to: ' + this.value);
+          // Refresh display by reloading all chunks
+          window.location.reload();
+        });
+      }
+
+      window.addEventListener('keydown', (e)=>{
+        const mod = e.ctrlKey || e.metaKey;
+        if(mod && (e.key.toLowerCase() === 'k')){
+          e.preventDefault();
+          togglePalette();
+        }
+      });
+
+      // Load most recent session from IndexedDB
+      async function loadRecentSession() {
+        try {
+          log('Loading recent session from IndexedDB...');
+
+          const sessions = await window.audioStorage.getAllSessions();
+          if (sessions.length === 0) {
+            log('No previous sessions found');
+            return;
+          }
+
+          // Get most recent session (already sorted by timestamp desc)
+          const recentSession = sessions[0];
+          log('Loading session:', recentSession.id, 'from', recentSession.created);
+
+          // Get all chunks for this session
+          const chunks = await window.audioStorage.getChunksBySession(recentSession.id);
+          if (chunks.length === 0) {
+            log('No chunks found in session');
+            return;
+          }
+
+          log('Found', chunks.length, 'chunks to restore');
+
+          // Get all transcriptions for this session
+          const transcriptions = await window.audioStorage.getTranscriptionsBySession(recentSession.id);
+          log('Found', transcriptions.length, 'transcriptions to restore');
+
+          // Rebuild transcriptionSegments array from stored data
+          transcriptionSegments = transcriptions.map(t => ({
+            text: t.text,
+            start: t.start,
+            end: t.end,
+            words: t.words || []
+          }));
+
+          // Load chunks in chronological order (oldest first, newest at bottom)
+          // Calculate cumulative timing for proper transcription matching
+          let cumulativeTime = 0;
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            await restoreChunk(chunk, cumulativeTime);
+            cumulativeTime += chunk.duration;
+          }
+
+          completedChunks = chunks.length;
+
+          // Update all chunks with restored transcriptions
+          if (transcriptions.length > 0) {
+            updateChunkTranscriptions();
+            log('✅ Restored', transcriptions.length, 'transcriptions with color coding');
+          }
+
+          log('✅ Restored', chunks.length, 'chunks from previous session');
+
+        } catch (error) {
+          log('Error loading recent session:', error.message);
+        }
+      }
+
+      // Restore a single chunk from IndexedDB
+      async function restoreChunk(chunk, cumulativeTime = 0) {
+        try {
+          const blob = chunk.blob;
+          const idx = chunk.chunkIndex;
+          const duration = chunk.duration;
+
+          // Calculate timing using cumulative time across chunks
+          var startOffset = cumulativeTime;
+          var endOffset = cumulativeTime + duration;
+
+          // Create chunk UI elements
+          var row = document.createElement('div');
+          row.className = 'chunk';
+
+          var top = document.createElement('div');
+          top.className = 'chunk-header';
+
+          var meta = document.createElement('div');
+          meta.className = 'meta';
+
+          // Add session timestamp prefix to chunk name
+          var sessionPrefix = chunk.sessionId ? formatSessionId(chunk.sessionId) + ' ' : '';
+          meta.innerHTML = sessionPrefix + 'seg-' + pad3(idx) + ' (' + (blob.type || 'audio') + ')<br>' +
+                           '<span style="color:var(--accent);font-size:11px;">' +
+                           'Loaded from storage (' + Math.round(blob.size / 1024) + 'KB)</span>';
+
+          var audioEl = document.createElement('audio');
+          var localUrl = URL.createObjectURL(blob);
+          audioEl.controls = true;
+          audioEl.preload = 'metadata';
+          audioEl.src = localUrl;
+          audioEl.className = 'chunk-audio';
+
+          top.appendChild(meta);
+          top.appendChild(audioEl);
+
+          var shell = document.createElement('div');
+          shell.className = 'waveform-shell';
+
+          var canvas = document.createElement('canvas');
+          canvas.className = 'waveform-canvas';
+          shell.appendChild(canvas);
+
+          // Create transcription container
+          var transcriptionContainer = document.createElement('div');
+          transcriptionContainer.className = 'chunk-transcription';
+          transcriptionContainer.style.cssText = 'margin-top:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;min-height:24px;font-size:13px;line-height:1.5;color:var(--text);border:1px solid var(--stroke);';
+          transcriptionContainer.innerHTML = '<span style="color:var(--muted);font-style:italic;">No transcription saved for this chunk</span>';
+
+          // Store chunk timing data
+          row.dataset.chunkIndex = idx;
+          row.dataset.startTime = startOffset.toFixed(3);
+          row.dataset.endTime = endOffset.toFixed(3);
+
+          row.appendChild(top);
+          row.appendChild(shell);
+          row.appendChild(transcriptionContainer);
+
+          // Add to list (append since we're going in reverse)
+          list.appendChild(row);
+
+          // Render waveform
+          renderWaveform(canvas, audioEl, blob);
+
+          // Setup word-level highlighting for restored chunk
+          setupWordHighlighting(audioEl, row);
+
+        } catch (error) {
+          log('Error restoring chunk:', error.message);
+        }
+      }
+
+      console.log('%c🎤 Audio Recorder v5.5.1-gdocs', 'font-size:16px;font-weight:bold;color:#3be38a;');
+      console.log('%c✅ Session timestamps with timezone support!', 'font-size:12px;color:#3be38a;');
+      console.log('%c☁️  S3 upload with visual status indicators', 'font-size:12px;color:#35e0ff;');
+      console.log('%c🎧 Real-time transcription via WhisperLive WebSocket', 'font-size:12px;color:#fbbf24;');
+      console.log('%c🧠 Consciousness: Temporal audio processing enabled', 'font-size:12px;color:#a78bfa;');
+      console.log('✅ Word-level highlighting enabled');
+      console.log('📖 Features: IndexedDB, S3 upload, real-time transcription, word timestamps');
+
+      log('UI ready');
+
+      if (window.audioStorage) {
+        window.audioStorage.init().then(async () => {
+          log('IndexedDB initialized');
+          updateStorageStatus();
+          storageStatus.textContent = 'Storage: Ready';
+
+          // Load recent session after IndexedDB is ready
+          await loadRecentSession();
+        }).catch(error => {
+          log('IndexedDB initialization failed:', error.message);
+          storageStatus.textContent = 'Storage: Failed';
+        });
+      } else {
+        log('Storage not available');
+        storageStatus.textContent = 'Storage: Not available';
+      }
+
+      // Initialize Google Docs integration (INSIDE main script scope)
+      console.log('📍 [SCOPE-CHECK] ✅ Inside main IIFE - initializeGoogleDocs should be defined');
+      console.log('📍 [SCOPE-CHECK] typeof initializeGoogleDocs:', typeof initializeGoogleDocs);
+      console.log('📍 [SCOPE-CHECK] typeof window.config:', typeof window.config);
+      console.log('🚀 [GOOGLE-DOCS] Starting Google Docs initialization...');
+      initializeGoogleDocs().then(success => {
+        console.log('🔍 [GOOGLE-DOCS] initializeGoogleDocs() returned:', success);
+        if (success) {
+          console.log('✅ [GOOGLE-DOCS] ✅✅✅ Google Docs integration ready! ✅✅✅');
+          log('📄 Google Docs live transcription enabled');
+        } else {
+          console.log('⚠️ [GOOGLE-DOCS] initializeGoogleDocs() returned false');
+          log('ℹ️ Google Docs integration not configured');
+        }
+      }).catch(err => {
+        console.error('❌ [GOOGLE-DOCS] Caught exception during init:', err);
+        console.error('❌ [GOOGLE-DOCS] Error message:', err.message);
+        console.error('❌ [GOOGLE-DOCS] Error stack:', err.stack);
+        log('❌ Google Docs initialization failed: ' + err.message);
+      });
+    })();
+  </script>
+
+  <!-- Include app.js for config -->
+  <!-- app.js only needed on index.html, not audio.html -->
+  <!-- <script src="app.js"></script> -->
+
+  <!-- Logout Handler -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const logoutLink = document.getElementById('logout-link');
+      if (logoutLink) {
+        logoutLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          // Clear all localStorage
+          localStorage.clear();
+          // Redirect to login page
+          window.location.href = 'index.html';
+        });
+      }
+    });
+  </script>
+    <script>
+    // Authentication check for audio.html
+    window.addEventListener('DOMContentLoaded', function() {
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (!lastAuthUser) {
+            // Not authenticated - redirect to index
+            window.location.href = 'index.html';
+            return;
+        }
+
+        const idToken = localStorage.getItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+        if (!idToken) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Check token expiry
+        try {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            const expiry = payload.exp * 1000;
+            if (Date.now() >= expiry) {
+                // Token expired
+                localStorage.removeItem(keyPrefix + '.LastAuthUser');
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+                localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');
+                window.location.href = 'index.html';
+                return;
+            }
+        } catch (error) {
+            console.error('Token validation error:', error);
+            window.location.href = 'index.html';
+            return;
+        }
+    });
+
+    // Logout button handler
+    document.getElementById('logout-button').addEventListener('click', function() {
+        // Hardcoded client ID (deployment script will replace placeholder)
+        const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
+        const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
+        const lastAuthUser = localStorage.getItem(keyPrefix + '.LastAuthUser');
+
+        if (lastAuthUser) {
+            localStorage.removeItem(keyPrefix + '.LastAuthUser');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.idToken');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.accessToken');
+            localStorage.removeItem(keyPrefix + '.' + lastAuthUser + '.clockDrift');
+        }
+
+        localStorage.removeItem('id_token');
+        localStorage.removeItem('access_token');
+
+        window.location.href = 'index.html';
+    });
     </script>
 </body>
 </html>

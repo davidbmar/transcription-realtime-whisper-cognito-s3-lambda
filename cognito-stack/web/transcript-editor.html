@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcript Editor - CloudDrive</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.execute-api.us-east-2.amazonaws.com https://*.cloudfront.net https://*.s3.us-east-2.amazonaws.com https://*.s3.amazonaws.com; media-src 'self' blob: https:; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f9fafb;
+            color: #1f2937;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2563eb;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #f3f4f6;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .session-info {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .session-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .session-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .toolbar {
+            background: white;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .toolbar-btn.active {
+            background: #dbeafe;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+
+        .editor-container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-height: 600px;
+        }
+
+        .editor {
+            outline: none;
+        }
+
+        /* 3-Column Grid Layout */
+        .transcript-grid {
+            display: grid;
+            grid-template-columns: 100px 1fr 140px;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .segment-row {
+            display: contents;
+        }
+
+        .segment-row:hover .timestamp-col,
+        .segment-row:hover .text-col,
+        .segment-row:hover .actions-col {
+            background-color: #f9fafb;
+        }
+
+        .timestamp-col {
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+            user-select: none; /* Make timestamps non-selectable for clean text copying */
+        }
+
+        .timestamp-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: block;
+        }
+
+        .timestamp-link:hover {
+            text-decoration: underline;
+            color: #1d4ed8;
+        }
+
+        .text-col {
+            line-height: 1.7;
+            font-size: 15px;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+            user-select: text;
+        }
+
+        .text-col.playing {
+            background-color: #fef3c7;
+        }
+
+        .actions-col {
+            display: flex;
+            gap: 6px;
+            align-items: start;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+            user-select: none; /* Make action buttons non-selectable */
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .action-btn:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+
+        .chunk-marker {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            background: #eff6ff;
+            border-left: 3px solid #2563eb;
+            padding: 6px 12px;
+            margin: 16px 0 8px 0;
+            font-size: 12px;
+            color: #2563eb;
+            border-radius: 4px;
+            user-select: none; /* Make chunk markers non-selectable */
+            font-weight: 600;
+        }
+
+        .speaker-label {
+            display: inline;
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-right: 6px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px 0;
+            color: #991b1b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">CloudDrive Transcript Editor</div>
+        <div class="header-actions">
+            <span id="user-email"></span>
+            <button class="btn" onclick="window.location.href='index.html'">Back to Dashboard</button>
+            <button class="btn" id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Loading latest transcript...</div>
+        </div>
+
+        <div id="content" style="display: none;">
+            <div class="session-info">
+                <div class="session-title" id="session-title">Loading...</div>
+                <div class="session-meta" id="session-meta"></div>
+            </div>
+
+            <div class="toolbar">
+                <button class="toolbar-btn" onclick="formatText('bold')"><strong>B</strong></button>
+                <button class="toolbar-btn" onclick="formatText('italic')"><em>I</em></button>
+                <button class="toolbar-btn" onclick="formatText('underline')"><u>U</u></button>
+                <div style="flex: 1"></div>
+                <button class="toolbar-btn" onclick="copyAllText()">📋 Copy All Text</button>
+                <button class="toolbar-btn" id="save-btn" onclick="saveTranscript()">Save Changes</button>
+                <button class="toolbar-btn" id="export-btn" onclick="exportTranscript()">Export</button>
+            </div>
+
+            <div class="editor-container">
+                <div class="editor" id="editor"></div>
+            </div>
+        </div>
+
+        <div id="error" style="display: none;" class="error"></div>
+        <div id="empty-state" style="display: none;" class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <h2>No Transcripts Found</h2>
+            <p>Record audio using the Audio Recorder to create transcripts.</p>
+            <button class="btn btn-primary" onclick="window.location.href='audio.html'" style="margin-top: 16px;">
+                Go to Recorder
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Configuration - will be replaced during deployment
+        const config = {
+            userPoolId: 'us-east-2_6sN45GbIh',
+            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
+            identityPoolId: 'us-east-2:43b4ec02-d7c0-4c8b-a188-27b9d1f16287',
+            region: 'us-east-2',
+            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            s3ApiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            appUrl: 'https://d2l28rla2hk7np.cloudfront.net'
+        };
+
+        let currentSession = null;
+        let transcriptData = null;
+        let audioChunks = [];
+        let audioManager = null;
+        let currentPlayingSegment = null;
+
+        // Auth helper functions
+        function getAuthToken() {
+            return localStorage.getItem('id_token');
+        }
+
+        function getUserEmail() {
+            // Try to extract email from JWT token
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.email || payload.sub || 'User';
+                }
+            } catch (e) {
+                console.error('Error parsing token:', e);
+            }
+            return localStorage.getItem('user_email') || 'User';
+        }
+
+        function getUserId() {
+            // Extract userId (sub claim) from JWT token
+            try {
+                const token = getAuthToken();
+                if (token) {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    return payload.sub;
+                }
+            } catch (e) {
+                console.error('Error parsing token for userId:', e);
+            }
+            return null;
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // Check auth on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = getAuthToken();
+            console.log('Checking auth, token exists:', !!token);
+
+            if (!token) {
+                console.log('No token found, redirecting to index.html');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Validate token isn't expired
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const now = Math.floor(Date.now() / 1000);
+                if (payload.exp && payload.exp < now) {
+                    console.log('Token expired, redirecting to index.html');
+                    localStorage.clear();
+                    window.location.href = 'index.html';
+                    return;
+                }
+            } catch (e) {
+                console.error('Error validating token:', e);
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const userEmail = getUserEmail();
+            document.getElementById('user-email').textContent = userEmail;
+            document.getElementById('logout-btn').onclick = logout;
+
+            console.log('Auth check passed, loading latest session...');
+            await loadLatestSession();
+        });
+
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            const token = getAuthToken();
+            const response = await fetch(`${config.apiUrl}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.statusText}`);
+            }
+
+            return await response.json();
+        }
+
+        async function loadLatestSession() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('empty-state').style.display = 'none';
+
+                // List all sessions
+                const data = await apiCall('/api/audio/sessions');
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    showEmptyState();
+                    return;
+                }
+
+                // Get the most recent session
+                currentSession = data.sessions[0];
+                console.log('Latest session:', currentSession);
+
+                // Load transcription data from S3
+                await loadTranscription();
+
+            } catch (error) {
+                console.error('Error loading session:', error);
+                showError('Failed to load transcript: ' + error.message);
+            }
+        }
+
+        async function loadTranscription() {
+            try {
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+
+                // Try to load consolidated transcription.json first
+                const transcriptionKey = `users/${userId}/audio/sessions/${sessionFolder}/transcription.json`;
+
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(transcriptionKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        transcriptData = await response.json();
+                        console.log('Loaded consolidated transcription:', transcriptData);
+                    } else {
+                        throw new Error('Consolidated file not found');
+                    }
+                } catch (consolidatedError) {
+                    // Consolidated file doesn't exist, build from individual chunks
+                    console.log('Consolidated transcription not found, loading from chunks...');
+                    transcriptData = await buildTranscriptionFromChunks(userId, sessionFolder);
+                }
+
+                // Render the transcript
+                renderTranscript();
+
+                // Show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading transcription:', error);
+                showError('Failed to load transcription: ' + error.message);
+            }
+        }
+
+        async function buildTranscriptionFromChunks(userId, sessionFolder) {
+            console.log('Building transcription from individual chunk files...');
+            console.log('userId:', userId);
+            console.log('sessionFolder:', sessionFolder);
+
+            // List all files in the session folder
+            const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
+            console.log('List response:', listResponse);
+
+            // Find all transcription-chunk-*.json files
+            const chunkFiles = listResponse.files
+                .filter(f => f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json'))
+                .sort((a, b) => {
+                    // Extract chunk number from filename like "transcription-chunk-001.json"
+                    const aNum = parseInt(a.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                    const bNum = parseInt(b.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                    return aNum - bNum;
+                });
+
+            console.log('Filtered chunk files:', chunkFiles);
+
+            if (chunkFiles.length === 0) {
+                throw new Error('No transcription files found for this session');
+            }
+
+            console.log(`Found ${chunkFiles.length} chunk transcription files`);
+
+            // Load all chunk transcriptions
+            const allSegments = [];
+            let totalDuration = 0;
+            let wordCount = 0;
+
+            for (const chunkFile of chunkFiles) {
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkFile.key)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        const chunkData = await response.json();
+                        const chunkNum = parseInt(chunkFile.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+
+                        // Add chunk index to each segment for rendering
+                        if (chunkData.segments) {
+                            chunkData.segments.forEach(segment => {
+                                segment.chunkIndex = chunkNum;
+                                allSegments.push(segment);
+
+                                // Count words
+                                if (segment.words) {
+                                    wordCount += segment.words.length;
+                                } else if (segment.text) {
+                                    wordCount += segment.text.split(/\s+/).length;
+                                }
+                            });
+                        }
+
+                        // Track total duration
+                        if (chunkData.duration) {
+                            totalDuration = Math.max(totalDuration, chunkData.duration);
+                        }
+                    }
+                } catch (chunkError) {
+                    console.warn(`Failed to load chunk ${chunkFile.key}:`, chunkError);
+                }
+            }
+
+            return {
+                segments: allSegments,
+                totalSegments: allSegments.length,
+                totalDuration: totalDuration,
+                wordCount: wordCount,
+                builtFromChunks: true
+            };
+        }
+
+        function renderTranscript() {
+            const editor = document.getElementById('editor');
+            const sessionInfo = currentSession.metadata || {};
+
+            // Update session info
+            document.getElementById('session-title').textContent =
+                `Session: ${currentSession.folder || 'Unknown'}`;
+
+            document.getElementById('session-meta').textContent =
+                `Created: ${new Date(sessionInfo.createdAt || '').toLocaleString()} | ` +
+                `Duration: ${formatDuration(transcriptData.totalDuration || 0)} | ` +
+                `${transcriptData.totalSegments || 0} segments | ` +
+                `${transcriptData.wordCount || 0} words`;
+
+            // Build 3-column grid from segments
+            let html = '<div class="transcript-grid">';
+            let lastChunkIndex = -1;
+            let cumulativeOffset = 0;
+            let segmentIndex = 0;
+
+            for (const segment of transcriptData.segments || []) {
+                // Check if we need a chunk marker
+                const chunkIndex = segment.chunkIndex || 0;
+                if (chunkIndex !== lastChunkIndex) {
+                    html += `<div class="chunk-marker">⏱️ Audio Chunk ${chunkIndex}</div>`;
+                    lastChunkIndex = chunkIndex;
+                }
+
+                // Calculate timestamp for this segment
+                const timestamp = formatTime(cumulativeOffset);
+
+                // Extract text from segment
+                let text = '';
+                if (segment.words && segment.words.length > 0) {
+                    // Use words if available
+                    text = segment.words.map(w => w.word).join(' ');
+                } else {
+                    // Fall back to segment text
+                    text = segment.text || '';
+                }
+
+                // Add speaker label if available
+                if (segment.speaker) {
+                    text = `<span class="speaker-label">${segment.speaker}</span>${text}`;
+                }
+
+                // Create row with 3 columns
+                html += `
+                    <div class="segment-row" data-segment-index="${segmentIndex}">
+                        <div class="timestamp-col">
+                            <a href="#" class="timestamp-link" onclick="playSegment(${segmentIndex}); return false;">
+                                ${timestamp}
+                            </a>
+                        </div>
+                        <div class="text-col" id="segment-text-${segmentIndex}">
+                            ${text}
+                        </div>
+                        <div class="actions-col">
+                            <button class="action-btn" onclick="copySegmentText(${segmentIndex})">Copy</button>
+                        </div>
+                    </div>
+                `;
+
+                // Update cumulative offset for next segment
+                cumulativeOffset += (segment.end || 0) - (segment.start || 0);
+                segmentIndex++;
+            }
+
+            html += '</div>';
+            editor.innerHTML = html || '<p>No transcript available.</p>';
+
+            // Initialize AudioManager
+            audioManager = new AudioManager();
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 100);
+            return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        // AudioManager class for loading and playing audio chunks
+        class AudioManager {
+            constructor() {
+                this.audioCache = new Map();
+                this.currentAudio = null;
+            }
+
+            async getChunkUrl(chunkIndex) {
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.webm`;
+
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkKey)}`);
+                    return downloadData.downloadUrl;
+                } catch (error) {
+                    console.error(`Failed to get URL for chunk ${chunkIndex}:`, error);
+                    return null;
+                }
+            }
+
+            async loadChunk(chunkIndex) {
+                // Check cache first
+                if (this.audioCache.has(chunkIndex)) {
+                    return this.audioCache.get(chunkIndex);
+                }
+
+                const url = await this.getChunkUrl(chunkIndex);
+                if (!url) {
+                    throw new Error(`Could not load audio chunk ${chunkIndex}`);
+                }
+
+                // Fetch and cache the audio blob
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} for chunk ${chunkIndex}`);
+                }
+
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                this.audioCache.set(chunkIndex, blobUrl);
+
+                return blobUrl;
+            }
+
+            async playSegment(segment, segmentIndex) {
+                try {
+                    // Stop current audio if playing
+                    if (this.currentAudio) {
+                        this.currentAudio.pause();
+                        this.currentAudio = null;
+                    }
+
+                    // Remove previous playing highlights
+                    document.querySelectorAll('.text-col').forEach(col => {
+                        col.classList.remove('playing');
+                    });
+
+                    // Highlight current segment
+                    const textCol = document.getElementById(`segment-text-${segmentIndex}`);
+                    if (textCol) {
+                        textCol.classList.add('playing');
+                    }
+
+                    // Load the audio chunk
+                    const chunkIndex = segment.chunkIndex || 0;
+                    const audioUrl = await this.loadChunk(chunkIndex);
+
+                    // Create and play audio
+                    const audio = new Audio(audioUrl);
+                    this.currentAudio = audio;
+
+                    // Set playback to segment timing
+                    audio.currentTime = segment.start || 0;
+                    const endTime = segment.end || (segment.start + 5);
+
+                    // Play until segment end
+                    audio.play();
+
+                    audio.ontimeupdate = () => {
+                        if (audio.currentTime >= endTime) {
+                            audio.pause();
+                            if (textCol) {
+                                textCol.classList.remove('playing');
+                            }
+                        }
+                    };
+
+                    audio.onended = () => {
+                        if (textCol) {
+                            textCol.classList.remove('playing');
+                        }
+                    };
+
+                    audio.onerror = (e) => {
+                        console.error('Audio playback error:', e);
+                        showToast('Audio playback failed', 'error');
+                        if (textCol) {
+                            textCol.classList.remove('playing');
+                        }
+                    };
+
+                } catch (error) {
+                    console.error('Error playing segment:', error);
+                    showToast(`Failed to play audio: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Play segment by index (called from timestamp links)
+        async function playSegment(segmentIndex) {
+            if (!audioManager || !transcriptData || !transcriptData.segments) {
+                console.error('Audio manager or transcript data not available');
+                return;
+            }
+
+            const segment = transcriptData.segments[segmentIndex];
+            if (!segment) {
+                console.error(`Segment ${segmentIndex} not found`);
+                return;
+            }
+
+            currentPlayingSegment = segmentIndex;
+            await audioManager.playSegment(segment, segmentIndex);
+        }
+
+        // Copy segment text to clipboard
+        function copySegmentText(segmentIndex) {
+            const textCol = document.getElementById(`segment-text-${segmentIndex}`);
+            if (!textCol) {
+                return;
+            }
+
+            // Get plain text (strips HTML tags like speaker labels)
+            const text = textCol.innerText || textCol.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Text copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+                showToast('Failed to copy text', 'error');
+            });
+        }
+
+        // Copy all transcript text to clipboard (without timestamps or buttons)
+        function copyAllText() {
+            if (!transcriptData || !transcriptData.segments || transcriptData.segments.length === 0) {
+                showToast('No transcript to copy', 'error');
+                return;
+            }
+
+            // Extract text from all segments
+            const allText = transcriptData.segments.map(segment => {
+                // Get text from words if available, otherwise use segment text
+                if (segment.words && segment.words.length > 0) {
+                    return segment.words.map(w => w.word).join(' ');
+                } else {
+                    return segment.text || '';
+                }
+            }).join('\n\n'); // Double newline between segments
+
+            navigator.clipboard.writeText(allText).then(() => {
+                const wordCount = allText.split(/\s+/).length;
+                showToast(`Copied ${transcriptData.segments.length} segments (${wordCount} words)`);
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+                showToast('Failed to copy text', 'error');
+            });
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function formatText(command) {
+            document.execCommand(command, false, null);
+        }
+
+        async function saveTranscript() {
+            try {
+                const editor = document.getElementById('editor');
+                const content = editor.innerHTML;
+
+                // Save updated content back to S3
+                // For now, we'll save it as a new file
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const editedKey = `users/${userId}/audio/sessions/${sessionFolder}/transcription-edited.html`;
+
+                // Create a blob and upload it
+                const blob = new Blob([content], { type: 'text/html' });
+
+                // Get upload URL
+                const uploadData = await apiCall('/api/s3/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        fileName: editedKey.split('/').pop(),
+                        contentType: 'text/html',
+                        fileSize: blob.size
+                    })
+                });
+
+                // Upload to S3
+                await fetch(uploadData.uploadUrl, {
+                    method: 'PUT',
+                    body: blob,
+                    headers: {
+                        'Content-Type': 'text/html'
+                    }
+                });
+
+                alert('Transcript saved successfully!');
+            } catch (error) {
+                console.error('Error saving transcript:', error);
+                alert('Failed to save transcript: ' + error.message);
+            }
+        }
+
+        function exportTranscript() {
+            const editor = document.getElementById('editor');
+            const content = editor.textContent;
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcript-${currentSession.folder}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+
+        function showEmptyState() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

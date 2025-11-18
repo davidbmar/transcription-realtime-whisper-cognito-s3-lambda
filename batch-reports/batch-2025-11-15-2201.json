@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-11-15T22:01:35Z",
+  "timestampEnd": "2025-11-15T22:59:51Z",
+  "status": "success",
+  "lockStatus": {
+    "locked": false
+  },
+  "scan": {
+    "sessionsScanned": 41,
+    "sessionsWithMissingChunks": 18,
+    "totalMissingChunks": 1494,
+    "durationSeconds": 0
+  },
+  "gpu": {
+    "wasRunning": true,
+    "weStartedIt": false,
+    "startTime": "null",
+    "stopTime": "null",
+    "runtimeSeconds": 0,
+    "costUSD": 0
+  },
+  "transcription": {
+    "chunksTranscribed": 1394,
+    "chunksFailed": 100
+  },
+  "performance": {
+    "totalDurationSeconds": 3496
+  }
+}
