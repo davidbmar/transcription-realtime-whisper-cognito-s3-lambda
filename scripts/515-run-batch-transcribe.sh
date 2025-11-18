@@ -903,9 +903,9 @@ generate_report() {
     local total_end=$(date +%s)
     local total_duration=$((total_end - SCAN_START))
 
-    # Calculate GPU cost
-    local gpu_runtime=0
-    local gpu_cost=0
+    # Calculate GPU cost (declare as global for use in summary)
+    gpu_runtime=0
+    gpu_cost=0
     if [ -n "$GPU_START_TIME" ] && [ -n "$GPU_STOP_TIME" ]; then
         local start_epoch=$(date -d "$GPU_START_TIME" +%s 2>/dev/null || date +%s)
         local stop_epoch=$(date -d "$GPU_STOP_TIME" +%s 2>/dev/null || date +%s)
