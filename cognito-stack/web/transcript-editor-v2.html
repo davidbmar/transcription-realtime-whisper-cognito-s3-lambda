@@ -421,20 +421,21 @@
 
         /* Word Highlighting */
         .word-highlight {
-            background: #fde047;
             padding: 2px 4px;
-            border-radius: 2px;
+            border-radius: 3px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background-color 0.15s, color 0.15s;
+            display: inline-block;
         }
 
         .word-highlight:hover {
-            background: #facc15;
+            background: #fef08a;
         }
 
         .word-highlight.playing {
-            background: #f59e0b;
-            color: white;
+            background: #fbbf24;
+            color: #78350f;
+            font-weight: 500;
         }
 
         /* Plugin Modal */
@@ -786,6 +787,12 @@
         let pluginManager = null;
         let audioCache = new Map();
 
+        // Audio playback state
+        let currentAudio = null;
+        let currentPlayingIndex = null;
+        let currentPlayButton = null;
+        let wordHighlightInterval = null;
+
         // Auth functions
         function getAuthToken() {
             return localStorage.getItem('id_token');
@@ -1112,7 +1119,7 @@
                     // Update option to show lightning bolt
                     const option = selector.options[index];
                     if (option) {
-                        const sessionDate = session.folder.replace('session_', '').replace(/-session_/g, ' ');
+                        const sessionDate = formatSessionName(session.folder, selectedTimezone);
                         option.textContent = `⚡ ${sessionDate}`;
                     }
                 } catch {
@@ -1256,7 +1263,12 @@
                 const number = document.createElement('div');
                 number.className = 'paragraph-number';
                 number.textContent = index + 1;
-                number.onclick = () => playParagraph(index);
+                number.onclick = () => {
+                    const audioBtn = document.querySelector(`button.audio-btn[data-para-index="${index}"]`);
+                    if (audioBtn) {
+                        togglePlayPause(index, audioBtn);
+                    }
+                };
 
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
@@ -1277,7 +1289,16 @@
                 const audioBtn = document.createElement('button');
                 audioBtn.className = 'audio-btn';
                 audioBtn.textContent = '▶ Play';
-                audioBtn.onclick = () => playParagraph(index);
+                audioBtn.setAttribute('data-para-index', index);
+
+                // Single click: toggle play/pause
+                audioBtn.onclick = () => togglePlayPause(index, audioBtn);
+
+                // Double click: stop playback
+                audioBtn.ondblclick = () => {
+                    stopAudio();
+                    audioBtn.textContent = '▶ Play';
+                };
 
                 // Chunk badges
                 const chunkMeta = document.createElement('div');
@@ -1316,8 +1337,57 @@
             });
         }
 
-        // Play paragraph audio
-        async function playParagraph(index) {
+        // Toggle play/pause
+        async function togglePlayPause(index, button) {
+            // If already playing this paragraph, pause it
+            if (currentAudio && currentPlayingIndex === index) {
+                if (currentAudio.paused) {
+                    currentAudio.play();
+                    button.textContent = '⏸ Pause';
+                } else {
+                    currentAudio.pause();
+                    button.textContent = '▶ Play';
+                }
+                return;
+            }
+
+            // Stop any currently playing audio
+            if (currentAudio) {
+                stopAudio();
+            }
+
+            // Start playing this paragraph
+            await playParagraph(index, button);
+        }
+
+        // Stop audio playback
+        function stopAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+
+            if (wordHighlightInterval) {
+                clearInterval(wordHighlightInterval);
+                wordHighlightInterval = null;
+            }
+
+            // Clear highlighting
+            document.querySelectorAll('.paragraph-text').forEach(el => el.classList.remove('playing'));
+            document.querySelectorAll('.word-highlight').forEach(el => el.classList.remove('playing'));
+
+            // Reset button
+            if (currentPlayButton) {
+                currentPlayButton.textContent = '▶ Play';
+                currentPlayButton = null;
+            }
+
+            currentPlayingIndex = null;
+        }
+
+        // Play paragraph audio with word-level highlighting
+        async function playParagraph(index, button) {
             const para = processedData.paragraphs[index];
             const firstChunkId = para.chunkIds[0];
             const chunkIndex = parseInt(firstChunkId.match(/chunk-(\d+)/)?.[1] || '0');
@@ -1327,24 +1397,103 @@
                 const audioUrl = await getChunkUrl(chunkIndex);
                 const audio = new Audio(audioUrl);
 
+                currentAudio = audio;
+                currentPlayingIndex = index;
+                currentPlayButton = button;
+
                 // Highlight paragraph
                 document.querySelectorAll('.paragraph-text').forEach(el => el.classList.remove('playing'));
-                document.querySelector(`[data-para-index="${index}"]`).classList.add('playing');
+                const paraText = document.querySelector(`[data-para-index="${index}"]`);
+                paraText.classList.add('playing');
+
+                // Wrap words in spans with timing data
+                wrapWordsWithTimestamps(paraText, para);
 
                 // Play segment
                 audio.currentTime = para.start;
-                audio.play();
+                await audio.play();
+                button.textContent = '⏸ Pause';
+
+                // Update word highlighting as audio plays
+                wordHighlightInterval = setInterval(() => {
+                    if (!audio.paused) {
+                        highlightCurrentWord(paraText, para, audio.currentTime);
+                    }
+                }, 50); // Update every 50ms for smooth highlighting
+
+                audio.onended = () => {
+                    stopAudio();
+                    button.textContent = '▶ Play';
+                };
 
                 audio.ontimeupdate = () => {
                     if (audio.currentTime >= para.end) {
-                        audio.pause();
-                        document.querySelector(`[data-para-index="${index}"]`).classList.remove('playing');
+                        stopAudio();
+                        button.textContent = '▶ Play';
                     }
                 };
+
+                audio.onpause = () => {
+                    if (currentPlayButton === button) {
+                        button.textContent = '▶ Play';
+                    }
+                };
+
+                audio.onplay = () => {
+                    if (currentPlayButton === button) {
+                        button.textContent = '⏸ Pause';
+                    }
+                };
+
             } catch (error) {
                 console.error('Audio playback error:', error);
                 showToast('Failed to play audio', 'error');
+                stopAudio();
+                button.textContent = '▶ Play';
             }
+        }
+
+        // Wrap words in spans with timing data
+        function wrapWordsWithTimestamps(paraText, para) {
+            // Build word-level timing map from segments
+            const wordTimings = [];
+            para.segments.forEach(segment => {
+                const words = segment.text.trim().split(/\s+/);
+                const segmentDuration = segment.end - segment.start;
+                const avgWordDuration = segmentDuration / words.length;
+
+                words.forEach((word, i) => {
+                    const wordStart = segment.start + (i * avgWordDuration);
+                    const wordEnd = wordStart + avgWordDuration;
+                    wordTimings.push({
+                        word: word,
+                        start: wordStart,
+                        end: wordEnd
+                    });
+                });
+            });
+
+            // Wrap each word in a span
+            const html = wordTimings.map((wt, i) => {
+                return `<span class="word-highlight" data-word-index="${i}" data-word-start="${wt.start}" data-word-end="${wt.end}">${wt.word}</span>`;
+            }).join(' ');
+
+            paraText.innerHTML = html;
+        }
+
+        // Highlight the current word being spoken
+        function highlightCurrentWord(paraText, para, currentTime) {
+            const words = paraText.querySelectorAll('.word-highlight');
+            words.forEach(word => {
+                const start = parseFloat(word.dataset.wordStart);
+                const end = parseFloat(word.dataset.wordEnd);
+
+                if (currentTime >= start && currentTime < end) {
+                    word.classList.add('playing');
+                } else {
+                    word.classList.remove('playing');
+                }
+            });
         }
 
         // Get chunk URL
