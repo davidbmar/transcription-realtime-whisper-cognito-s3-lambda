@@ -85,13 +85,15 @@ has_processed_file() {
 # Count transcription chunks in session
 count_chunks() {
     local session_folder="$1"
-    aws s3 ls "s3://$BUCKET/${session_folder}/" | grep -c "transcription-chunk-.*\.json" || echo "0"
+    local count=$(aws s3 ls "s3://$BUCKET/${session_folder}/" 2>/dev/null | grep -c "transcription-chunk-.*\.json" || echo "0")
+    echo "$count" | tr -d '\n'
 }
 
 # Count audio chunks in session
 count_audio_chunks() {
     local session_folder="$1"
-    aws s3 ls "s3://$BUCKET/${session_folder}/" | grep -c "chunk-.*\.webm" || echo "0"
+    local count=$(aws s3 ls "s3://$BUCKET/${session_folder}/" 2>/dev/null | grep -c "chunk-.*\.webm" || echo "0")
+    echo "$count" | tr -d '\n'
 }
 
 # Get metadata from processed file (chunk count)
