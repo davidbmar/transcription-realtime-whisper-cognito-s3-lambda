@@ -883,7 +883,33 @@
                 console.log('User ID:', userId);
                 console.log('Session folder:', sessionFolder);
 
-                // List all transcription chunk files
+                // FAST PATH: Try to load pre-processed file first
+                console.log('Checking for pre-processed transcript...');
+                const processedKey = `audio/sessions/${sessionFolder}/transcription-processed.json`;
+
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        console.log('✅ Found pre-processed transcript - loading instantly!');
+                        processedData = await response.json();
+
+                        // Render
+                        renderEditor();
+
+                        // Hide loading, show content
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('main-container').style.display = 'grid';
+
+                        showToast(`Loaded ${processedData.paragraphs.length} paragraphs (pre-processed)`);
+                        return; // Done! Exit early
+                    }
+                } catch (preprocessError) {
+                    console.log('Pre-processed file not found, falling back to chunk loading...');
+                }
+
+                // FALLBACK PATH: Load individual chunks (slower, but works for in-progress transcriptions)
                 console.log('Listing transcription chunk files...');
                 const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
 
@@ -902,25 +928,28 @@
                     throw new Error('No transcription files found');
                 }
 
-                // Load all chunks
-                console.log('Loading chunk data...');
-                const chunks = [];
-                for (const chunkFile of chunkFiles) {
+                // Load all chunks IN PARALLEL (much faster than sequential)
+                console.log('Loading chunk data in parallel...');
+                const chunkPromises = chunkFiles.map(async (chunkFile) => {
                     const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkFile.key)}`);
                     const response = await fetch(downloadData.downloadUrl);
 
                     if (response.ok) {
                         const chunkData = await response.json();
                         const chunkNum = parseInt(chunkFile.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
-                        chunks.push({
+                        return {
                             chunkIndex: chunkNum,
                             chunkId: `chunk-${String(chunkNum).padStart(3, '0')}`,
                             ...chunkData
-                        });
+                        };
                     }
-                }
+                    return null;
+                });
+
+                const chunks = (await Promise.all(chunkPromises)).filter(c => c !== null);
 
                 // Process with preprocessor
+                console.log('Processing chunks with boundary deduplication...');
                 processedData = preprocessor.process(chunks);
 
                 // Render
@@ -930,7 +959,7 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('main-container').style.display = 'grid';
 
-                showToast(`Processed ${processedData.paragraphs.length} paragraphs from ${chunks.length} chunks`);
+                showToast(`Processed ${processedData.paragraphs.length} paragraphs from ${chunks.length} chunks (slower fallback - run 518 script to speed up)`);
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 showToast('Failed to load transcript: ' + error.message, 'error');

@@ -1097,6 +1097,21 @@ fi
 generate_report "success" $GPU_WAS_RUNNING "$MISSING_COUNT"
 echo ""
 
+# Step 7: Generate pre-processed transcripts for fast editor loading
+log_info "==================================================================="
+log_info "Step 7: Generating pre-processed transcripts"
+log_info "==================================================================="
+echo ""
+
+# Run 518 to scan and preprocess any complete sessions
+if [ -f "$PROJECT_ROOT/scripts/518-scan-and-preprocess-transcripts.sh" ]; then
+    "$PROJECT_ROOT/scripts/518-scan-and-preprocess-transcripts.sh"
+else
+    log_warn "518-scan-and-preprocess-transcripts.sh not found - skipping preprocessing"
+fi
+
+echo ""
+
 # ============================================================================
 # Success Reporting
 # ============================================================================
