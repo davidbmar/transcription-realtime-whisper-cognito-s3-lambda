@@ -580,6 +580,23 @@
                 Collaborative Transcript Editor
             </div>
             <div class="header-actions">
+                <select id="timezone-selector" style="padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer; margin-right: 12px;">
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern (ET)</option>
+                    <option value="America/Chicago">Central (CT)</option>
+                    <option value="America/Denver">Mountain (MT)</option>
+                    <option value="America/Los_Angeles">Pacific (PT)</option>
+                    <option value="America/Phoenix">Arizona (MST)</option>
+                    <option value="America/Anchorage">Alaska (AKT)</option>
+                    <option value="Pacific/Honolulu">Hawaii (HST)</option>
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET)</option>
+                    <option value="Europe/Berlin">Berlin (CET)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Australia/Sydney">Sydney (AEDT)</option>
+                </select>
                 <span id="user-email" style="color: var(--gray-600); font-size: 14px;"></span>
                 <button class="btn" onclick="window.location.href='index.html'">Back to Dashboard</button>
                 <button class="btn" id="logout-btn">Logout</button>
@@ -597,6 +614,14 @@
     <div id="main-container" class="main-container" style="display: none;">
         <!-- Sidebar -->
         <div class="sidebar">
+            <!-- Session Selector -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Session</div>
+                <select id="session-selector" style="width: 100%; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+                    <option value="">Loading sessions...</option>
+                </select>
+            </div>
+
             <!-- Stats -->
             <div class="sidebar-section">
                 <div class="sidebar-title">Statistics</div>
@@ -850,8 +875,110 @@
 
             pluginManager = new UIPluginManager();
 
+            // Setup timezone selector
+            setupTimezoneSelector();
+
             await loadLatestSession();
         });
+
+        // Setup timezone selector with auto-detection
+        function setupTimezoneSelector() {
+            const selector = document.getElementById('timezone-selector');
+
+            // Try to auto-detect user's timezone
+            try {
+                const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                console.log('Detected user timezone:', userTimezone);
+
+                // Check if detected timezone is in our list
+                const option = Array.from(selector.options).find(opt => opt.value === userTimezone);
+                if (option) {
+                    selector.value = userTimezone;
+                    selectedTimezone = userTimezone;
+                    console.log('Set timezone to detected:', userTimezone);
+                } else {
+                    // Default to UTC
+                    selectedTimezone = 'UTC';
+                }
+            } catch (e) {
+                console.error('Failed to detect timezone:', e);
+                selectedTimezone = 'UTC';
+            }
+
+            // Add change handler
+            selector.onchange = (e) => {
+                selectedTimezone = e.target.value;
+                console.log('Timezone changed to:', selectedTimezone);
+
+                // Update session selector display names
+                populateSessionSelector();
+
+                showToast(`Timezone changed to ${selectedTimezone}`, 'success');
+            };
+        }
+
+        // Store all sessions
+        let allSessions = [];
+        let selectedTimezone = 'UTC'; // Default timezone
+
+        // Parse session folder timestamp
+        // Formats: session_YYYY-MM-DDTHH_MM_SS_MMMZ (new)
+        //      or: YYYY-MM-DD-session_YYYY-MM-DDTHH_MM_SS_MMMZ (legacy)
+        function parseSessionTimestamp(folderName) {
+            try {
+                // Extract timestamp from folder name
+                const match = folderName.match(/session_(\d{4})-(\d{2})-(\d{2})T(\d{2})_(\d{2})_(\d{2})_(\d{3})Z/);
+                if (!match) return null;
+
+                const [, year, month, day, hour, minute, second, ms] = match;
+                // Create UTC date string
+                const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}.${ms}Z`;
+                return new Date(isoString);
+            } catch (e) {
+                console.error('Failed to parse session timestamp:', folderName, e);
+                return null;
+            }
+        }
+
+        // Format session display name with timezone conversion
+        function formatSessionName(folderName, timezone) {
+            const date = parseSessionTimestamp(folderName);
+            if (!date) {
+                // Fallback to original format
+                return folderName.replace('session_', '').replace(/-session_/g, ' ');
+            }
+
+            try {
+                // Create a more readable format: "Nov 18, 2025 8:35 PM PST"
+                const dateOptions = {
+                    timeZone: timezone,
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                };
+
+                const timeOptions = {
+                    timeZone: timezone,
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                };
+
+                const datePart = new Intl.DateTimeFormat('en-US', dateOptions).format(date);
+                const timePart = new Intl.DateTimeFormat('en-US', timeOptions).format(date);
+
+                // Get timezone abbreviation
+                const tzAbbr = timezone === 'UTC' ? 'UTC' :
+                              new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'short' })
+                                .formatToParts(date)
+                                .find(part => part.type === 'timeZoneName')?.value || '';
+
+                return `${datePart} ${timePart} ${tzAbbr}`;
+            } catch (e) {
+                console.error('Failed to format session name:', e);
+                return folderName.replace('session_', '').replace(/-session_/g, ' ');
+            }
+        }
 
         // Load latest session
         async function loadLatestSession() {
@@ -865,12 +992,132 @@
                     return;
                 }
 
-                currentSession = data.sessions[0];
+                // Filter sessions to only include those with transcriptions
+                console.log('Filtering sessions with transcriptions...');
+                const userId = getUserId();
+                const sessionsWithTranscripts = await filterSessionsWithTranscripts(data.sessions, userId);
+
+                console.log('Sessions with transcripts:', sessionsWithTranscripts.length);
+
+                if (sessionsWithTranscripts.length === 0) {
+                    // Show empty state
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'grid';
+
+                    const editorContent = document.querySelector('.editor-content');
+                    editorContent.innerHTML = `
+                        <div style="text-align: center; padding: 64px 32px; color: var(--gray-500);">
+                            <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+                            <h2 style="color: var(--gray-700); margin-bottom: 8px;">No Transcriptions Available</h2>
+                            <p>None of your sessions have been transcribed yet.</p>
+                            <p style="margin-top: 16px;">Run batch transcription to generate transcripts.</p>
+                        </div>
+                    `;
+                    showToast('No transcribed sessions found', 'error');
+                    return;
+                }
+
+                // Store filtered sessions and populate dropdown
+                allSessions = sessionsWithTranscripts;
+                populateSessionSelector();
+
+                // Load the first session
+                currentSession = sessionsWithTranscripts[0];
                 console.log('Current session:', currentSession);
                 await loadAndProcessTranscript();
             } catch (error) {
                 console.error('Error loading session:', error);
                 showToast('Failed to load session: ' + error.message, 'error');
+            }
+        }
+
+        // Filter sessions to only include those with transcription files
+        async function filterSessionsWithTranscripts(sessions, userId) {
+            const checks = await Promise.all(
+                sessions.map(async (session) => {
+                    try {
+                        const sessionPath = `users/${userId}/audio/sessions/${session.folder}`;
+
+                        // Check for preprocessed file first (fastest)
+                        try {
+                            const processedKey = `${sessionPath}/transcription-processed.json`;
+                            await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+                            return { session, hasTranscript: true };
+                        } catch {
+                            // No preprocessed file, check for individual chunks
+                            const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${session.folder}/&userScope=true`);
+                            const hasChunks = listResponse.files.some(f =>
+                                f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json')
+                            );
+                            return { session, hasTranscript: hasChunks };
+                        }
+                    } catch {
+                        return { session, hasTranscript: false };
+                    }
+                })
+            );
+
+            return checks
+                .filter(result => result.hasTranscript)
+                .map(result => result.session);
+        }
+
+        // Populate session selector dropdown
+        function populateSessionSelector() {
+            const selector = document.getElementById('session-selector');
+            selector.innerHTML = '';
+
+            allSessions.forEach((session, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+
+                // Format session display name with timezone conversion
+                option.textContent = formatSessionName(session.folder, selectedTimezone);
+
+                selector.appendChild(option);
+            });
+
+            // Add change handler
+            selector.onchange = async (e) => {
+                const selectedIndex = parseInt(e.target.value);
+                if (selectedIndex >= 0 && selectedIndex < allSessions.length) {
+                    currentSession = allSessions[selectedIndex];
+                    console.log('Switched to session:', currentSession);
+
+                    // Show loading state
+                    document.getElementById('loading').style.display = 'flex';
+                    document.getElementById('main-container').style.display = 'none';
+
+                    // Load new session
+                    await loadAndProcessTranscript();
+                }
+            };
+
+            // Check for preprocessed files in background (non-blocking)
+            checkPreprocessedFiles();
+        }
+
+        // Check which sessions have preprocessed files (runs in background)
+        async function checkPreprocessedFiles() {
+            const userId = getUserId();
+            const selector = document.getElementById('session-selector');
+
+            for (let index = 0; index < allSessions.length; index++) {
+                const session = allSessions[index];
+                try {
+                    const sessionPath = `users/${userId}/audio/sessions/${session.folder}`;
+                    const processedKey = `${sessionPath}/transcription-processed.json`;
+                    await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+
+                    // Update option to show lightning bolt
+                    const option = selector.options[index];
+                    if (option) {
+                        const sessionDate = session.folder.replace('session_', '').replace(/-session_/g, ' ');
+                        option.textContent = `⚡ ${sessionDate}`;
+                    }
+                } catch {
+                    // No preprocessed file, keep as-is
+                }
             }
         }
 
@@ -883,9 +1130,13 @@
                 console.log('User ID:', userId);
                 console.log('Session folder:', sessionFolder);
 
+                // Construct full S3 path
+                const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
+                console.log('Full session path:', sessionPath);
+
                 // FAST PATH: Try to load pre-processed file first
                 console.log('Checking for pre-processed transcript...');
-                const processedKey = `audio/sessions/${sessionFolder}/transcription-processed.json`;
+                const processedKey = `${sessionPath}/transcription-processed.json`;
 
                 try {
                     const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
@@ -925,7 +1176,26 @@
                 console.log('Chunk files:', chunkFiles.map(f => f.displayKey).join(', '));
 
                 if (chunkFiles.length === 0) {
-                    throw new Error('No transcription files found');
+                    // No transcription files - show empty state
+                    console.log('No transcription files found - showing empty state');
+
+                    // Show main container so user can select different session
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'grid';
+
+                    // Show message in editor area
+                    const editorContent = document.querySelector('.editor-content');
+                    editorContent.innerHTML = `
+                        <div style="text-align: center; padding: 64px 32px; color: var(--gray-500);">
+                            <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+                            <h2 style="color: var(--gray-700); margin-bottom: 8px;">No Transcription Available</h2>
+                            <p>This session hasn't been transcribed yet.</p>
+                            <p style="margin-top: 16px;">Select a different session from the dropdown above, or run batch transcription.</p>
+                        </div>
+                    `;
+
+                    showToast('No transcription files found for this session', 'error');
+                    return;
                 }
 
                 // Load all chunks IN PARALLEL (much faster than sequential)

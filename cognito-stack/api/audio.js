@@ -80,12 +80,11 @@ module.exports.uploadChunk = async (event) => {
       };
     }
 
-    // Create timestamp-based session folder
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    // Build S3 path - sessionId already contains timestamp
     const paddedChunkNumber = chunkNumber.toString().padStart(3, '0');
-    
+
     // Build S3 key with user isolation
-    const s3Key = `users/${userId}/audio/sessions/${timestamp}-${sanitizedSessionId}/chunk-${paddedChunkNumber}.webm`;
+    const s3Key = `users/${userId}/audio/sessions/${sanitizedSessionId}/chunk-${paddedChunkNumber}.webm`;
     
     console.log(`Generating upload URL for chunk ${chunkNumber} of session ${sanitizedSessionId}`);
 
@@ -165,10 +164,9 @@ module.exports.updateSessionMetadata = async (event) => {
 
     // Sanitize session ID
     const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
-    const timestamp = new Date().toISOString().split('T')[0];
-    
-    // Build metadata S3 key
-    const metadataKey = `users/${userId}/audio/sessions/${timestamp}-${sanitizedSessionId}/metadata.json`;
+
+    // Build metadata S3 key - sessionId already contains timestamp
+    const metadataKey = `users/${userId}/audio/sessions/${sanitizedSessionId}/metadata.json`;
     
     // Prepare metadata object with additional fields for future consciousness features
     const fullMetadata = {
@@ -369,8 +367,8 @@ module.exports.getFailedChunks = async (event) => {
     
     const bucketName = process.env.S3_BUCKET_NAME;
     const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
-    const timestamp = new Date().toISOString().split('T')[0];
-    const prefix = `users/${userId}/audio/sessions/${timestamp}-${sanitizedSessionId}/`;
+    // sessionId already contains timestamp
+    const prefix = `users/${userId}/audio/sessions/${sanitizedSessionId}/`;
     
     // List existing chunks
     const s3Response = await s3.listObjectsV2({
@@ -486,11 +484,10 @@ module.exports.deleteChunk = async (event) => {
 
     // Sanitize session ID
     const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
-    const timestamp = new Date().toISOString().split('T')[0];
     const paddedChunkNumber = chunkNumber.toString().padStart(3, '0');
 
-    // Build S3 key with user isolation
-    const s3Key = `users/${userId}/audio/sessions/${timestamp}-${sanitizedSessionId}/chunk-${paddedChunkNumber}.webm`;
+    // Build S3 key with user isolation - sessionId already contains timestamp
+    const s3Key = `users/${userId}/audio/sessions/${sanitizedSessionId}/chunk-${paddedChunkNumber}.webm`;
 
     console.log(`Deleting chunk ${chunkNumber} from ${s3Key}`);
 
