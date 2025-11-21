@@ -54,6 +54,7 @@ PROCESSED_COUNT=0
 SKIPPED_COUNT=0
 ALREADY_PROCESSED_COUNT=0
 INCOMPLETE_COUNT=0
+INVALIDATED_COUNT=0
 
 # Check prerequisites
 if ! command -v node &> /dev/null; then
@@ -93,19 +94,44 @@ count_audio_chunks() {
     aws s3 ls "s3://$BUCKET/${session_folder}/" | grep -c "chunk-.*\.webm" || echo "0"
 }
 
+# Get metadata from processed file (chunk count)
+get_processed_chunk_count() {
+    local session_folder="$1"
+    local metadata=$(aws s3api head-object \
+        --bucket "$BUCKET" \
+        --key "${session_folder}/transcription-processed.json" \
+        2>/dev/null || echo "{}")
+
+    # Try to extract paragraph-count from metadata
+    echo "$metadata" | jq -r '.Metadata["paragraph-count"] // "0"' 2>/dev/null || echo "0"
+}
+
+# Check if processed file is stale (more chunks exist than when it was generated)
+is_processed_stale() {
+    local session_folder="$1"
+    local trans_count="$2"
+
+    # Download the processed file and check how many chunks it represents
+    local temp_file=$(mktemp)
+    if aws s3 cp "s3://$BUCKET/${session_folder}/transcription-processed.json" "$temp_file" &>/dev/null; then
+        # Count unique chunkIds in the processed file
+        local processed_chunks=$(jq -r '[.paragraphs[].chunkIds[]] | unique | length' "$temp_file" 2>/dev/null || echo "0")
+        rm -f "$temp_file"
+
+        if [ "$trans_count" -gt "$processed_chunks" ]; then
+            return 0  # Stale (more chunks now than when processed)
+        fi
+    fi
+
+    return 1  # Not stale
+}
+
 # Process a single session
 process_session() {
     local session_folder="$1"
     local session_name=$(basename "$session_folder")
 
     log_info "Checking session: $session_name"
-
-    # Check if already processed
-    if has_processed_file "$session_folder"; then
-        log_info "  ✓ Already has transcription-processed.json"
-        ALREADY_PROCESSED_COUNT=$((ALREADY_PROCESSED_COUNT + 1))
-        return 0
-    fi
 
     # Count chunks
     local trans_count=$(count_chunks "$session_folder")
@@ -114,22 +140,57 @@ process_session() {
     log_info "  Audio chunks: $audio_count"
     log_info "  Transcription chunks: $trans_count"
 
-    # Check if transcription is complete
+    # CASE 1: No transcription chunks at all (not transcribed yet)
     if [ "$trans_count" -eq 0 ]; then
         log_warn "  ⚠️  No transcription chunks found - skipping"
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
         return 0
     fi
 
+    # CASE 2: Transcription in progress (audio > transcription)
     if [ "$audio_count" -gt "$trans_count" ]; then
         local missing=$((audio_count - trans_count))
-        log_warn "  ⚠️  Incomplete: $missing chunks still need transcription - skipping"
-        INCOMPLETE_COUNT=$((INCOMPLETE_COUNT + 1))
+
+        # Check if processed file exists
+        if has_processed_file "$session_folder"; then
+            log_warn "  ⚠️  STALE: Processed file exists but $missing new chunks transcribed since then"
+            log_warn "  🗑️  Deleting old transcription-processed.json to trigger regeneration"
+
+            # Delete the stale processed file
+            aws s3 rm "s3://$BUCKET/${session_folder}/transcription-processed.json" 2>&1 | sed 's/^/    /'
+
+            log_warn "  ⏳ Waiting for remaining $missing chunks to be transcribed"
+            INVALIDATED_COUNT=$((INVALIDATED_COUNT + 1))
+        else
+            log_warn "  ⏳ Incomplete: $missing chunks still need transcription - skipping"
+            INCOMPLETE_COUNT=$((INCOMPLETE_COUNT + 1))
+        fi
         return 0
     fi
 
-    # Transcription is complete, generate pre-processed file
-    log_info "  ✅ Complete! Generating pre-processed file..."
+    # CASE 3: Transcription complete, processed file exists, and is up-to-date
+    if has_processed_file "$session_folder"; then
+        # Check if the processed file is stale (new chunks added after it was created)
+        if is_processed_stale "$session_folder" "$trans_count"; then
+            log_warn "  ⚠️  STALE: Processed file exists but new chunks were added"
+            log_warn "  🗑️  Deleting old transcription-processed.json"
+
+            # Delete the stale processed file
+            aws s3 rm "s3://$BUCKET/${session_folder}/transcription-processed.json" 2>&1 | sed 's/^/    /'
+
+            log_info "  🔄 Regenerating with all $trans_count chunks..."
+            INVALIDATED_COUNT=$((INVALIDATED_COUNT + 1))
+
+            # Fall through to regeneration below
+        else
+            log_info "  ✅ Already has up-to-date transcription-processed.json"
+            ALREADY_PROCESSED_COUNT=$((ALREADY_PROCESSED_COUNT + 1))
+            return 0
+        fi
+    fi
+
+    # CASE 4: Transcription complete, no processed file (or stale file was deleted above)
+    log_info "  ✅ Complete! Generating pre-processed file with $trans_count chunks..."
 
     if node "$PROJECT_ROOT/scripts/517-preprocess-transcript.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Pre-processed successfully"
@@ -192,8 +253,9 @@ log_info "==================================================================="
 echo ""
 log_info "Summary:"
 log_info "  Total sessions scanned: $SESSION_COUNT"
-log_info "  Already processed: $ALREADY_PROCESSED_COUNT"
+log_info "  Already processed (up-to-date): $ALREADY_PROCESSED_COUNT"
 log_info "  Newly processed: $PROCESSED_COUNT"
+log_info "  Invalidated (stale, deleted): $INVALIDATED_COUNT"
 log_info "  Incomplete (in progress): $INCOMPLETE_COUNT"
 log_info "  Skipped (no transcriptions): $SKIPPED_COUNT"
 echo ""
@@ -201,6 +263,11 @@ echo ""
 if [ $PROCESSED_COUNT -gt 0 ]; then
     log_success "✅ Generated $PROCESSED_COUNT new pre-processed transcripts"
     log_info "   These sessions will now load in ~500ms instead of ~5 seconds"
+fi
+
+if [ $INVALIDATED_COUNT -gt 0 ]; then
+    log_warn "⚠️  Invalidated $INVALIDATED_COUNT stale pre-processed files"
+    log_info "   Run this script again after batch transcription completes to regenerate"
 fi
 
 if [ $INCOMPLETE_COUNT -gt 0 ]; then
