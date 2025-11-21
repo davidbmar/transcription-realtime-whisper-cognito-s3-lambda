@@ -26,7 +26,6 @@
 const fs = require('fs');
 const path = require('path');
 const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { fromEnv } = require('@aws-sdk/credential-providers');
 
 // Load environment
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -35,9 +34,10 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const TranscriptPreprocessorBoundary = require('../ui-source/transcript-preprocessor-boundary.js');
 
 // AWS SDK v3 setup
+// Use default credential chain (env vars, ~/.aws/credentials, EC2 instance profile, etc.)
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-2',
-  credentials: fromEnv()
+  region: process.env.AWS_REGION || 'us-east-2'
+  // credentials will be auto-discovered from environment
 });
 
 const BUCKET = process.env.COGNITO_S3_BUCKET;

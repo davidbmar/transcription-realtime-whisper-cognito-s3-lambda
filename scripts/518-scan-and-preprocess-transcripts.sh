@@ -215,17 +215,17 @@ if [ "${1:-}" = "--session" ] && [ -n "${2:-}" ]; then
 fi
 
 # Scan all sessions
-log_info "Scanning all audio sessions in s3://$BUCKET/audio-sessions/"
+log_info "Scanning all audio sessions in s3://$BUCKET/users/"
 echo ""
 
-# List all session folders (format: audio-sessions/{userId}/{sessionId}/)
-SESSION_FOLDERS=$(aws s3 ls "s3://$BUCKET/audio-sessions/" --recursive | \
+# List all session folders (format: users/{userId}/audio/sessions/{sessionId}/)
+SESSION_FOLDERS=$(aws s3 ls "s3://$BUCKET/users/" --recursive | \
     grep "chunk-.*\.webm" | \
     awk '{print $4}' | \
     sed 's|/chunk-.*||' | \
     sort -u)
 
-SESSION_COUNT=$(echo "$SESSION_FOLDERS" | grep -c "audio-sessions" || echo "0")
+SESSION_COUNT=$(echo "$SESSION_FOLDERS" | grep -c "users/" || echo "0")
 
 if [ "$SESSION_COUNT" -eq 0 ]; then
     log_warn "No audio sessions found"
@@ -277,6 +277,6 @@ fi
 
 echo ""
 log_info "Next steps:"
-log_info "  - View sessions: aws s3 ls s3://$BUCKET/audio-sessions/ --recursive | grep transcription-processed.json"
+log_info "  - View sessions: aws s3 ls s3://$BUCKET/users/ --recursive | grep transcription-processed.json"
 log_info "  - Test editor: Open transcript-editor-v2.html and verify fast loading"
 log_info "  - Schedule: Add to cron to run after batch transcription"
