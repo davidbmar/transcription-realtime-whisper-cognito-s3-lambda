@@ -147,19 +147,33 @@ class TranscriptPreprocessorBoundary {
    * Create one paragraph per chunk
    */
   createParagraphs(chunkGroups) {
+    // Calculate cumulative time offset for each chunk
+    // This handles variable chunk durations (e.g., 5s, 30s, 2min, etc.)
+    let cumulativeTime = 0;
+
     return chunkGroups.map((chunk, index) => {
-      return {
+      // Store the current cumulative time as the offset for this chunk
+      const timeOffset = cumulativeTime;
+
+      // Create paragraph with absolute timestamps
+      const paragraph = {
         id: `para-${chunk.chunkId}`,
         text: chunk.words.map(w => w.word).join(' ').trim(),
         words: chunk.words,
         segments: chunk.segments,
         chunkIds: [chunk.chunkId],
         chunkIndex: chunk.chunkIndex,
-        start: chunk.start,
-        end: chunk.end,
+        start: chunk.start + timeOffset,  // Add offset to make absolute time
+        end: chunk.end + timeOffset,      // Add offset to make absolute time
         duration: chunk.end - chunk.start,
         wordCount: chunk.words.length
       };
+
+      // Update cumulative time for next chunk
+      // Use the actual chunk duration (end - start) to handle variable chunk sizes
+      cumulativeTime += chunk.end - chunk.start;
+
+      return paragraph;
     });
   }
 
