@@ -240,6 +240,55 @@
             box-shadow: 0 0 0 3px var(--primary-light);
         }
 
+        /* Dropdown Menu */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 180px;
+            z-index: 1000;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            border: none;
+            background: white;
+            text-align: left;
+            font-size: 14px;
+            color: var(--gray-700);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .dropdown-item:first-child {
+            border-radius: 6px 6px 0 0;
+        }
+
+        .dropdown-item:last-child {
+            border-radius: 0 0 6px 6px;
+        }
+
+        .dropdown-item:hover {
+            background: var(--gray-100);
+        }
+
         /* Editor Content */
         .editor-content {
             padding: 32px;
@@ -725,6 +774,28 @@
 
                 <div class="search-box">
                     <input type="text" class="search-input" id="quick-search" placeholder="Quick search..." onkeyup="quickSearch(this.value)">
+                </div>
+
+                <div class="toolbar-group">
+                    <div class="dropdown">
+                        <button class="toolbar-btn" onclick="toggleDownloadMenu()">
+                            ⬇️ Download
+                        </button>
+                        <div class="dropdown-menu" id="download-menu">
+                            <button class="dropdown-item" onclick="downloadTranscript('markdown')">
+                                📝 Markdown (.md)
+                            </button>
+                            <button class="dropdown-item" onclick="downloadTranscript('text')">
+                                📄 Plain Text (.txt)
+                            </button>
+                            <button class="dropdown-item" onclick="downloadTranscript('json')">
+                                📊 JSON (.json)
+                            </button>
+                        </div>
+                    </div>
+                    <button class="toolbar-btn" onclick="copyAsMarkdown()">
+                        📋 Copy MD
+                    </button>
                 </div>
 
                 <button class="toolbar-btn" onclick="copyAllText()">
@@ -1608,6 +1679,129 @@
             }).catch(err => {
                 showToast('Failed to copy text', 'error');
             });
+        }
+
+        // Toggle download menu
+        function toggleDownloadMenu() {
+            const menu = document.getElementById('download-menu');
+            menu.classList.toggle('show');
+
+            // Close dropdown when clicking outside
+            if (menu.classList.contains('show')) {
+                setTimeout(() => {
+                    document.addEventListener('click', closeDropdownOnOutsideClick);
+                }, 0);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        function closeDropdownOnOutsideClick(e) {
+            const menu = document.getElementById('download-menu');
+            const dropdown = menu.closest('.dropdown');
+
+            if (!dropdown.contains(e.target)) {
+                menu.classList.remove('show');
+                document.removeEventListener('click', closeDropdownOnOutsideClick);
+            }
+        }
+
+        // Copy as markdown
+        function copyAsMarkdown() {
+            const markdown = generateMarkdown();
+            navigator.clipboard.writeText(markdown).then(() => {
+                showToast('✅ Copied as Markdown! Paste into Claude Code', 'success');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                showToast('Failed to copy markdown', 'error');
+            });
+        }
+
+        // Download transcript in various formats
+        function downloadTranscript(format) {
+            // Close dropdown
+            document.getElementById('download-menu').classList.remove('show');
+
+            let content, mimeType, extension;
+            const sessionName = formatSessionName(currentSession.folder, selectedTimezone)
+                .replace(/[^a-zA-Z0-9-]/g, '-')
+                .toLowerCase();
+
+            switch (format) {
+                case 'markdown':
+                    content = generateMarkdown();
+                    mimeType = 'text/markdown';
+                    extension = 'md';
+                    break;
+
+                case 'text':
+                    content = generatePlainText();
+                    mimeType = 'text/plain';
+                    extension = 'txt';
+                    break;
+
+                case 'json':
+                    content = JSON.stringify(processedData, null, 2);
+                    mimeType = 'application/json';
+                    extension = 'json';
+                    break;
+            }
+
+            // Create download
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcript-${sessionName}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`✅ Downloaded as ${extension.toUpperCase()}`, 'success');
+        }
+
+        // Generate markdown format
+        function generateMarkdown() {
+            const sessionDate = formatSessionName(currentSession.folder, selectedTimezone);
+            const stats = processedData.stats;
+
+            let markdown = `# Transcript: ${sessionDate}\n\n`;
+            markdown += `**Duration:** ${formatDuration(stats.totalDuration)} | `;
+            markdown += `**Words:** ${stats.totalWords} | `;
+            markdown += `**WPM:** ${Math.round(stats.wordsPerMinute)}\n\n`;
+            markdown += `---\n\n`;
+
+            processedData.paragraphs.forEach((para, index) => {
+                markdown += `## [${formatTime(para.start)}]\n\n`;
+                markdown += `${para.text}\n\n`;
+            });
+
+            markdown += `---\n\n`;
+            markdown += `*Transcribed with CloudDrive Transcription*\n`;
+
+            return markdown;
+        }
+
+        // Generate plain text format
+        function generatePlainText() {
+            const sessionDate = formatSessionName(currentSession.folder, selectedTimezone);
+            const stats = processedData.stats;
+
+            let text = `Transcript: ${sessionDate}\n`;
+            text += `Duration: ${formatDuration(stats.totalDuration)} | `;
+            text += `Words: ${stats.totalWords} | `;
+            text += `WPM: ${Math.round(stats.wordsPerMinute)}\n`;
+            text += `${'='.repeat(60)}\n\n`;
+
+            processedData.paragraphs.forEach((para, index) => {
+                text += `[${formatTime(para.start)}]\n`;
+                text += `${para.text}\n\n`;
+            });
+
+            text += `${'='.repeat(60)}\n`;
+            text += `Transcribed with CloudDrive Transcription\n`;
+
+            return text;
         }
 
         // Save transcript
