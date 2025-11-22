@@ -194,14 +194,25 @@ process_session() {
     # CASE 4: Transcription complete, no processed file (or stale file was deleted above)
     log_info "  ✅ Complete! Generating pre-processed file with $trans_count chunks..."
 
+    # Step 1: Run boundary deduplication (script 517)
     if node "$PROJECT_ROOT/scripts/517-preprocess-transcript.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Pre-processed successfully"
-        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
-        return 0
     else
         log_error "  ❌ Failed to preprocess"
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
         return 1
+    fi
+
+    # Step 2: Run rule-based formatting (script 519)
+    log_info "  ✨ Applying rule-based formatting..."
+    if node "$PROJECT_ROOT/scripts/519-format-transcript-rules.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
+        log_success "  ✅ Formatted successfully"
+        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+        return 0
+    else
+        log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
+        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+        return 0
     fi
 }
 
