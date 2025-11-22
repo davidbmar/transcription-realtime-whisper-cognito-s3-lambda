@@ -79,9 +79,9 @@ fi
 log_info "Step 1: Finding all user sessions in S3..."
 SCAN_START=$(date +%s)
 
-# Find all sessions with audio chunks
+# Find all sessions with audio chunks (support multiple formats)
 SESSIONS=$(aws s3 ls "s3://$S3_BUCKET/users/" --recursive 2>/dev/null | \
-    grep -E 'chunk-[0-9]+\.webm$' | \
+    grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | \
     awk '{print $4}' | \
     sed 's|/chunk-.*||' | \
     sort -u)
@@ -136,12 +136,12 @@ for SESSION_PATH in $SESSIONS; do
         continue
     fi
 
-    # Get all audio chunks for this session
+    # Get all audio chunks for this session (support multiple formats)
     AUDIO_CHUNKS=$(aws s3 ls "s3://$S3_BUCKET/$SESSION_PATH/" 2>/dev/null | \
-        grep -E 'chunk-[0-9]+\.webm$' | \
+        grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | \
         awk '{print $4}' | \
         sed 's/chunk-//' | \
-        sed 's/\.webm$//' | \
+        sed -E 's/\.(webm|aac|m4a|mp3|wav|ogg|flac)$//' | \
         sort -n)
 
     if [ -z "$AUDIO_CHUNKS" ]; then

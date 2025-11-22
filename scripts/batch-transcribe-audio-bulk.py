@@ -81,7 +81,7 @@ def transcribe_file(model, audio_path, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Batch transcribe audio files')
-    parser.add_argument('--input', required=True, help='Input directory with .webm files')
+    parser.add_argument('--input', required=True, help='Input directory with audio files')
     parser.add_argument('--output', required=True, help='Output directory for .json files')
     parser.add_argument('--model', default='small.en', help='Whisper model name (default: small.en)')
     args = parser.parse_args()
@@ -92,11 +92,14 @@ def main():
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Find all audio files
-    audio_files = list(input_dir.glob('*.webm'))
+    # Find all audio files (support multiple formats)
+    audio_extensions = ['*.webm', '*.aac', '*.m4a', '*.mp3', '*.wav', '*.ogg', '*.flac']
+    audio_files = []
+    for ext in audio_extensions:
+        audio_files.extend(input_dir.glob(ext))
 
     if not audio_files:
-        print(f"ERROR: No .webm files found in {input_dir}", file=sys.stderr)
+        print(f"ERROR: No audio files found in {input_dir}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Found {len(audio_files)} audio files to transcribe", file=sys.stderr)

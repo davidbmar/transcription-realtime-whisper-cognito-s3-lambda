@@ -444,15 +444,37 @@ transcribe_all_chunks() {
     log_success "Transcription complete: $CHUNKS_TRANSCRIBED succeeded, $CHUNKS_FAILED failed"
 }
 
+# Detect audio file extension for a given chunk
+get_audio_extension() {
+    local session_path=$1
+    local chunk_num=$2
+
+    # Try to find the chunk file with any supported extension
+    local chunk_file=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | \
+        grep -E "chunk-${chunk_num}\.(webm|aac|m4a|mp3|wav|ogg|flac)$" | \
+        awk '{print $4}' | head -1)
+
+    if [ -n "$chunk_file" ]; then
+        # Extract extension
+        echo "$chunk_file" | sed -E 's/.*\.(webm|aac|m4a|mp3|wav|ogg|flac)$/\1/'
+    else
+        # Default to webm for backwards compatibility
+        echo "webm"
+    fi
+}
+
 transcribe_chunk() {
     local session_path=$1
     local chunk_num=$2
 
-    local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.webm"
+    # Detect the actual audio file extension
+    local audio_ext=$(get_audio_extension "$session_path" "$chunk_num")
+
+    local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.${audio_ext}"
     local trans_s3="s3://$S3_BUCKET/$session_path/transcription-chunk-${chunk_num}.json"
-    local audio_edge="/tmp/batch-chunk-${chunk_num}.webm"
+    local audio_edge="/tmp/batch-chunk-${chunk_num}.${audio_ext}"
     local trans_edge="/tmp/batch-transcription-${chunk_num}.json"
-    local audio_gpu="/tmp/batch-chunk-${chunk_num}.webm"
+    local audio_gpu="/tmp/batch-chunk-${chunk_num}.${audio_ext}"
     local trans_gpu="/tmp/batch-transcription-${chunk_num}.json"
 
     log_info "  Chunk $chunk_num: Downloading audio from S3..."
@@ -576,8 +598,9 @@ transcribe_chunk_batch() {
     for chunk_info in "${chunks[@]}"; do
         local session_path="${chunk_info%:*}"
         local chunk_num="${chunk_info#*:}"
-        local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.webm"
-        local audio_file="$batch_dir_edge/chunk-${session_path//\//-}-${chunk_num}.webm"
+        local audio_ext=$(get_audio_extension "$session_path" "$chunk_num")
+        local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.${audio_ext}"
+        local audio_file="$batch_dir_edge/chunk-${session_path//\//-}-${chunk_num}.${audio_ext}"
 
         # Semaphore pattern: Wait if we have MAX_PARALLEL jobs running
         while [ $(jobs -r | wc -l) -ge $BATCH_MAX_PARALLEL_DOWNLOAD ]; do
@@ -627,7 +650,7 @@ transcribe_chunk_batch() {
 
     while [ $downloaded_count -lt $download_threshold ] && [ $wait_iterations -lt $max_wait_iterations ]; do
         sleep 1
-        downloaded_count=$(ls -1 "$batch_dir_edge"/*.webm 2>/dev/null | wc -l || echo 0)
+        downloaded_count=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" \) 2>/dev/null | wc -l)
         wait_iterations=$((wait_iterations + 1))
     done
 
@@ -653,17 +676,16 @@ transcribe_chunk_batch() {
 
     ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "mkdir -p ~/batch-transcription" 2>/dev/null || true
 
-    if ! ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "test -f ~/batch-transcription/batch-transcribe-audio-bulk.py" 2>/dev/null; then
-        log_info "  Stage 3: Deploying batch processor to GPU..."
-        if ! scp -i "$SSH_KEY" "$PROJECT_ROOT/scripts/batch-transcribe-audio-bulk.py" \
-            "$SSH_USER@$GPU_IP:~/batch-transcription/" 2>/dev/null; then
-            log_error "  Failed to deploy batch processor"
-            rm -rf "$batch_dir_edge"
-            ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
-            return 1
-        fi
-        log_success "  Stage 3: Batch processor deployed"
+    # Always update the Python script to ensure latest version
+    log_info "  Stage 3: Deploying batch processor to GPU..."
+    if ! scp -i "$SSH_KEY" "$PROJECT_ROOT/scripts/batch-transcribe-audio-bulk.py" \
+        "$SSH_USER@$GPU_IP:~/batch-transcription/" 2>/dev/null; then
+        log_error "  Failed to deploy batch processor"
+        rm -rf "$batch_dir_edge"
+        ssh -i "$SSH_KEY" "$SSH_USER@$GPU_IP" "rm -rf '$batch_dir_gpu'" 2>/dev/null || true
+        return 1
     fi
+    log_success "  Stage 3: Batch processor deployed"
 
     # =============================================================================
     # STAGE 4: STREAMING GPU TRANSFER + PROCESSING (Pipelined)
@@ -684,13 +706,12 @@ transcribe_chunk_batch() {
 
     log_info "  Stage 4: Starting pipelined GPU transfer + processing..."
 
-    # Start continuous rsync in background (updates as new files appear)
-    (
-        # Initial transfer of ready files
-        rsync -az --partial -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
-            "$batch_dir_edge/" "$SSH_USER@$GPU_IP:$batch_dir_gpu/" 2>/dev/null
+    # Initial transfer of ready files (synchronous - wait for completion)
+    rsync -az --partial -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+        "$batch_dir_edge/" "$SSH_USER@$GPU_IP:$batch_dir_gpu/" 2>/dev/null
 
-        # Continue syncing as downloads complete (check every 2s for 60s)
+    # Continue syncing in background as more downloads complete (check every 2s for 60s)
+    (
         for i in {1..30}; do
             sleep 2
             rsync -az --partial -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
@@ -759,7 +780,7 @@ transcribe_chunk_batch() {
     done
 
     # Verify all downloads succeeded
-    local download_success=$(ls -1 "$batch_dir_edge"/*.webm 2>/dev/null | wc -l)
+    local download_success=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" \) 2>/dev/null | wc -l)
     local download_failed=$((batch_count - download_success))
 
     if [ $download_failed -gt 0 ]; then
@@ -856,7 +877,7 @@ transcribe_chunk_batch() {
     local marked_count=0
     for session_path in "${!session_chunks[@]}"; do
         # Check if this session has any remaining missing chunks
-        local audio_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'chunk-[0-9]+\.webm$' | wc -l)
+        local audio_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | wc -l)
         local trans_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'transcription-chunk-[0-9]+\.json$' | wc -l)
 
         if [ "$audio_count" -eq "$trans_count" ] && [ "$audio_count" -gt 0 ]; then
