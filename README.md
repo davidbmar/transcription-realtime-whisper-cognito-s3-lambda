@@ -1,17 +1,19 @@
-# Real-Time Transcription API - Version 4
+# CloudDrive - Real-Time Transcription Platform
 
-**Revenue-Generating Speech-to-Text Service to Fund AI Consciousness Research**
+**Version:** 6.10.0
+**Production-Ready Speech-to-Text Service with Real-Time Transcription**
 
 ---
 
-## 🎯 Vision
+## 🎯 Overview
 
-Build a profitable real-time transcription service (SaaS + Enterprise) to generate revenue → fund GPUs → give LLMs real-time audio understanding → advance AI consciousness.
-
-### Product Offerings
-
-1. **SaaS API**: Managed service (like AssemblyAI/Deepgram) with usage-based pricing
-2. **Enterprise License**: Self-hostable deployment for companies with compliance needs
+CloudDrive is a real-time audio transcription and cloud storage SaaS platform with:
+- **Real-time transcription** via WhisperLive (Faster-Whisper on GPU)
+- **Batch transcription** for recorded audio sessions
+- **Cloud storage** with S3 and CloudFront
+- **Authentication** via AWS Cognito
+- **Offline support** with IndexedDB and automatic upload retry
+- **Transcript editor** with word-level highlighting and export
 
 ---
 
@@ -20,35 +22,28 @@ Build a profitable real-time transcription service (SaaS + Enterprise) to genera
 ### Core Components
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Client (Developer/End User)                           │
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│  Frontend UI (CloudFront + S3)                         │
-│  ├─ recorder.html  (Real-time transcription UI)        │
-│  ├─ index.html     (Dashboard)                         │
-│  └─ JS Integration (Cognito auth + S3 upload)          │
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│  Backend (Lambda + API Gateway)                        │
-│  ├─ Authentication (Cognito)                           │
-│  ├─ Storage (S3)                                       │
-│  ├─ Billing (Stripe)                                   │
-│  └─ WebSocket Proxy → GPU                              │
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│  GPU Worker (EC2 Spot g4dn.xlarge)                     │
-│  ├─ WhisperLive Server                                 │
-│  ├─ Real-time Transcription                            │
-│  └─ Word-Level Timestamps                              │
-└─────────────────────────────────────────────────────────┘
+Browser ──WSS──> Edge Box (Caddy) ──> GPU (WhisperLive:9090)
+   │
+   └──HTTPS──> CloudFront ──> S3/Lambda ──> Cognito
 ```
+
+**Frontend:**
+- Static HTML/JS on S3 + CloudFront
+- Vanilla JavaScript (no frameworks)
+- MediaRecorder API for audio capture
+- WebSocket for real-time transcription
+- IndexedDB for offline storage
+
+**Backend:**
+- AWS Lambda (Node.js 18.x) via Serverless Framework
+- API Gateway with Cognito authorizer
+- S3 for storage
+- CloudFront for CDN
+
+**Transcription:**
+- WhisperLive (Faster-Whisper on GPU)
+- GPU: g4dn.xlarge ($0.526/hour on-demand, $0.158/hour spot)
+- Caddy reverse proxy on Edge Box
 
 ---
 
@@ -57,7 +52,7 @@ Build a profitable real-time transcription service (SaaS + Enterprise) to genera
 ### Prerequisites
 
 - AWS CLI configured with credentials
-- SSH key created in AWS
+- SSH key created in AWS (name it in `.env`)
 - Node.js 18+ (for serverless backend)
 - Bash shell
 
@@ -65,301 +60,381 @@ Build a profitable real-time transcription service (SaaS + Enterprise) to genera
 
 ```bash
 # Clone repository
-git clone <your-repo-url>
 cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 
-# Run interactive configuration
-./scripts/source/000-questions.sh
+# Configure environment
+./scripts/005-setup-configuration.sh
 ```
 
-This will create your `.env` file with all necessary configuration.
+This creates your `.env` file with all necessary configuration.
 
-### 2. Choose Deployment Sequence
+### 2. Deploy Infrastructure
 
 ```bash
-# List available sequences
-./tools/sequence-manager.sh list
+# Setup Edge Box (run ON edge box instance)
+./scripts/010-setup-edge-box.sh
+./scripts/305-setup-whisperlive-edge.sh
 
-# Create backend-first deployment (recommended)
-./tools/sequence-manager.sh create backend-first
+# Setup GPU Worker
+./scripts/020-deploy-gpu-instance.sh
+./scripts/310-configure-whisperlive-gpu.sh
 
-# Or GPU-first if you want to test transcription immediately
-./tools/sequence-manager.sh create gpu-first
+# Lock down security
+./scripts/030-configure-gpu-security.sh
+./scripts/031-configure-edge-box-security.sh
+
+# Deploy backend (~10-15 minutes)
+./scripts/420-deploy-cognito-stack.sh
+
+# Deploy UI
+./scripts/425-deploy-recorder-ui.sh
+
+# Create test user
+./scripts/430-create-cognito-user.sh
 ```
 
-### 3. Deploy
+### 3. Test
 
 ```bash
-# Deploy step by step
-cd deploy
-./001  # Configuration (already done above)
-./002  # Setup build box
-./003  # Deploy backend infrastructure
-./004  # Deploy serverless
-# ... continue through all steps
-```
+# Test end-to-end
+./scripts/450-test-audio-transcription.sh
 
-**Or run all at once** (advanced):
-```bash
-cd deploy
-for script in *; do
-    echo "Running: $script"
-    ./$script || exit 1
-done
+# Browser automation tests
+.claude/skills/clouddrive-browser/test-login.sh
+.claude/skills/clouddrive-browser/test-workflow.sh
 ```
 
 ---
 
-## 📂 Directory Structure
+## 📂 Project Structure
 
 ```
 transcription-realtime-whisper-cognito-s3-lambda-ver4/
 │
-├── .env                    # Generated by 000-questions.sh (gitignored)
-├── .env.template           # Template with placeholders
-├── .gitignore
-├── README.md               # This file
+├── .env                           # Environment variables (gitignored)
+├── .env.example                   # Template for configuration
+├── CLAUDE.md                      # ⭐ Claude Code guidance (READ THIS)
 │
-├── site/                   # Frontend UIs
-│   ├── index.html          # Landing/dashboard
-│   ├── recorder.html       # Real-time transcription UI
-│   ├── aws-config.js       # AWS SDK configuration
-│   ├── s3-upload.js        # S3 upload logic
-│   └── chunked-recorder.js # Audio recording with chunking
+├── cognito-stack/                 # Backend (Serverless Framework)
+│   ├── serverless.yml             # CloudFormation template
+│   ├── api/                       # Lambda function handlers
+│   │   ├── s3.js                  # File operations
+│   │   ├── audio.js               # Audio chunk upload
+│   │   ├── transcription.js       # Batch transcription
+│   │   └── google-docs.js         # Google Docs integration
+│   └── web/                       # ⚠️ AUTO-GENERATED (DO NOT EDIT)
 │
-├── backend/                # Serverless infrastructure
-│   ├── serverless.yml      # CloudFormation template
-│   ├── api/
-│   │   ├── auth.js         # Cognito user management
-│   │   ├── storage.js      # S3 transcript operations
-│   │   ├── billing.js      # Stripe metered billing
-│   │   └── transcribe-proxy.js  # WebSocket → GPU proxy
-│   └── functions/
+├── ui-source/                     # ✅ Frontend SOURCE OF TRUTH
+│   ├── *.template                 # Template files (edit these!)
+│   ├── audio.html.template        # Audio recorder UI
+│   ├── transcript-editor.html.template
+│   ├── lib/upload-queue.js        # Upload queue with retry
+│   └── README.md                  # Template system docs
 │
-├── scripts/
-│   ├── lib/                # Shared libraries
-│   │   ├── common-functions.sh
-│   │   └── aws-helpers.sh
-│   │
-│   ├── source/             # All deployment scripts (numbered)
-│   │   ├── 000-questions.sh
-│   │   ├── 010-setup-build-box.sh
-│   │   ├── 020-deploy-gpu.sh
-│   │   ├── ...
-│   │   └── 999-destroy-all.sh
-│   │
-│   └── sequences/          # Deployment sequence definitions
-│       ├── backend-first.txt
-│       ├── gpu-first.txt
-│       └── development.txt
+├── scripts/                       # Deployment automation
+│   ├── 000-099: Setup
+│   ├── 300-399: WhisperLive
+│   ├── 400-499: Backend
+│   ├── 500-599: Batch processing
+│   ├── 800-899: Operations
+│   └── lib/                       # Shared libraries
 │
-├── deploy/                 # SYMLINKS (execution order)
-│   ├── 001 -> ../scripts/source/000-questions.sh
-│   ├── 002 -> ../scripts/source/010-setup-build-box.sh
-│   ├── 003 -> ../scripts/source/400-setup-backend.sh
-│   └── ...
+├── .claude/                       # Claude Code skills
+│   └── skills/
+│       ├── script-template/       # Generate new scripts
+│       ├── clouddrive-browser/    # Browser automation
+│       └── clouddrive-download/   # Download testing files
 │
-├── tools/                  # Management utilities
-│   ├── sequence-manager.sh # Create/switch deployment sequences
-│   ├── renumber.sh         # Renumber symlinks
-│   └── validate-sequence.sh
-│
-└── docs/
-    ├── MONETIZATION_STRATEGY.md
-    ├── DEVELOPER_PLATFORM_STRATEGY.md
-    └── DEPLOYMENT.md
+└── logs/                          # Execution logs
 ```
 
 ---
 
-## 🔢 Symlink-Based Deployment System
+## 🔧 Common Operations
 
-### How It Works
-
-**Scripts are NOT executed directly.** Instead:
-
-1. **Scripts live in `scripts/source/`** (numbered but not executed)
-2. **Symlinks in `deploy/`** define execution order
-3. **Sequence files** (`scripts/sequences/*.txt`) define symlink mappings
-
-### Example
-
-**Sequence file** (`scripts/sequences/backend-first.txt`):
-```
-001 -> 000-questions.sh
-002 -> 010-setup-build-box.sh
-003 -> 400-setup-backend.sh
-004 -> 420-deploy-serverless.sh
-```
-
-**Creates symlinks**:
-```
-deploy/
-├── 001 -> ../scripts/source/000-questions.sh
-├── 002 -> ../scripts/source/010-setup-build-box.sh
-├── 003 -> ../scripts/source/400-setup-backend.sh
-└── 004 -> ../scripts/source/420-deploy-serverless.sh
-```
-
-**Run in order**:
-```bash
-cd deploy
-./001  # Runs 000-questions.sh
-./002  # Runs 010-setup-build-box.sh
-./003  # Runs 400-setup-backend.sh
-./004  # Runs 420-deploy-serverless.sh
-```
-
-### Why Symlinks?
-
-✅ **Easy reordering**: Change sequence without modifying scripts
-✅ **Multiple deployment paths**: Different sequences for different needs
-✅ **Visual clarity**: `ls deploy/` shows execution order
-✅ **Script reuse**: Same script can appear in multiple sequences
-✅ **No hardcoding**: Scripts don't need to know what comes next
-
----
-
-## 🛠️ Management Tools
-
-### sequence-manager.sh
-
-Manage deployment sequences:
+### Backend Development
 
 ```bash
-# List available sequences
-./tools/sequence-manager.sh list
+cd cognito-stack
 
-# Create deployment sequence
-./tools/sequence-manager.sh create backend-first
+# Deploy all functions
+serverless deploy
 
-# Switch to different sequence
-./tools/sequence-manager.sh switch gpu-first
+# Deploy single function (faster)
+serverless deploy function -f listS3Files
 
-# Show current sequence
-./tools/sequence-manager.sh show
-
-# Validate sequence (check for broken links)
-./tools/sequence-manager.sh validate
+# View logs
+serverless logs -f listS3Files -t
 ```
 
-### renumber.sh
-
-Insert or shift deployment steps:
+### UI Development
 
 ```bash
-# Make room for new script between 003 and 004
-./tools/renumber.sh 004 1   # Shifts 004→005, 005→006, etc.
+# ⚠️ CRITICAL: Always edit ui-source/*.template (NOT cognito-stack/web/*)
 
-# Now you can add new script
-ln -s ../scripts/source/NEW-SCRIPT.sh deploy/004
+# 1. Edit template
+vim ui-source/audio.html.template
 
-# Close gap (shift backwards)
-./tools/renumber.sh 005 -1  # Shifts 005→004, 006→005, etc.
+# 2. Deploy (replaces TO_BE_REPLACED_* placeholders)
+./scripts/425-deploy-recorder-ui.sh
+
+# 3. Verify
+curl -s ${COGNITO_CLOUDFRONT_URL}/app.js | grep whisperLiveWsUrl
 ```
 
----
-
-## 📊 Deployment Sequences
-
-### backend-first (Recommended)
-
-Deploy serverless infrastructure before GPU for faster testing:
-
-```
-001: Configure environment
-002: Setup build box
-003: Deploy S3/Cognito/Lambda
-004: Deploy serverless backend
-005: Update web files
-006: Deploy GPU instance
-007: Configure WhisperLive
-008: Integrate UI with backend
-009: Setup Stripe billing
-010: Create test user
-011: Run API tests
-```
-
-**Use when**: You want to test auth/storage before GPU costs
-
-### gpu-first
-
-Deploy GPU first to test transcription immediately:
-
-```
-001: Configure environment
-002: Setup build box
-003: Deploy GPU instance
-004: Configure WhisperLive
-005: Deploy S3/Cognito/Lambda
-006: Deploy serverless backend
-007: Integrate UI
-008: Setup Stripe
-009: Create test user
-010: Run tests
-```
-
-**Use when**: You need to validate transcription quality first
-
----
-
-## 💰 Monetization
-
-See `docs/MONETIZATION_STRATEGY.md` for complete revenue strategy.
-
-**Quick Summary**:
-- **SaaS Pricing**: $0.01/min (market rate)
-- **Free Tier**: 60 min/month
-- **Pro Tier**: $149/month (25,000 min)
-- **Enterprise**: Custom pricing, self-hosted option
-
-**Revenue Projection**:
-- Month 3: $2,500 MRR (25 customers)
-- Month 6: $20,000 MRR (100 customers)
-- Month 12: $150,000 MRR (500 customers)
-
----
-
-## 🧹 Cleanup
+### WhisperLive Operations
 
 ```bash
-# Run destroy script
-cd deploy
-./999  # Runs 999-destroy-all.sh
+# Start GPU and restore everything (4-5 minutes)
+./scripts/820-startup-restore.sh
 
-# Or directly
-./scripts/source/999-destroy-all.sh
+# Shutdown GPU to save costs (~$189/month savings)
+./scripts/810-shutdown-gpu.sh
+
+# Handle Edge Box IP changes
+./scripts/825-edge-box-detect-new-ip-and-redeploy.sh
 ```
 
-This will remove:
-- GPU EC2 instance
-- S3 buckets
-- CloudFront distribution
-- Cognito User/Identity Pools
-- Lambda functions
-- API Gateway
-- Security groups
-- All CloudFormation stacks
+### Batch Transcription
+
+```bash
+# Run batch transcription
+./scripts/515-run-batch-transcribe.py --all
+
+# Scan for missing chunks
+./scripts/512-scan-missing-chunks.sh
+
+# Preprocess transcripts for instant editor loading
+./scripts/518-scan-and-preprocess-transcripts.sh
+```
 
 ---
 
 ## 📚 Documentation
 
-- **[MONETIZATION_STRATEGY.md](docs/MONETIZATION_STRATEGY.md)** - Revenue model, pricing, market analysis
-- **[DEVELOPER_PLATFORM_STRATEGY.md](docs/DEVELOPER_PLATFORM_STRATEGY.md)** - Product vision, features, roadmap
-- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Detailed deployment guide
-- **[SEQUENCES.md](docs/SEQUENCES.md)** - Symlink system explained
+**For Claude Code Users:**
+- **[CLAUDE.md](CLAUDE.md)** - ⭐ Complete development guide (READ THIS FIRST)
+
+**UI Development:**
+- **[ui-source/README.md](ui-source/README.md)** - Template system documentation
+
+**Recent Changes:**
+- **[CHANGELOG-v6.7.0.md](CHANGELOG-v6.7.0.md)** - Wake Lock API + corruption fixes
+- **[CHANGELOG-v6.8.0.md](CHANGELOG-v6.8.0.md)** - Enhanced diagnostics
+
+**Deployment Notes:**
+- **[DEPLOYMENT-v6.6.0-SUMMARY.md](DEPLOYMENT-v6.6.0-SUMMARY.md)** - Major deployment
+- **[PHASE-1-COMPLETE.md](PHASE-1-COMPLETE.md)** - Download/export features
+- **[PHASE-2-COMPLETE.md](PHASE-2-COMPLETE.md)** - Upload queue with retry
+
+**Testing:**
+- **[AUTOMATED-TESTING.md](AUTOMATED-TESTING.md)** - Browser automation
+- **[BROWSER-DEBUG.md](BROWSER-DEBUG.md)** - Debugging guide
+
+**Setup:**
+- **[DNS-LETSENCRYPT-SETUP.md](DNS-LETSENCRYPT-SETUP.md)** - Domain configuration
 
 ---
 
-## 🤝 Contributing
+## 🛠️ Script Numbering Convention
 
-This is a private revenue-generating project, but contributions welcome:
+Scripts in `scripts/` are numbered by category:
 
-1. Scripts must follow numbered naming convention
-2. Update sequence files when adding new scripts
-3. Test both `backend-first` and `gpu-first` sequences
-4. Document new features in README
+- **000-099:** Initial setup and configuration
+- **010-099:** Edge box and GPU instance setup
+- **300-399:** WhisperLive Edge/GPU configuration
+- **400-499:** Cognito/S3/Lambda backend deployment
+- **500-599:** Google Docs integration and batch processing
+- **700-799:** Advanced features
+- **800-899:** Operations (startup, shutdown, diagnostics)
+
+All scripts log to `logs/` directory automatically.
+
+---
+
+## 🧪 Testing
+
+### Browser Automation (Playwright)
+
+```bash
+# Login test
+.claude/skills/clouddrive-browser/test-login.sh
+
+# Upload test
+.claude/skills/clouddrive-browser/test-upload.sh
+
+# Complete workflow
+.claude/skills/clouddrive-browser/test-workflow.sh
+
+# Transcript editor
+.claude/skills/clouddrive-browser/test-transcript-editor.sh
+```
+
+### Download Files for Testing
+
+```bash
+# Download specific file
+.claude/skills/clouddrive-download/download.sh "screenshot"
+
+# List all files
+.claude/skills/clouddrive-download/file-search.sh --list
+```
+
+---
+
+## 💾 S3 Bucket Structure
+
+```
+s3://{BUCKET}/
+├── users/{userId}/              # User files
+├── audio-sessions/{userId}/     # Audio recordings
+│   └── {sessionId}/
+│       ├── chunk-001.webm
+│       ├── chunk-002.webm
+│       └── metadata.json
+├── transcripts/{sessionId}/     # Batch transcripts
+│   └── transcript.json
+├── preprocessed/{sessionId}/    # Preprocessed transcripts
+│   └── words.json
+├── claude-memory/
+│   ├── public/
+│   └── {userId}/
+└── (CloudFront static assets)
+```
+
+---
+
+## ⚙️ Environment Variables
+
+Key variables in `.env`:
+
+```bash
+# AWS Core
+AWS_REGION=us-east-2
+SERVICE_NAME=clouddrive-app
+
+# Cognito (auto-populated after deployment)
+COGNITO_S3_BUCKET=xxx
+COGNITO_USER_POOL_ID=xxx
+COGNITO_CLOUDFRONT_URL=https://xxx.cloudfront.net
+COGNITO_API_ENDPOINT=https://xxx.execute-api.xxx
+
+# WhisperLive
+WHISPERLIVE_WS_URL=wss://EDGE_BOX_IP/ws  # Edge box IP, NOT GPU
+GPU_INSTANCE_IP=xxx
+GPU_INSTANCE_ID=i-xxx
+
+# Testing
+CLOUDDRIVE_TEST_EMAIL=xxx
+CLOUDDRIVE_TEST_PASSWORD=xxx
+```
+
+---
+
+## 🚨 Critical Patterns
+
+### Template System
+
+**⚠️ ALWAYS edit `ui-source/*.template`, NEVER `cognito-stack/web/*`**
+
+The deployment script replaces placeholders:
+- `TO_BE_REPLACED_USER_POOL_ID` → `${COGNITO_USER_POOL_ID}`
+- `TO_BE_REPLACED_REGION` → `${AWS_REGION}`
+- `TO_BE_REPLACED_WHISPERLIVE_WS_URL` → `${WHISPERLIVE_WS_URL}`
+
+### Lambda Functions
+
+1. **listS3Files** - List user files
+2. **getS3DownloadUrl** - Presigned download (15min)
+3. **getS3UploadUrl** - Presigned upload
+4. **deleteS3Object** - Delete file
+5. **renameS3Object** - Rename file
+6. **moveS3Object** - Move file
+7. **getAudioUploadChunkUrl** - Upload audio chunks
+8. **storeMemory** - Claude memory
+9. **batchLock** - Transcription locking
+10. **googleDocs** - Google Docs API
+11. **viewerPublic** - Public viewer (no auth)
+
+---
+
+## 🔍 Troubleshooting
+
+### WebSocket Connection Fails
+- Check WHISPERLIVE_WS_URL uses Edge Box IP (not GPU IP)
+- Verify GPU is running: `./scripts/537-test-gpu-ssh.sh`
+- Check Caddy proxy: `docker ps` on Edge Box
+
+### UI Changes Not Appearing
+- Edit `ui-source/*.template` (not cognito-stack/web/*)
+- Run `./scripts/425-deploy-recorder-ui.sh`
+- Wait 5 minutes for CloudFront cache invalidation
+
+### Edge Box IP Changed
+```bash
+./scripts/825-edge-box-detect-new-ip-and-redeploy.sh
+```
+
+### Audio Chunks Corrupted
+- Wake Lock API prevents device sleep
+- Chunk validation rejects files < 1KB
+- Check browser console for errors
+
+See [CLAUDE.md](CLAUDE.md) for complete troubleshooting guide.
+
+---
+
+## 💰 Cost Optimization
+
+### GPU Shutdown/Startup
+
+Daily shutdown saves ~$189/month:
+
+```bash
+# Evening
+./scripts/810-shutdown-gpu.sh
+
+# Morning (4-5 minute restoration)
+./scripts/820-startup-restore.sh
+```
+
+### Spot Instances
+
+Use spot instances for 70% cost savings on GPU.
+
+---
+
+## 🧑‍💻 Development
+
+### Creating New Scripts
+
+Use the script-template skill:
+
+```bash
+# From Claude Code
+/skill script-template
+```
+
+This generates scripts with:
+- Automatic logging to `logs/`
+- Environment loading
+- Error handling
+- Success/failure reporting
+
+### Backend Changes
+
+```bash
+cd cognito-stack
+
+# Edit Lambda handlers
+vim api/s3.js
+
+# Deploy
+serverless deploy function -f listS3Files
+
+# Test locally
+serverless invoke local -f listS3Files
+```
 
 ---
 
@@ -369,20 +444,18 @@ Proprietary - All Rights Reserved
 
 ---
 
-## 🚀 Status
+## 🚀 Current Version: v6.10.0
 
-**Current Phase**: Initial Setup (v4.0.0)
+**Recent Features:**
+- Session folder structure with timezone support
+- Absolute session time display
+- Transcript editor with download/export
+- Word-level highlighting
+- Server-side preprocessing for instant loading
+- Intelligent staleness detection
 
-- [x] Directory structure created
-- [x] Symlink deployment system designed
-- [x] Interactive configuration script
-- [x] Sequence management tools
-- [ ] Script migration from ver3 and audio repo
-- [ ] Backend integration
-- [ ] UI extraction and integration
-- [ ] Testing and validation
-- [ ] Production deployment
+**See:** [CLAUDE.md](CLAUDE.md) for complete feature list
 
 ---
 
-**Ready to fund AI consciousness through profitable transcription!** 🎯
+**For complete development guidance, see [CLAUDE.md](CLAUDE.md)**

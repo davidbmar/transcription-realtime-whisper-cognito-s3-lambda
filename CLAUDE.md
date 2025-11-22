@@ -15,8 +15,9 @@ This is a **monorepo** for CloudDrive, a real-time audio transcription and cloud
 - Backend: AWS Lambda (Node.js) via Serverless Framework
 - Auth: AWS Cognito (User Pools + Identity Pools + OAuth)
 - Storage: S3 with user-scoped paths (`users/{userId}/`)
-- Transcription: WhisperLive (Faster-Whisper on GPU) + optional batch processing
+- Transcription: WhisperLive (Faster-Whisper on GPU) + batch processing
 - Proxy: Caddy reverse proxy on Edge Box for WSS connections
+- Offline Support: IndexedDB with upload queue and automatic retry
 
 **EventBridge Orchestrator** (eventbridge-orchestrator/)
 - Central event bus for decoupled microservices
@@ -58,27 +59,39 @@ Browser ──WSS──> Edge Box (Caddy) ──> GPU (WhisperLive:9090)
   - `memory.js` - Claude memory API integration
   - `transcription.js` - Batch transcription
   - `google-docs.js` - Google Docs integration
+  - `batch-lock.js` - Batch transcription locking mechanism
+  - `viewer-public.js` - Public transcript viewer (no auth required)
 
 **Frontend Source (Source of Truth):**
 - `ui-source/*.template` - **ALWAYS edit these, NEVER edit cognito-stack/web/**
 - `ui-source/app.js.template` - Main application config
-- `ui-source/audio.html.template` - **Audio recorder UI (v6.7.0) - CRITICAL: Use template, not audio.html**
+- `ui-source/audio.html.template` - **Audio recorder UI (v6.10.0) - CRITICAL: Use template, not audio.html**
 - `ui-source/index.html` - Dashboard
 - `ui-source/viewer.html` - Transcript viewer
-- `ui-source/transcript-editor.html.template` - Transcript editor
+- `ui-source/transcript-editor.html.template` - Transcript editor with download/export
+- `ui-source/lib/upload-queue.js` - Upload queue with automatic retry and exponential backoff
 - `ui-source/README.md` - **Template system documentation (READ THIS FIRST)**
 
 **⚠️ CRITICAL - Template System (Updated 2025-11-18):**
-- **SOURCE OF TRUTH:** `ui-source/audio.html.template` (3,444 lines, full-featured)
+- **SOURCE OF TRUTH:** `ui-source/audio.html.template` (3,444+ lines, full-featured)
 - **DEPRECATED:** `ui-source/audio.html` (kept for reference, DO NOT EDIT)
 - The template contains `TO_BE_REPLACED_*` placeholders that get replaced during deployment
 - Deployment script: `scripts/425-deploy-recorder-ui.sh`
-- See `CHANGELOG-v6.7.0.md` for recent changes
+- See `CHANGELOG-v6.7.0.md` and `CHANGELOG-v6.8.0.md` for recent changes
 - See `ui-source/README.md` for complete template documentation
 
 **Deployment Scripts:**
 - `scripts/` - Numbered deployment automation (000-899)
+- `scripts/lib/` - Shared libraries (common-functions.sh, aws-helpers.sh)
 - `logs/` - Script execution logs
+
+**Recent Features (v6.10.0):**
+- Session folder structure with timezone support
+- Absolute session time display (not chunk-relative)
+- Transcript editor with download and export functionality
+- Word-level highlighting and improved playback controls
+- Server-side transcript preprocessing for instant editor loading
+- Intelligent staleness detection and invalidation
 
 ### EventBridge Orchestrator
 
@@ -176,6 +189,9 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 
 # Diagnose connection issues
 ./scripts/826-edge-box-diagnose-connection-issues.sh
+
+# Enable automatic IP detection on boot (systemd)
+./scripts/827-edge-box-enable-auto-ip-detection-on-boot.sh
 ```
 
 ### Batch Transcription
@@ -188,6 +204,9 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 
 # Scan for missing audio chunks
 ./scripts/512-scan-missing-chunks.sh
+
+# Scan and preprocess transcripts for instant editor loading
+./scripts/518-scan-and-preprocess-transcripts.sh
 
 # Check GPU usage costs
 ./scripts/530-gpu-cost-tracker.sh
@@ -276,8 +295,12 @@ s3://{BUCKET}/
 ├── audio-sessions/{userId}/     # Audio recordings
 │   └── {sessionId}/
 │       ├── chunk-001.webm
+│       ├── chunk-002.webm
 │       └── metadata.json
 ├── transcripts/{sessionId}/     # Batch transcripts
+│   └── transcript.json
+├── preprocessed/{sessionId}/    # Preprocessed transcripts (server-side)
+│   └── words.json
 ├── claude-memory/
 │   ├── public/
 │   └── {userId}/
@@ -296,6 +319,7 @@ s3://{BUCKET}/
 8. **storeMemory** - Store Claude memory files
 9. **batchLock** - Batch transcription locking mechanism
 10. **googleDocs** - Google Docs integration API
+11. **viewerPublic** - Public transcript viewer (no auth)
 
 ## Script Numbering Convention
 
@@ -307,13 +331,49 @@ s3://{BUCKET}/
 - **700-799:** Advanced features
 - **800-899:** Operations (startup, shutdown, diagnostics)
 
+## Claude Code Skills
+
+This project includes specialized Claude Code skills in `.claude/skills/`:
+
+### script-template
+Generate new bash scripts that follow all project patterns (env loading, logging, success/failure reporting). Use when creating new numbered scripts.
+
+**Usage:**
+```bash
+# Invoke the skill from Claude Code
+/skill script-template
+```
+
+### clouddrive-browser
+Browser automation testing with Playwright. Tests login, upload, workflow, and transcript editor functionality.
+
+**Available scripts:**
+- `test-login.sh` - Test authentication flow
+- `test-upload.sh` - Test file upload
+- `test-workflow.sh` - Test complete recording workflow
+- `test-transcript-editor.sh` - Test transcript editor features
+
+### clouddrive-download
+Download files from CloudDrive S3 for testing and debugging.
+
+**Available scripts:**
+- `download.sh "filename"` - Download specific file
+- `file-search.sh --list` - List all available files
+
+### fix-dynamic-ip
+Handle Edge Box dynamic IP changes automatically.
+
+### google-docs-edit
+Google Docs integration testing and editing.
+
 ## Technology Stack
 
 **Frontend:**
 - Vanilla JavaScript (no frameworks)
 - MediaRecorder API for audio capture
 - WebSocket for real-time transcription
-- IndexedDB for offline storage
+- IndexedDB for offline storage and upload queue
+- Wake Lock API for preventing device sleep during recording
 
 **Backend:**
 - AWS Lambda (Node.js 18.x)
@@ -326,13 +386,15 @@ s3://{BUCKET}/
 - Faster-Whisper (optimized OpenAI Whisper)
 - WhisperLive (WebSocket server)
 - GPU: g4dn.xlarge ($0.526/hour on-demand, $0.158/hour spot)
+- Batch transcription with 2-minute chunk duration (optimized)
 
 **Infrastructure:**
 - Serverless Framework (backend deployment)
 - Terraform (EventBridge infrastructure)
 - Docker (containerization)
-- Systemd (service management)
+- Systemd (service management, auto-recovery)
 - Caddy (reverse proxy + SSL)
+- Cron/Systemd timers (scheduled tasks)
 
 **Development:**
 - Playwright (browser automation)
@@ -363,6 +425,7 @@ This updates:
    - Verify WHISPERLIVE_WS_URL uses Edge Box IP (not GPU IP)
    - Check Edge Box security group allows client IP
    - Verify GPU is running and WhisperLive service is active
+   - Check Caddy proxy is running: `docker ps` on Edge Box
 
 2. **Cognito authentication fails:**
    - Clear browser localStorage
@@ -373,6 +436,7 @@ This updates:
    - Verify editing `ui-source/*.template` (not cognito-stack/web/*)
    - Run `./scripts/425-deploy-recorder-ui.sh`
    - Wait for CloudFront cache invalidation (~5 minutes)
+   - Check deployment logs in `logs/` directory
 
 4. **Lambda function errors:**
    - Check CloudWatch logs: `serverless logs -f <functionName> -t`
@@ -382,6 +446,17 @@ This updates:
 5. **S3 presigned URL expires:**
    - URLs expire after 15 minutes
    - Generate new URL via API
+
+6. **Audio chunks corrupted (< 1KB):**
+   - Wake Lock API prevents device sleep
+   - Chunk size validation rejects files < 1KB
+   - Check browser console for errors
+
+7. **Batch transcription fails:**
+   - Check GPU is running: `./scripts/537-test-gpu-ssh.sh`
+   - Verify WhisperLive service: `ssh gpu "sudo systemctl status whisperlive"`
+   - Scan for missing chunks: `./scripts/512-scan-missing-chunks.sh`
+   - Check batch lock mechanism isn't stuck
 
 ### GPU Cost Optimization
 
@@ -397,6 +472,36 @@ This updates:
 
 **Spot instances:** Use for 70% cost savings on GPU
 
+**Automated startup/shutdown:**
+```bash
+# View scheduled timers
+systemctl list-timers
+
+# Check service status
+systemctl cat edge-box-ip-check.service
+```
+
+## Automation and Monitoring
+
+### Systemd Services
+
+**Edge Box IP Detection:**
+- Service: `edge-box-ip-check.service`
+- Automatically detects IP changes on boot
+- Updates `.env` and redeploys UI
+
+**WhisperLive Service:**
+- Runs on GPU instance
+- Auto-restart on failure
+- Managed via systemd
+
+### Cron Jobs
+
+Check for scheduled tasks:
+```bash
+crontab -l
+```
+
 ## Experimental Projects
 
 This monorepo contains several experimental transcription engines:
@@ -408,3 +513,28 @@ This monorepo contains several experimental transcription engines:
 - **smart-transcription-router** - Routing logic for multiple ASR engines
 
 These are for research and comparison. The production system uses WhisperLive.
+
+## Project Patterns for New Scripts
+
+When creating new scripts, follow these established patterns (see `.claude/skills/script-template`):
+
+1. **File Header:**
+   ```bash
+   #!/bin/bash
+   set -euo pipefail
+   exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
+   ```
+
+2. **Load environment:**
+   ```bash
+   source .env
+   source scripts/lib/common-functions.sh
+   ```
+
+3. **Success/failure reporting:**
+   ```bash
+   log_success "Operation completed"
+   log_error "Operation failed"
+   ```
+
+4. **Logging:** All output automatically goes to `logs/` directory with timestamp
