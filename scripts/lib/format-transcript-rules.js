@@ -35,7 +35,7 @@ const path = require('path');
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // Load environment
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '../..', '.env') });
 
 // AWS SDK v3 setup
 const s3Client = new S3Client({

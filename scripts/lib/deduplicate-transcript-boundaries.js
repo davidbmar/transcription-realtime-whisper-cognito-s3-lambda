@@ -29,10 +29,10 @@ const path = require('path');
 const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // Load environment
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '../..', '.env') });
 
 // Import preprocessor
-const TranscriptPreprocessorBoundary = require('../ui-source/transcript-preprocessor-boundary.js');
+const TranscriptPreprocessorBoundary = require('../../ui-source/transcript-preprocessor-boundary.js');
 
 // AWS SDK v3 setup
 // Use default credential chain (env vars, ~/.aws/credentials, EC2 instance profile, etc.)
