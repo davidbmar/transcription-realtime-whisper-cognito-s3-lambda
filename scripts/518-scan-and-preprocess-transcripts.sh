@@ -14,7 +14,9 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 #    a. Check if transcription-processed.json already exists
 #    b. If not, check if all transcription chunks are present
 #    c. If complete, generate transcription-processed.json
-#    d. If incomplete, skip (transcription still in progress)
+#    d. Apply rule-based formatting (script 519)
+#    e. Update session metadata to mark transcription as complete (script 520)
+#    f. If incomplete, skip (transcription still in progress)
 # 3. Report summary of processed sessions
 #
 # When to run:
@@ -207,10 +209,18 @@ process_session() {
     log_info "  ✨ Applying rule-based formatting..."
     if node "$PROJECT_ROOT/scripts/519-format-transcript-rules.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Formatted successfully"
+    else
+        log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
+    fi
+
+    # Step 3: Update metadata to mark transcription as complete
+    log_info "  📝 Updating session metadata..."
+    if node "$PROJECT_ROOT/scripts/520-update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
+        log_success "  ✅ Metadata updated - session marked as complete"
         PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
         return 0
     else
-        log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
+        log_warn "  ⚠️  Metadata update failed"
         PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
         return 0
     fi

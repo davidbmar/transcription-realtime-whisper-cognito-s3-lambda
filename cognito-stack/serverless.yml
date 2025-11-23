@@ -237,6 +237,36 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  uploadAudioFile:
+    handler: api/audio.uploadAudioFile
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/audio/upload-file
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  triggerTranscription:
+    handler: api/audio.triggerTranscription
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/audio/transcribe/{sessionId}
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
   # Claude Memory Storage Functions
   storeClaudeMemory:
     handler: api/memory.storeMemory

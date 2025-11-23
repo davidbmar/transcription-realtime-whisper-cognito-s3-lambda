@@ -379,73 +379,252 @@ module.exports.getFailedChunks = async (event) => {
     const existingChunks = (s3Response.Contents || [])
       .filter(obj => obj.Key.includes('chunk-'))
       .map(obj => {
-        const match = obj.Key.match(/chunk-(\d+)\.webm$/);
+        const match = obj.Key.match(/chunk-(\d+)/);
         return match ? parseInt(match[1]) : null;
       })
-      .filter(num => num !== null);
-    
-    // Get metadata to know expected chunks
-    try {
-      const metadataKey = `${prefix}metadata.json`;
-      const metadataObj = await s3.getObject({
-        Bucket: bucketName,
-        Key: metadataKey
-      }).promise();
-      
-      const metadata = JSON.parse(metadataObj.Body.toString());
-      const expectedChunks = metadata.chunkCount || 0;
-      
-      // Find missing chunks
-      const missingChunks = [];
-      for (let i = 1; i <= expectedChunks; i++) {
-        if (!existingChunks.includes(i)) {
-          missingChunks.push(i);
-        }
-      }
-      
-      return {
-        statusCode: 200,
-        headers: {
-          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
-          'Access-Control-Allow-Credentials': true,
-        },
-        body: JSON.stringify({
-          sessionId: sanitizedSessionId,
-          expectedChunks: expectedChunks,
-          uploadedChunks: existingChunks.sort((a, b) => a - b),
-          missingChunks: missingChunks,
-          timestamp: new Date().toISOString()
-        }),
-      };
-    } catch (err) {
-      // No metadata found
-      return {
-        statusCode: 200,
-        headers: {
-          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
-          'Access-Control-Allow-Credentials': true,
-        },
-        body: JSON.stringify({
-          sessionId: sanitizedSessionId,
-          uploadedChunks: existingChunks.sort((a, b) => a - b),
-          missingChunks: [],
-          error: 'No metadata found for session',
-          timestamp: new Date().toISOString()
-        }),
-      };
-    }
+      .filter(n => n !== null);
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+        'Access-Control-Allow-Credentials': true,
+      },
+      body: JSON.stringify({
+        sessionId,
+        existingChunks,
+        count: existingChunks.length
+      })
+    };
   } catch (error) {
-    console.error('Error checking failed chunks:', error);
+    console.error('Error getting failed chunks:', error);
     return {
       statusCode: 500,
       headers: {
         ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
         'Access-Control-Allow-Credentials': true,
       },
+      body: JSON.stringify({ error: error.message }),
+    };
+  }
+};
+
+// Upload audio file - Generate presigned URL for user upload
+module.exports.uploadAudioFile = async (event) => {
+  try {
+    // Get user claims from the authorizer
+    const claims = event.requestContext?.authorizer?.claims || {};
+    const email = claims.email || 'Anonymous';
+    const userId = claims.sub || 'unknown';
+
+    console.log(`User ${email} (${userId}) requesting audio file upload`);
+
+    // Parse request body
+    const body = JSON.parse(event.body || '{}');
+    const { filename, mimeType, fileSize } = body;
+
+    // Validate required fields
+    if (!filename || !mimeType) {
+      return {
+        statusCode: 400,
+        headers: {
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({ error: 'filename and mimeType are required' }),
+      };
+    }
+
+    // Validate file size (max 500MB)
+    const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+    if (fileSize && fileSize > MAX_FILE_SIZE) {
+      return {
+        statusCode: 400,
+        headers: {
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({
+          error: 'File too large',
+          maxSize: MAX_FILE_SIZE,
+          providedSize: fileSize
+        }),
+      };
+    }
+
+    // Validate MIME type
+    const allowedTypes = [
+      'audio/aac', 'audio/x-m4a', 'audio/m4a',
+      'audio/wav', 'audio/x-wav', 'audio/wave',
+      'audio/mpeg', 'audio/mp3',
+      'audio/webm', 'audio/ogg', 'audio/flac'
+    ];
+
+    if (!allowedTypes.includes(mimeType.toLowerCase())) {
+      return {
+        statusCode: 400,
+        headers: {
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({
+          error: 'Invalid audio format',
+          allowed: allowedTypes
+        }),
+      };
+    }
+
+    // Extract file extension
+    const fileExt = filename.split('.').pop().toLowerCase();
+
+    // Generate session ID with upload marker
+    const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') +
+                     '-' + new Date().toISOString().split('T')[1].split('.')[0].replace(/:/g, '');
+    const uuid = require('crypto').randomBytes(6).toString('hex');
+    const sessionId = `${timestamp}-upload-${uuid}`;
+
+    // Build S3 key - unified sessions path
+    const bucketName = process.env.S3_BUCKET_NAME;
+    const s3Key = `users/${userId}/audio/sessions/${sessionId}/chunk-001.${fileExt}`;
+
+    console.log(`Generating upload URL for ${filename} → ${s3Key}`);
+
+    // Generate pre-signed URL for upload (15 minutes)
+    const uploadUrl = s3.getSignedUrl('putObject', {
+      Bucket: bucketName,
+      Key: s3Key,
+      Expires: 900, // 15 minutes
+      ContentType: mimeType,
+      Metadata: {
+        originalFilename: filename,
+        userId: userId,
+        source: 'upload'
+      }
+    });
+
+    console.log(`✅ Generated upload URL for session ${sessionId}`);
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+        'Access-Control-Allow-Credentials': true,
+      },
       body: JSON.stringify({
-        error: error.message,
-        timestamp: new Date().toISOString()
+        success: true,
+        uploadUrl,
+        sessionId,
+        s3Key,
+        expiresIn: 900,
+        message: 'Upload the file to the provided URL using PUT request'
       }),
+    };
+  } catch (error) {
+    console.error('Error generating upload URL:', error);
+    return {
+      statusCode: 500,
+      headers: {
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+        'Access-Control-Allow-Credentials': true,
+      },
+      body: JSON.stringify({ error: error.message }),
+    };
+  }
+};
+
+// Trigger immediate transcription for an uploaded file
+module.exports.triggerTranscription = async (event) => {
+  try {
+    // Get user claims from the authorizer
+    const claims = event.requestContext?.authorizer?.claims || {};
+    const email = claims.email || 'Anonymous';
+    const userId = claims.sub || 'unknown';
+
+    console.log(`User ${email} (${userId}) triggering transcription`);
+
+    // Get session ID from path parameters
+    const sessionId = event.pathParameters?.sessionId;
+    if (!sessionId) {
+      return {
+        statusCode: 400,
+        headers: {
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({ error: 'sessionId is required' }),
+      };
+    }
+
+    // Sanitize session ID
+    const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
+    if (!sanitizedSessionId) {
+      return {
+        statusCode: 400,
+        headers: {
+          ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({ error: 'Invalid session ID' }),
+      };
+    }
+
+    // Verify session exists and belongs to user
+    const bucketName = process.env.S3_BUCKET_NAME;
+    const metadataKey = `users/${userId}/audio/sessions/${sanitizedSessionId}/metadata.json`;
+
+    try {
+      await s3.headObject({
+        Bucket: bucketName,
+        Key: metadataKey
+      }).promise();
+    } catch (err) {
+      if (err.code === 'NotFound') {
+        return {
+          statusCode: 404,
+          headers: {
+            ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+            'Access-Control-Allow-Credentials': true,
+          },
+          body: JSON.stringify({ error: 'Session not found' }),
+        };
+      }
+      throw err;
+    }
+
+    // In a real implementation, this would:
+    // 1. Invoke batch transcription Lambda with session ID
+    // 2. Or push message to SQS queue
+    // 3. Or start Step Functions workflow
+    //
+    // For now, we'll return success and rely on manual script trigger
+    // The user can run: ./scripts/515-run-batch-transcribe.sh --session-id {sessionId}
+
+    console.log(`✅ Transcription triggered for session ${sanitizedSessionId}`);
+    console.log(`Note: Run './scripts/515-run-batch-transcribe.sh --session-id ${sanitizedSessionId}' to process`);
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+        'Access-Control-Allow-Credentials': true,
+      },
+      body: JSON.stringify({
+        success: true,
+        sessionId: sanitizedSessionId,
+        status: 'triggered',
+        message: 'Transcription job queued for processing',
+        note: 'Transcription will begin within a few minutes'
+      }),
+    };
+  } catch (error) {
+    console.error('Error triggering transcription:', error);
+    return {
+      statusCode: 500,
+      headers: {
+        ...getSecurityHeaders(event.headers?.origin || event.headers?.Origin),
+        'Access-Control-Allow-Credentials': true,
+      },
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };

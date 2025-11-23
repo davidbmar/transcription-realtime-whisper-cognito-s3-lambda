@@ -27,7 +27,8 @@
   <meta charset="utf-8" />
   <title>Real-Time Audio Recording & Transcription</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 wss://*.davidbmar.com https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; connect-src 'self' wss://*.compute.amazonaws.com wss://3.16.164.228 wss://*.davidbmar.com https://*.amazoncognito.com https://*.amazonaws.com https://de70by05kq678.cloudfront.net; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
   <!-- app.js only needed on index.html, not audio.html -->
   <style>
     /* Step 4 IndexDB UI Styles */
@@ -74,9 +75,87 @@
       opacity:.8;
     }
 
-    /* Context ribbon */
+    /* Header panel */
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .breadcrumb-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .breadcrumb-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #2563eb;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .breadcrumb-link:hover {
+      background: #eff6ff;
+    }
+
+    .breadcrumb-link i {
+      font-size: 16px;
+    }
+
+    .breadcrumb-separator {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+
+    .breadcrumb-current {
+      color: #374151;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .header-email {
+      color: #374151;
+      font-size: 14px;
+    }
+
+    .header-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: white;
+      color: #374151;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .header-btn:hover {
+      background: #f3f4f6;
+    }
+
+    /* Context ribbon - moved down since we have header now */
     .ribbon{
-      position:fixed; top:10px; left:50%; transform:translateX(-50%);
+      position:fixed; top:60px; left:50%; transform:translateX(-50%);
       color:var(--muted); font-size:13px; letter-spacing:.02em;
       backdrop-filter: var(--blur);
       background: rgba(255,255,255,0.04);
@@ -91,9 +170,9 @@
       font-size:12px; color:var(--muted)
     }
 
-    /* Floating palette */
+    /* Floating palette - adjusted for header */
     .palette{
-      position:fixed; top:54px; left:50%; transform:translateX(-50%);
+      position:fixed; top:110px; left:50%; transform:translateX(-50%);
       width:min(92vw, 520px);
       backdrop-filter: var(--blur);
       background: var(--glass);
@@ -350,7 +429,22 @@
   </style>
 </head>
 <body>
-    <button class="logout-button" id="logout-button">Sign Out</button>
+  <!-- Header Panel -->
+  <div class="header">
+    <div class="breadcrumb-nav">
+      <a href="index.html" class="breadcrumb-link">
+        <i class="fas fa-home"></i>
+        Dashboard
+      </a>
+      <span class="breadcrumb-separator">›</span>
+      <span class="breadcrumb-current">Live Record</span>
+    </div>
+    <div class="header-actions">
+      <span id="user-email" class="header-email"></span>
+      <button class="header-btn" id="header-logout-btn">Logout</button>
+    </div>
+  </div>
+
   <div class="app-shell">
 
     <!-- Context ribbon -->
@@ -358,7 +452,6 @@
       <span style="color:#3be38a;font-weight:600;">v6.10.0</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
-      &nbsp;•&nbsp; <a href="#" id="logout-link" style="color:#ff6b6b;text-decoration:none;cursor:pointer;">Sign Out</a>
     </div>
 
     <!-- Floating command palette -->
@@ -3511,7 +3604,7 @@
             return;
         }
 
-        // Check token expiry
+        // Check token expiry and display user email
         try {
             const payload = JSON.parse(atob(idToken.split('.')[1]));
             const expiry = payload.exp * 1000;
@@ -3523,6 +3616,12 @@
                 window.location.href = 'index.html';
                 return;
             }
+
+            // Display user email in header
+            const userEmailElement = document.getElementById('user-email');
+            if (userEmailElement && payload.email) {
+                userEmailElement.textContent = payload.email;
+            }
         } catch (error) {
             console.error('Token validation error:', error);
             window.location.href = 'index.html';
@@ -3530,8 +3629,8 @@
         }
     });
 
-    // Logout button handler
-    document.getElementById('logout-button').addEventListener('click', function() {
+    // Logout button handler (shared function)
+    function handleLogout() {
         // Hardcoded client ID (deployment script will replace placeholder)
         const userPoolClientId = 'TO_BE_REPLACED_USER_POOL_CLIENT_ID';
         const keyPrefix = 'CognitoIdentityServiceProvider.' + userPoolClientId;
@@ -3548,7 +3647,13 @@
         localStorage.removeItem('access_token');
 
         window.location.href = 'index.html';
-    });
+    }
+
+    // Wire up header logout button
+    const headerLogoutBtn = document.getElementById('header-logout-btn');
+    if (headerLogoutBtn) {
+        headerLogoutBtn.addEventListener('click', handleLogout);
+    }
     </script>
 </body>
 </html>

@@ -45,6 +45,44 @@
             font-size: 1.8rem;
         }
 
+        .breadcrumb-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .breadcrumb-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #667eea;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .breadcrumb-link:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .breadcrumb-link i {
+            font-size: 16px;
+        }
+
+        .breadcrumb-separator {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .breadcrumb-current {
+            color: #374151;
+            font-weight: 600;
+        }
+
         .user-info {
             display: flex;
             align-items: center;
@@ -377,6 +415,24 @@
             .logo i {
                 font-size: 1.4rem;
                 margin-right: 0.25rem;
+            }
+
+            .breadcrumb-nav {
+                font-size: 12px;
+                gap: 4px;
+            }
+
+            .breadcrumb-link {
+                padding: 4px 8px;
+                gap: 4px;
+            }
+
+            .breadcrumb-link i {
+                font-size: 14px;
+            }
+
+            .breadcrumb-current {
+                font-size: 12px;
             }
 
             .user-info {
@@ -1457,13 +1513,67 @@
                 font-size: 0.85rem;
             }
         }
+
+        /* Upload Audio Styles */
+        .upload-area {
+            border: 2px dashed #e5e7eb;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            background: white;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-area.drag-over {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: scale(1.02);
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .back-button:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        .back-button i {
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="logo">
+        <div class="logo" id="main-logo">
             <i class="fas fa-cloud"></i>
             CloudDrive
+        </div>
+        <div class="breadcrumb-nav" id="breadcrumb-header" style="display: none;">
+            <a href="javascript:void(0)" class="breadcrumb-link" onclick="showDashboard()">
+                <i class="fas fa-home"></i>
+                Dashboard
+            </a>
+            <span class="breadcrumb-separator">›</span>
+            <span class="breadcrumb-current" id="breadcrumb-page-name">File Manager</span>
         </div>
         <div class="user-info" id="user-info" style="display: none;">
             <div class="user-avatar" id="user-avatar"></div>
@@ -1561,6 +1671,24 @@
                         <div class="dashboard-card-action">
                             <i class="fas fa-arrow-right"></i>
                             Edit Transcripts
+                        </div>
+                    </div>
+
+                    <!-- Upload Audio Card -->
+                    <div class="dashboard-card" onclick="showUploadAudio()">
+                        <div class="dashboard-card-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <h3>Upload Audio</h3>
+                        <p>Upload existing audio files for automatic transcription</p>
+                        <ul class="dashboard-features">
+                            <li><i class="fas fa-check"></i> Support for .m4a, .mp3, .wav, .aac</li>
+                            <li><i class="fas fa-check"></i> Automatic transcription</li>
+                            <li><i class="fas fa-check"></i> Edit in Transcript Editor</li>
+                        </ul>
+                        <div class="dashboard-card-action">
+                            <i class="fas fa-arrow-right"></i>
+                            Upload Files
                         </div>
                     </div>
 
@@ -1727,6 +1855,58 @@
                     <!-- Memory files will be loaded here -->
                 </div>
             </div>
+
+            <!-- Upload Audio Section -->
+            <div id="upload-audio-section" class="file-manager" style="display: none;">
+                <div class="file-manager-header">
+                    <div class="file-manager-header-row">
+                        <div>
+                            <h2>Upload Audio Files</h2>
+                            <p style="color: #666; margin-top: 0.5rem;">Upload audio files for automatic transcription</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="padding: 2rem 0;">
+                    <!-- Upload Area -->
+                    <div class="upload-area" id="upload-drop-zone">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #667eea; margin-bottom: 1rem;"></i>
+                        <h3>Drag & Drop Audio Files Here</h3>
+                        <p style="color: #666; margin: 0.5rem 0;">or</p>
+                        <button class="btn btn-primary" onclick="document.getElementById('audio-file-input').click()">
+                            <i class="fas fa-folder-open"></i>
+                            Choose Files
+                        </button>
+                        <input type="file" id="audio-file-input" accept=".aac,.m4a,.wav,.mp3,.webm,.ogg,.flac" multiple style="display: none;">
+                        <p style="color: #999; margin-top: 1rem; font-size: 0.9rem;">
+                            Supported formats: .aac, .m4a, .wav, .mp3, .webm, .ogg, .flac (Max 500MB)
+                        </p>
+                    </div>
+
+                    <!-- Upload Progress -->
+                    <div id="upload-progress-container" style="display: none; margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Upload Progress</h3>
+                        <div id="upload-progress-list"></div>
+                    </div>
+
+                    <!-- Uploaded Files List -->
+                    <div style="margin-top: 3rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3>Your Uploaded Audio Files</h3>
+                            <button class="btn" onclick="loadUploadedFiles()">
+                                <i class="fas fa-sync"></i>
+                                Refresh
+                            </button>
+                        </div>
+                        <div id="uploaded-files-list">
+                            <div style="text-align: center; padding: 2rem; color: #999;">
+                                <i class="fas fa-music" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                                <p>No uploaded files yet. Upload an audio file to get started.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Debug Section -->
@@ -1819,6 +1999,352 @@
                 });
             }
         });
+
+        // ============================================================
+        // Upload Audio Functions
+        // ============================================================
+        // Section navigation functions
+        // ============================================================
+
+        function hideAllSections() {
+            const sections = [
+                'dashboard-section',
+                'upload-audio-section',
+                'authenticated-section'
+            ];
+            sections.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.style.display = 'none';
+            });
+        }
+
+        function showUploadAudio() {
+            hideAllSections();
+            document.getElementById('upload-audio-section').style.display = 'block';
+            // Hide main logo, show breadcrumb
+            document.getElementById('main-logo').style.display = 'none';
+            document.getElementById('breadcrumb-header').style.display = 'flex';
+            document.getElementById('breadcrumb-page-name').textContent = 'Upload Audio';
+            loadUploadedFiles();
+            initializeUploadHandlers();
+        }
+
+        function showDashboard() {
+            hideAllSections();
+            document.getElementById('dashboard-section').style.display = 'block';
+            // Show main logo, hide breadcrumb
+            document.getElementById('main-logo').style.display = 'flex';
+            document.getElementById('breadcrumb-header').style.display = 'none';
+        }
+
+        function showFileManager() {
+            hideAllSections();
+            document.getElementById('authenticated-section').style.display = 'block';
+            // Hide main logo, show breadcrumb
+            document.getElementById('main-logo').style.display = 'none';
+            document.getElementById('breadcrumb-header').style.display = 'flex';
+            document.getElementById('breadcrumb-page-name').textContent = 'File Manager';
+        }
+
+        async function loadUploadedFiles() {
+            try {
+                const token = localStorage.getItem('id_token');
+                const response = await fetch(`${config.apiUrl}/api/audio/sessions`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load uploaded files');
+
+                const data = await response.json();
+
+                // Filter for uploaded files only (sessionId contains '-upload-')
+                const uploadedFiles = data.sessions.filter(s =>
+                    s.sessionId && s.sessionId.includes('-upload-')
+                );
+
+                renderUploadedFilesList(uploadedFiles);
+            } catch (error) {
+                console.error('Error loading uploaded files:', error);
+            }
+        }
+
+        function renderUploadedFilesList(files) {
+            const container = document.getElementById('uploaded-files-list');
+
+            if (files.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #999;">
+                        <i class="fas fa-music" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>No uploaded files yet. Upload an audio file to get started.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = files.map(file => {
+                const metadata = file.metadata || {};
+                const transcriptionStatus = metadata.transcription?.status || 'pending';
+                const statusBadge = {
+                    'pending': '<span style="color: #f59e0b;">⏳ Pending</span>',
+                    'processing': '<span style="color: #3b82f6;">🔄 Processing</span>',
+                    'complete': '<span style="color: #10b981;">✅ Complete</span>',
+                    'error': '<span style="color: #ef4444;">❌ Error</span>'
+                }[transcriptionStatus] || '<span style="color: #6b7280;">❓ Unknown</span>';
+
+                return `
+                    <div class="file-item" style="margin-bottom: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-music" style="color: #667eea;"></i>
+                                    <strong>${metadata.originalFilename || file.sessionId}</strong>
+                                    <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">📁 Upload</span>
+                                </div>
+                                <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #6b7280;">
+                                    Uploaded: ${new Date(metadata.createdAt || file.folder).toLocaleString()}
+                                    <span style="margin-left: 1rem;">${statusBadge}</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                ${transcriptionStatus === 'pending' ? `
+                                    <button class="btn btn-primary" onclick="transcribeNow('${file.sessionId}')">
+                                        <i class="fas fa-play"></i>
+                                        Transcribe Now
+                                    </button>
+                                ` : ''}
+                                ${transcriptionStatus === 'complete' ? `
+                                    <button class="btn" onclick="window.location.href='transcript-editor-v2.html?sessionId=${file.sessionId}'">
+                                        <i class="fas fa-edit"></i>
+                                        View in Editor
+                                    </button>
+                                ` : ''}
+                                <button class="btn" onclick="deleteUpload('${file.sessionId}')" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function transcribeNow(sessionId) {
+            if (!confirm('Start transcription now? This will start the GPU and may take a few minutes.')) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('id_token');
+                const response = await fetch(`${config.apiUrl}/api/audio/transcribe/${sessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to trigger transcription');
+
+                const data = await response.json();
+                alert(`Transcription started!\n\nThe audio will be transcribed within a few minutes. Refresh this page to see the updated status.`);
+                loadUploadedFiles(); // Refresh list
+            } catch (error) {
+                console.error('Error triggering transcription:', error);
+                alert('Failed to start transcription. Please try again.');
+            }
+        }
+
+        async function deleteUpload(sessionId) {
+            if (!confirm('Delete this uploaded file? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                // Note: You'll need to implement deleteSession endpoint
+                // For now, just show a message
+                alert('Delete functionality will be implemented in the session management API.');
+                // TODO: Implement delete API call
+            } catch (error) {
+                console.error('Error deleting upload:', error);
+                alert('Failed to delete file. Please try again.');
+            }
+        }
+
+        function initializeUploadHandlers() {
+            const fileInput = document.getElementById('audio-file-input');
+            const dropZone = document.getElementById('upload-drop-zone');
+
+            // File input change handler
+            if (fileInput && !fileInput.dataset.initialized) {
+                fileInput.dataset.initialized = 'true';
+                fileInput.addEventListener('change', async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                        await uploadFiles(files);
+                        e.target.value = ''; // Reset input
+                    }
+                });
+            }
+
+            // Drag and drop handlers
+            if (dropZone && !dropZone.dataset.initialized) {
+                dropZone.dataset.initialized = 'true';
+
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.style.borderColor = '#667eea';
+                    dropZone.style.background = '#f0f4ff';
+                });
+
+                dropZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    dropZone.style.borderColor = '#e5e7eb';
+                    dropZone.style.background = 'white';
+                });
+
+                dropZone.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    dropZone.style.borderColor = '#e5e7eb';
+                    dropZone.style.background = 'white';
+
+                    const files = Array.from(e.dataTransfer.files).filter(file =>
+                        file.type.startsWith('audio/')
+                    );
+
+                    if (files.length > 0) {
+                        await uploadFiles(files);
+                    } else {
+                        alert('Please drop audio files only');
+                    }
+                });
+            }
+        }
+
+        async function uploadFiles(files) {
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressList = document.getElementById('upload-progress-list');
+
+            progressContainer.style.display = 'block';
+            progressList.innerHTML = '';
+
+            for (const file of files) {
+                await uploadSingleFile(file, progressList);
+            }
+
+            // Refresh uploaded files list
+            await loadUploadedFiles();
+        }
+
+        async function uploadSingleFile(file, progressList) {
+            const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`${file.name} is too large. Maximum size is 500MB.`);
+                return;
+            }
+
+            const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const progressItem = document.createElement('div');
+            progressItem.style.cssText = 'margin-bottom: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px;';
+            progressItem.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <strong>${file.name}</strong>
+                    <span id="status-${safeFileName}">Requesting upload URL...</span>
+                </div>
+                <div style="background: #f3f4f6; border-radius: 4px; height: 8px; overflow: hidden;">
+                    <div id="progress-${safeFileName}" style="background: #667eea; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+            `;
+            progressList.appendChild(progressItem);
+
+            try {
+                // Step 1: Get presigned upload URL
+                const token = localStorage.getItem('id_token');
+                const uploadInfoResponse = await fetch(`${config.apiUrl}/api/audio/upload-file`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        mimeType: file.type || 'audio/mpeg',
+                        fileSize: file.size
+                    })
+                });
+
+                if (!uploadInfoResponse.ok) {
+                    const error = await uploadInfoResponse.json();
+                    throw new Error(error.error || 'Failed to get upload URL');
+                }
+
+                const uploadInfo = await uploadInfoResponse.json();
+                const { uploadUrl, sessionId } = uploadInfo;
+
+                document.getElementById(`status-${safeFileName}`).textContent = 'Uploading...';
+                document.getElementById(`progress-${safeFileName}`).style.width = '30%';
+
+                // Step 2: Upload file to S3
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': file.type || 'audio/mpeg'
+                    },
+                    body: file
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload file to S3');
+                }
+
+                document.getElementById(`progress-${safeFileName}`).style.width = '70%';
+                document.getElementById(`status-${safeFileName}`).textContent = 'Saving metadata...';
+
+                // Step 3: Save metadata
+                const metadataResponse = await fetch(`${config.apiUrl}/api/audio/session-metadata`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionId: sessionId,
+                        metadata: {
+                            source: 'upload',
+                            originalFilename: file.name,
+                            createdAt: new Date().toISOString(),
+                            chunks: [{
+                                chunkNumber: 1,
+                                filename: `chunk-001.${file.name.split('.').pop()}`,
+                                size: file.size,
+                                uploadedAt: new Date().toISOString()
+                            }],
+                            transcription: {
+                                status: 'pending',
+                                jobId: null,
+                                completedAt: null
+                            }
+                        }
+                    })
+                });
+
+                if (!metadataResponse.ok) {
+                    const error = await metadataResponse.json();
+                    throw new Error(error.error || 'Failed to save metadata');
+                }
+
+                document.getElementById(`progress-${safeFileName}`).style.width = '100%';
+                document.getElementById(`status-${safeFileName}`).innerHTML = '<span style="color: #10b981;">✅ Upload complete!</span>';
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById(`status-${safeFileName}`).innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+            }
+        }
+
+        // hideAllSections is now defined above with all sections included
     </script>
 </body>
 </html>
