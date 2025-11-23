@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Script 520: Update Session Metadata
+ * Worker: Update Session Metadata
  *
  * Updates session metadata.json with transcription completion status.
- * Called by script 518 after preprocessing and formatting complete.
+ * Called by script 518 (postprocess-transcripts.sh) after formatting complete.
  *
  * Usage:
- *   node scripts/520-update-session-metadata.js <session-folder> <status>
+ *   node scripts/lib/update-session-metadata.js <session-folder> <status>
  *
  * Example:
- *   node scripts/520-update-session-metadata.js users/user-id/audio/sessions/session-id complete
+ *   node scripts/lib/update-session-metadata.js users/user-id/audio/sessions/session-id complete
  *
  * What it does:
  *   1. Download metadata.json from S3
@@ -121,8 +121,8 @@ async function main() {
   const status = process.argv[3];
 
   if (!sessionFolder || !status) {
-    console.error('Usage: node 520-update-session-metadata.js <session-folder> <status>');
-    console.error('Example: node 520-update-session-metadata.js users/123/audio/sessions/session-id complete');
+    console.error('Usage: node scripts/lib/update-session-metadata.js <session-folder> <status>');
+    console.error('Example: node scripts/lib/update-session-metadata.js users/123/audio/sessions/session-id complete');
     console.error('');
     console.error('Valid statuses: pending, processing, complete, error');
     process.exit(1);

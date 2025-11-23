@@ -204,8 +204,8 @@ curl -s ${COGNITO_CLOUDFRONT_URL}/app.js | grep whisperLiveWsUrl
 # Scan for missing chunks
 ./scripts/512-scan-missing-chunks.sh
 
-# Preprocess transcripts for instant editor loading
-./scripts/518-scan-and-preprocess-transcripts.sh
+# Postprocess transcripts for instant editor loading
+./scripts/518-postprocess-transcripts.sh
 ```
 
 ---

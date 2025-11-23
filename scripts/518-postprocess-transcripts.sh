@@ -3,7 +3,7 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# Script 518: Scan and Preprocess Transcripts
+# Script 518: Postprocess Transcripts
 # ============================================================================
 # Scans all audio sessions and generates pre-processed transcripts for any
 # sessions that are complete but don't have a processed file yet.
@@ -13,10 +13,11 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 # 2. For each session:
 #    a. Check if transcription-processed.json already exists
 #    b. If not, check if all transcription chunks are present
-#    c. If complete, generate transcription-processed.json
-#    d. Apply rule-based formatting (script 519)
-#    e. Update session metadata to mark transcription as complete (script 520)
-#    f. If incomplete, skip (transcription still in progress)
+#    c. If complete, run the postprocessing pipeline:
+#       - Deduplicate chunk boundaries (lib/deduplicate-transcript-boundaries.js)
+#       - Apply rule-based formatting (lib/format-transcript-rules.js)
+#       - Update session metadata (lib/update-session-metadata.js)
+#    d. If incomplete, skip (transcription still in progress)
 # 3. Report summary of processed sessions
 #
 # When to run:
@@ -196,8 +197,8 @@ process_session() {
     # CASE 4: Transcription complete, no processed file (or stale file was deleted above)
     log_info "  ✅ Complete! Generating pre-processed file with $trans_count chunks..."
 
-    # Step 1: Run boundary deduplication (script 517)
-    if node "$PROJECT_ROOT/scripts/517-preprocess-transcript.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
+    # Step 1: Run boundary deduplication
+    if node "$PROJECT_ROOT/scripts/lib/deduplicate-transcript-boundaries.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Pre-processed successfully"
     else
         log_error "  ❌ Failed to preprocess"
@@ -205,9 +206,9 @@ process_session() {
         return 1
     fi
 
-    # Step 2: Run rule-based formatting (script 519)
+    # Step 2: Run rule-based formatting
     log_info "  ✨ Applying rule-based formatting..."
-    if node "$PROJECT_ROOT/scripts/519-format-transcript-rules.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
+    if node "$PROJECT_ROOT/scripts/lib/format-transcript-rules.js" "$session_folder" 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Formatted successfully"
     else
         log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
@@ -215,7 +216,7 @@ process_session() {
 
     # Step 3: Update metadata to mark transcription as complete
     log_info "  📝 Updating session metadata..."
-    if node "$PROJECT_ROOT/scripts/520-update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
+    if node "$PROJECT_ROOT/scripts/lib/update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Metadata updated - session marked as complete"
         PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
         return 0

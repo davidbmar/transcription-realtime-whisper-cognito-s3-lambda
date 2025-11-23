@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * Script 517: Server-Side Transcript Preprocessing
+ * Worker: Deduplicate Transcript Boundaries
  *
  * Runs after batch transcription to generate a pre-processed transcript file.
  * This eliminates client-side processing and dramatically speeds up editor loading.
+ * Called by script 518 (postprocess-transcripts.sh).
  *
  * Usage:
- *   node scripts/517-preprocess-transcript.js <session-folder>
+ *   node scripts/lib/deduplicate-transcript-boundaries.js <session-folder>
  *
  * Example:
- *   node scripts/517-preprocess-transcript.js audio-sessions/user-id/2025-11-18T15_07_04_017Z
+ *   node scripts/lib/deduplicate-transcript-boundaries.js audio-sessions/user-id/2025-11-18T15_07_04_017Z
  *
  * What it does:
  *   1. Download all transcription-chunk-*.json files from S3

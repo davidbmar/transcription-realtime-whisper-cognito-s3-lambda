@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * Script 519: Rule-Based Transcript Formatting
+ * Worker: Rule-Based Transcript Formatting
  *
  * Post-processes transcripts with rule-based formatting improvements.
- * Runs after script 517 (boundary deduplication) to enhance readability.
+ * Runs after boundary deduplication to enhance readability.
+ * Called by script 518 (postprocess-transcripts.sh).
  *
  * Usage:
- *   node scripts/519-format-transcript-rules.js <session-folder>
+ *   node scripts/lib/format-transcript-rules.js <session-folder>
  *
  * Example:
- *   node scripts/519-format-transcript-rules.js users/user-id/audio/sessions/session-id
+ *   node scripts/lib/format-transcript-rules.js users/user-id/audio/sessions/session-id
  *
  * What it does:
  *   1. Download transcription-processed.json from S3

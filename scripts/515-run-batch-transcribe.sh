@@ -1120,15 +1120,15 @@ echo ""
 
 # Step 7: Generate pre-processed transcripts for fast editor loading
 log_info "==================================================================="
-log_info "Step 7: Generating pre-processed transcripts"
+log_info "Step 7: Running transcript postprocessing pipeline"
 log_info "==================================================================="
 echo ""
 
-# Run 518 to scan and preprocess any complete sessions
-if [ -f "$PROJECT_ROOT/scripts/518-scan-and-preprocess-transcripts.sh" ]; then
-    "$PROJECT_ROOT/scripts/518-scan-and-preprocess-transcripts.sh"
+# Run 518 to scan and postprocess any complete sessions
+if [ -f "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh" ]; then
+    "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh"
 else
-    log_warn "518-scan-and-preprocess-transcripts.sh not found - skipping preprocessing"
+    log_warn "518-postprocess-transcripts.sh not found - skipping postprocessing"
 fi
 
 echo ""

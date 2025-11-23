@@ -205,8 +205,8 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 # Scan for missing audio chunks
 ./scripts/512-scan-missing-chunks.sh
 
-# Scan and preprocess transcripts for instant editor loading
-./scripts/518-scan-and-preprocess-transcripts.sh
+# Scan and postprocess transcripts for instant editor loading
+./scripts/518-postprocess-transcripts.sh
 
 # Check GPU usage costs
 ./scripts/530-gpu-cost-tracker.sh
