@@ -1203,6 +1203,9 @@
                     currentSession = allSessions[selectedIndex];
                     console.log('Switched to session:', currentSession);
 
+                    // Stop any playing audio from previous session
+                    stopAudio();
+
                     // Show loading state
                     document.getElementById('loading').style.display = 'flex';
                     document.getElementById('main-container').style.display = 'none';
