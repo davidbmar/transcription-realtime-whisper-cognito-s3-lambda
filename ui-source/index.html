@@ -2044,6 +2044,8 @@
             document.getElementById('main-logo').style.display = 'none';
             document.getElementById('breadcrumb-header').style.display = 'flex';
             document.getElementById('breadcrumb-page-name').textContent = 'File Manager';
+            // Load root directory files
+            navigateToFolder('');
         }
 
         async function loadUploadedFiles() {
