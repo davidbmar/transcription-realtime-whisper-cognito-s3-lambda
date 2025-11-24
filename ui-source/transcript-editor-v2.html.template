@@ -740,6 +740,9 @@
             <div class="sidebar-section">
                 <div class="sidebar-title">Actions</div>
                 <div class="plugin-list">
+                    <button class="plugin-btn" onclick="sessionInfoModal.show()">
+                        ℹ️ Session Info
+                    </button>
                     <button class="plugin-btn" onclick="pluginManager.showSearchDialog()">
                         🔍 Search
                     </button>
@@ -856,6 +859,17 @@
             <span class="modal-close" onclick="closeModal()">&times;</span>
             <h2 class="modal-title" id="modal-title">Plugin</h2>
             <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Session Info Modal -->
+    <div id="session-info-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="sessionInfoModal.close()">&times;</span>
+            <h2 class="modal-title">ℹ️ Session Information</h2>
+            <div id="session-info-body" style="padding: 16px 0;">
+                <!-- Content will be populated by JavaScript -->
+            </div>
         </div>
     </div>
 
@@ -2193,6 +2207,107 @@
         document.getElementById('plugin-modal').addEventListener('click', (e) => {
             if (e.target.id === 'plugin-modal') {
                 closeModal();
+            }
+        });
+
+        // ====================================================================
+        // Session Info Modal
+        // ====================================================================
+
+        const sessionInfoModal = {
+            show() {
+                if (!currentSession) {
+                    showToast('No session loaded', 'error');
+                    return;
+                }
+
+                const modal = document.getElementById('session-info-modal');
+                const body = document.getElementById('session-info-body');
+
+                // Get user ID
+                const userId = getUserId();
+
+                // Format session display name
+                const displayName = formatSessionName(currentSession.folder, selectedTimezone);
+
+                // Build copyable info
+                const info = {
+                    'Session ID': currentSession.folder,
+                    'User ID': userId,
+                    'Display Name': displayName,
+                    'Metadata': currentSession.metadata ? JSON.stringify(currentSession.metadata, null, 2) : 'None'
+                };
+
+                // Build HTML with copyable fields
+                let html = '<div style="font-family: monospace; font-size: 13px;">';
+
+                for (const [key, value] of Object.entries(info)) {
+                    const copyId = 'copy-' + key.toLowerCase().replace(/\s+/g, '-');
+                    html += `
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-weight: 600; color: var(--gray-700); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                ${key}
+                            </div>
+                            <div style="position: relative;">
+                                <div id="${copyId}" style="
+                                    background: var(--gray-100);
+                                    padding: 12px;
+                                    border-radius: 6px;
+                                    border: 1px solid var(--gray-300);
+                                    word-break: break-all;
+                                    ${key === 'Metadata' ? 'white-space: pre-wrap;' : ''}
+                                    cursor: text;
+                                    user-select: all;
+                                ">${value}</div>
+                                <button onclick="sessionInfoModal.copy('${copyId}', '${key}')" style="
+                                    position: absolute;
+                                    top: 8px;
+                                    right: 8px;
+                                    background: white;
+                                    border: 1px solid var(--gray-300);
+                                    border-radius: 4px;
+                                    padding: 4px 8px;
+                                    font-size: 11px;
+                                    cursor: pointer;
+                                    color: var(--gray-700);
+                                    font-weight: 500;
+                                    transition: all 0.2s;
+                                " onmouseover="this.style.background='var(--gray-100)'" onmouseout="this.style.background='white'">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+
+                body.innerHTML = html;
+                modal.style.display = 'flex';
+            },
+
+            copy(elementId, label) {
+                const element = document.getElementById(elementId);
+                const text = element.textContent;
+
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`${label} copied to clipboard`, 'success');
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    showToast('Failed to copy to clipboard', 'error');
+                });
+            },
+
+            close() {
+                const modal = document.getElementById('session-info-modal');
+                modal.style.display = 'none';
+            }
+        };
+
+        // Close session info modal on outside click
+        document.getElementById('session-info-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'session-info-modal') {
+                sessionInfoModal.close();
             }
         });
     </script>
