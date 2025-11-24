@@ -59,26 +59,25 @@ declare -a SESSION_NAMES=()
 declare -a SESSION_STATUSES=()
 declare -a SESSION_AI_STATUSES=()
 
-log_info "Scanning for sessions..."
+log_info "Scanning for sessions (this may take a moment)..."
 echo ""
 
-# Get all users
-USERS=$(aws s3 ls s3://$COGNITO_S3_BUCKET/users/ 2>/dev/null | grep "PRE" | awk '{print $2}' | sed 's|/$||' || true)
+# Get all transcription files in one go (much faster!)
+ALL_TRANSCRIPTS=$(aws s3 ls s3://$COGNITO_S3_BUCKET/users/ --recursive 2>/dev/null | grep -E "transcription-(chunk|processed|ai-analysis)" || true)
 
-if [ -z "$USERS" ]; then
-    log_error "No users found in S3 bucket"
-    exit 1
-fi
+# Parse out unique session paths
+declare -A SESSION_MAP
+while IFS= read -r line; do
+    if [ -z "$line" ]; then continue; fi
 
-for USER_ID in $USERS; do
-    # List sessions for this user
-    SESSIONS=$(aws s3 ls s3://$COGNITO_S3_BUCKET/users/$USER_ID/audio/sessions/ 2>/dev/null | grep "PRE" | awk '{print $2}' | sed 's|/$||' || true)
+    # Extract path from ls output
+    FILE_PATH=$(echo "$line" | awk '{print $4}')
 
-    if [ -z "$SESSIONS" ]; then
-        continue
-    fi
+    # Extract session path (users/USER_ID/audio/sessions/SESSION_FOLDER)
+    if [[ "$FILE_PATH" =~ (users/[^/]+/audio/sessions/[^/]+) ]]; then
+        SESSION_PATH="${BASH_REMATCH[1]}"
+        SESSION_FOLDER=$(basename "$SESSION_PATH")
 
-    while IFS= read -r SESSION_FOLDER; do
         # Apply search filter if provided
         if [ -n "$SEARCH_TERM" ]; then
             if ! echo "$SESSION_FOLDER" | grep -qi "$SEARCH_TERM"; then
@@ -86,28 +85,30 @@ for USER_ID in $USERS; do
             fi
         fi
 
-        FULL_PATH="users/$USER_ID/audio/sessions/$SESSION_FOLDER"
-
-        # Check if it has transcription
-        HAS_TRANSCRIPT=$(aws s3 ls s3://$COGNITO_S3_BUCKET/$FULL_PATH/ 2>/dev/null | grep -E "(transcription-chunk|transcription-processed)" | wc -l)
-
-        # Check if it has AI analysis
-        HAS_ANALYSIS=$(aws s3 ls s3://$COGNITO_S3_BUCKET/$FULL_PATH/ 2>/dev/null | grep "transcription-ai-analysis.json" | wc -l)
-
-        # Only include sessions with transcripts
-        if [ "$HAS_TRANSCRIPT" -gt 0 ]; then
-            SESSION_PATHS+=("$FULL_PATH")
-            SESSION_NAMES+=("$SESSION_FOLDER")
-
-            if [ "$HAS_ANALYSIS" -gt 0 ]; then
-                SESSION_AI_STATUSES+=("yes")
-                SESSION_STATUSES+=("✓ Transcribed + AI")
-            else
-                SESSION_AI_STATUSES+=("no")
-                SESSION_STATUSES+=("✓ Transcribed")
-            fi
+        # Track what files this session has
+        if [[ "$FILE_PATH" =~ transcription-ai-analysis ]]; then
+            SESSION_MAP["$SESSION_PATH"]="has_ai"
+        elif [ "${SESSION_MAP[$SESSION_PATH]:-}" != "has_ai" ]; then
+            SESSION_MAP["$SESSION_PATH"]="has_transcript"
         fi
-    done <<< "$SESSIONS"
+    fi
+done <<< "$ALL_TRANSCRIPTS"
+
+# Build arrays from map
+for SESSION_PATH in "${!SESSION_MAP[@]}"; do
+    SESSION_FOLDER=$(basename "$SESSION_PATH")
+    HAS_AI="${SESSION_MAP[$SESSION_PATH]}"
+
+    SESSION_PATHS+=("$SESSION_PATH")
+    SESSION_NAMES+=("$SESSION_FOLDER")
+
+    if [ "$HAS_AI" = "has_ai" ]; then
+        SESSION_AI_STATUSES+=("yes")
+        SESSION_STATUSES+=("✓ Transcribed + AI")
+    else
+        SESSION_AI_STATUSES+=("no")
+        SESSION_STATUSES+=("✓ Transcribed")
+    fi
 done
 
 # Check if we found any sessions
