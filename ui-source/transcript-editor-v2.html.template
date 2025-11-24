@@ -707,7 +707,21 @@
         <div class="sidebar">
             <!-- Session Selector -->
             <div class="sidebar-section">
-                <div class="sidebar-title">Session</div>
+                <div class="sidebar-title" style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>Session</span>
+                    <button onclick="sessionInfoModal.show()" style="
+                        background: none;
+                        border: none;
+                        cursor: pointer;
+                        font-size: 16px;
+                        padding: 4px;
+                        opacity: 0.6;
+                        transition: opacity 0.2s;
+                        line-height: 1;
+                    " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="View session details">
+                        ℹ️
+                    </button>
+                </div>
                 <select id="session-selector" style="width: 100%; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
                     <option value="">Loading sessions...</option>
                 </select>
@@ -740,9 +754,6 @@
             <div class="sidebar-section">
                 <div class="sidebar-title">Actions</div>
                 <div class="plugin-list">
-                    <button class="plugin-btn" onclick="sessionInfoModal.show()">
-                        ℹ️ Session Info
-                    </button>
                     <button class="plugin-btn" onclick="pluginManager.showSearchDialog()">
                         🔍 Search
                     </button>
