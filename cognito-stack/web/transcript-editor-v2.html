@@ -1937,6 +1937,9 @@
                     // Reset AI timeline navigator to clear previous session's data
                     aiNavigator.reset();
 
+                    // Clean up scroll sync observer
+                    cleanupScrollSync();
+
                     // Show loading state
                     document.getElementById('loading').style.display = 'flex';
                     document.getElementById('main-container').style.display = 'none';
@@ -2102,6 +2105,9 @@
                 if (hasAnalysis) {
                     aiNavigator.render();
                     console.log('✅ AI Timeline Navigation enabled');
+
+                    // Initialize scroll sync after timeline is rendered
+                    initializeScrollSync();
                 } else {
                     console.log('ℹ️  No AI analysis - timeline hidden');
                 }
@@ -2110,6 +2116,125 @@
                 // Hide timeline if error
                 document.getElementById('ai-nav-container').style.display = 'none';
             }
+        }
+
+        // ====================================================================
+        // Scroll Sync: Auto-highlight timeline based on visible paragraph
+        // ====================================================================
+
+        let paragraphObserver = null;
+        let currentlyHighlightedMarker = null;
+
+        function initializeScrollSync() {
+            // Clean up existing observer if any
+            if (paragraphObserver) {
+                paragraphObserver.disconnect();
+            }
+
+            // Create intersection observer
+            // Trigger when paragraph is in center 40% of viewport
+            const options = {
+                root: null,
+                rootMargin: '-30% 0px -30% 0px', // Center 40% of viewport
+                threshold: 0
+            };
+
+            paragraphObserver = new IntersectionObserver((entries) => {
+                // Find the most visible paragraph in the center zone
+                let mostVisibleEntry = null;
+                let maxVisibility = 0;
+
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && entry.intersectionRatio > maxVisibility) {
+                        maxVisibility = entry.intersectionRatio;
+                        mostVisibleEntry = entry;
+                    }
+                });
+
+                if (mostVisibleEntry) {
+                    const paraIndex = parseInt(mostVisibleEntry.target.dataset.paraIndex);
+                    updateTimelineHighlight(paraIndex);
+                }
+            }, options);
+
+            // Observe all paragraphs
+            document.querySelectorAll('.paragraph[data-para-index]').forEach(para => {
+                paragraphObserver.observe(para);
+            });
+
+            console.log('✅ Scroll sync initialized');
+        }
+
+        function updateTimelineHighlight(paraIndex) {
+            if (!processedData || !processedData.paragraphs) return;
+
+            const para = processedData.paragraphs[paraIndex];
+            if (!para) return;
+
+            // Get the time range for this paragraph
+            const paraStart = para.start;
+            const paraEnd = para.end;
+
+            // Find timeline items that overlap with this paragraph
+            const track = document.getElementById('timeline-track');
+            if (!track) return;
+
+            // Remove previous highlight
+            if (currentlyHighlightedMarker) {
+                currentlyHighlightedMarker.style.opacity = '';
+                currentlyHighlightedMarker.style.transform = '';
+                currentlyHighlightedMarker.style.zIndex = '';
+            }
+
+            // Find the first marker that overlaps with current paragraph
+            const markers = track.querySelectorAll('.timeline-marker');
+            let bestMarker = null;
+            let bestOverlap = 0;
+
+            markers.forEach(marker => {
+                const markerStart = parseFloat(marker.dataset.start || marker.dataset.time);
+                const markerEnd = parseFloat(marker.dataset.end || markerStart);
+
+                // Calculate overlap between marker and paragraph
+                const overlapStart = Math.max(markerStart, paraStart);
+                const overlapEnd = Math.min(markerEnd, paraEnd);
+                const overlap = Math.max(0, overlapEnd - overlapStart);
+
+                if (overlap > bestOverlap) {
+                    bestOverlap = overlap;
+                    bestMarker = marker;
+                }
+            });
+
+            // Highlight the best matching marker
+            if (bestMarker && bestOverlap > 0) {
+                bestMarker.style.opacity = '1';
+                bestMarker.style.transform = 'scale(1.15)';
+                bestMarker.style.zIndex = '100';
+                bestMarker.style.transition = 'all 0.3s ease';
+                currentlyHighlightedMarker = bestMarker;
+
+                // Auto-scroll timeline to keep marker visible
+                const timelineNav = document.querySelector('.ai-nav-tabs');
+                if (timelineNav) {
+                    const markerRect = bestMarker.getBoundingClientRect();
+                    const navRect = timelineNav.getBoundingClientRect();
+
+                    // Only scroll if marker is not visible in timeline
+                    if (markerRect.left < navRect.left || markerRect.right > navRect.right) {
+                        bestMarker.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    }
+                }
+            }
+        }
+
+        // Clean up observer when switching sessions
+        function cleanupScrollSync() {
+            if (paragraphObserver) {
+                paragraphObserver.disconnect();
+                paragraphObserver = null;
+            }
+            currentlyHighlightedMarker = null;
         }
 
         // Format questions in a paragraph (initial render, no word timing)
