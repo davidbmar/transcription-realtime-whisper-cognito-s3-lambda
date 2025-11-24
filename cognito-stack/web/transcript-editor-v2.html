@@ -646,6 +646,190 @@
             background: var(--primary-dark);
         }
 
+        /* AI Timeline Navigation Styles */
+        .ai-nav-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .ai-nav-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 16px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            overflow-x: auto;
+        }
+
+        .ai-nav-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            background: white;
+            color: var(--gray-700);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .ai-nav-tab:hover {
+            border-color: var(--gray-300);
+            background: var(--gray-100);
+        }
+
+        .ai-nav-tab.active {
+            color: white;
+            border-color: currentColor;
+        }
+
+        .ai-nav-tab.active.highlights { background: #8b5cf6; }
+        .ai-nav-tab.active.actionItems { background: #ef4444; }
+        .ai-nav-tab.active.keyTerms { background: #3b82f6; }
+        .ai-nav-tab.active.keyThemes { background: #f59e0b; }
+        .ai-nav-tab.active.topicChanges { background: #10b981; }
+        .ai-nav-tab.active.all { background: var(--primary); }
+
+        .ai-count-badge {
+            background: rgba(255,255,255,0.3);
+            color: inherit;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .ai-nav-tab.active .ai-count-badge {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .timeline-container {
+            padding: 24px;
+            background: white;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .timeline-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .timeline-duration {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .timeline-track-wrapper {
+            position: relative;
+            height: 60px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            overflow: visible;
+        }
+
+        .timeline-track {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .timeline-marker:hover {
+            width: 8px;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .timeline-marker.segment {
+            height: 100%;
+            opacity: 0.4;
+        }
+
+        .timeline-marker.segment:hover {
+            opacity: 0.6;
+        }
+
+        .timeline-time-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--gray-500);
+        }
+
+        .timeline-tooltip {
+            position: fixed;
+            background: var(--gray-900);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 320px;
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .timeline-tooltip.show {
+            opacity: 1;
+        }
+
+        .tooltip-time {
+            font-weight: 600;
+            color: #fbbf24;
+            margin-bottom: 6px;
+        }
+
+        .tooltip-summary {
+            line-height: 1.5;
+        }
+
+        .ai-highlighted {
+            animation: highlight-pulse 2s ease-in-out;
+        }
+
+        @keyframes highlight-pulse {
+            0%, 100% { background: var(--gray-50); }
+            50% { background: #fef3c7; }
+        }
+
+        .ai-loading-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--gray-600);
+        }
+
+        .ai-empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--gray-500);
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .main-container {
@@ -655,6 +839,14 @@
             .sidebar {
                 position: relative;
                 top: 0;
+            }
+
+            .ai-nav-tabs {
+                overflow-x: scroll;
+            }
+
+            .timeline-track-wrapper {
+                height: 80px;
             }
         }
     </style>
@@ -783,8 +975,58 @@
             </button>
         </div>
 
-        <!-- Editor Panel -->
-        <div class="editor-panel">
+        <!-- Main Content Column -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- AI Timeline Navigation -->
+            <div id="ai-nav-container" class="ai-nav-container" style="display: none;">
+                <!-- Navigation Tabs -->
+                <div class="ai-nav-tabs">
+                    <button class="ai-nav-tab all active" onclick="aiNavigator.filterByType('all')" data-type="all">
+                        🌐 All
+                        <span class="ai-count-badge" id="count-all">0</span>
+                    </button>
+                    <button class="ai-nav-tab highlights" onclick="aiNavigator.filterByType('highlights')" data-type="highlights">
+                        ✨ Highlights
+                        <span class="ai-count-badge" id="count-highlights">0</span>
+                    </button>
+                    <button class="ai-nav-tab actionItems" onclick="aiNavigator.filterByType('actionItems')" data-type="actionItems">
+                        ✅ Action Items
+                        <span class="ai-count-badge" id="count-actionItems">0</span>
+                    </button>
+                    <button class="ai-nav-tab keyTerms" onclick="aiNavigator.filterByType('keyTerms')" data-type="keyTerms">
+                        📚 Key Terms
+                        <span class="ai-count-badge" id="count-keyTerms">0</span>
+                    </button>
+                    <button class="ai-nav-tab keyThemes" onclick="aiNavigator.filterByType('keyThemes')" data-type="keyThemes">
+                        🎯 Themes
+                        <span class="ai-count-badge" id="count-keyThemes">0</span>
+                    </button>
+                    <button class="ai-nav-tab topicChanges" onclick="aiNavigator.filterByType('topicChanges')" data-type="topicChanges">
+                        🔀 Topic Changes
+                        <span class="ai-count-badge" id="count-topicChanges">0</span>
+                    </button>
+                </div>
+
+                <!-- Timeline Track -->
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Interactive Timeline</div>
+                        <div class="timeline-duration" id="timeline-duration">0:00</div>
+                    </div>
+                    <div class="timeline-track-wrapper">
+                        <div class="timeline-track" id="timeline-track">
+                            <!-- Markers added dynamically -->
+                        </div>
+                    </div>
+                    <div class="timeline-time-labels">
+                        <span>0:00</span>
+                        <span id="timeline-end-label">0:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor Panel -->
+            <div class="editor-panel">
             <div class="editor-toolbar">
                 <div class="toolbar-group">
                     <button class="toolbar-btn" id="edit-mode-btn" title="Toggle Edit Mode" onclick="toggleEditMode()">
@@ -861,6 +1103,12 @@
 
     <!-- Toast -->
     <div id="toast" class="toast"></div>
+
+    <!-- AI Timeline Tooltip -->
+    <div id="timeline-tooltip" class="timeline-tooltip">
+        <div class="tooltip-time" id="tooltip-time"></div>
+        <div class="tooltip-summary" id="tooltip-summary"></div>
+    </div>
 
     <!-- Preprocessor Scripts - Version 2 for cache busting -->
     <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
@@ -1274,6 +1522,9 @@
                         // Render
                         renderEditor();
 
+                        // Try to load AI analysis
+                        await loadAIAnalysis();
+
                         // Hide loading, show content
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('main-container').style.display = 'grid';
@@ -1350,6 +1601,9 @@
                 // Render
                 renderEditor();
 
+                // Try to load AI analysis
+                await loadAIAnalysis();
+
                 // Hide loading, show content
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('main-container').style.display = 'grid';
@@ -1358,6 +1612,23 @@
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 showToast('Failed to load transcript: ' + error.message, 'error');
+            }
+        }
+
+        // Load AI analysis if available
+        async function loadAIAnalysis() {
+            try {
+                const hasAnalysis = await aiNavigator.loadAnalysis();
+                if (hasAnalysis) {
+                    aiNavigator.render();
+                    console.log('✅ AI Timeline Navigation enabled');
+                } else {
+                    console.log('ℹ️  No AI analysis - timeline hidden');
+                }
+            } catch (error) {
+                console.error('Error loading AI analysis:', error);
+                // Hide timeline if error
+                document.getElementById('ai-nav-container').style.display = 'none';
             }
         }
 
@@ -2195,6 +2466,229 @@
                 closeModal();
             }
         });
+
+        // ====================================================================
+        // AI Timeline Navigator
+        // ====================================================================
+
+        class AITimelineNavigator {
+            constructor() {
+                this.aiAnalysis = null;
+                this.activeFilter = 'all';
+                this.totalDuration = 0;
+                this.colorMap = {
+                    highlights: '#8b5cf6',
+                    actionItems: '#ef4444',
+                    keyTerms: '#3b82f6',
+                    keyThemes: '#f59e0b',
+                    topicChanges: '#10b981'
+                };
+            }
+
+            async loadAnalysis() {
+                if (!currentSession) return false;
+
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
+
+                try {
+                    // Try to load AI analysis
+                    const analysisKey = `${sessionPath}/transcription-ai-analysis.json`;
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(analysisKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        this.aiAnalysis = await response.json();
+                        console.log('✅ AI analysis loaded:', this.aiAnalysis);
+                        return true;
+                    }
+                } catch (error) {
+                    console.log('No AI analysis available for this session');
+                    return false;
+                }
+
+                return false;
+            }
+
+            render() {
+                if (!this.aiAnalysis || !processedData) {
+                    // Hide AI navigation if no analysis
+                    document.getElementById('ai-nav-container').style.display = 'none';
+                    return;
+                }
+
+                // Show AI navigation
+                document.getElementById('ai-nav-container').style.display = 'block';
+
+                this.totalDuration = processedData.stats.totalDuration;
+
+                // Update duration labels
+                document.getElementById('timeline-duration').textContent = formatDuration(this.totalDuration);
+                document.getElementById('timeline-end-label').textContent = formatDuration(this.totalDuration);
+
+                // Update count badges
+                this.updateCounts();
+
+                // Render markers
+                this.renderMarkers();
+            }
+
+            updateCounts() {
+                const counts = {
+                    highlights: this.aiAnalysis.highlights?.length || 0,
+                    actionItems: this.aiAnalysis.actionItems?.length || 0,
+                    keyTerms: this.aiAnalysis.keyTerms?.length || 0,
+                    keyThemes: this.aiAnalysis.keyThemes?.length || 0,
+                    topicChanges: this.aiAnalysis.topicChanges?.length || 0
+                };
+
+                counts.all = Object.values(counts).reduce((a, b) => a + b, 0);
+
+                Object.keys(counts).forEach(type => {
+                    const badge = document.getElementById(`count-${type}`);
+                    if (badge) badge.textContent = counts[type];
+                });
+            }
+
+            filterByType(type) {
+                this.activeFilter = type;
+
+                // Update active tab
+                document.querySelectorAll('.ai-nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`.ai-nav-tab[data-type="${type}"]`).classList.add('active');
+
+                // Re-render markers
+                this.renderMarkers();
+            }
+
+            renderMarkers() {
+                const track = document.getElementById('timeline-track');
+                track.innerHTML = '';
+
+                const items = this.getFilteredItems();
+
+                items.forEach(item => {
+                    const marker = this.createMarker(item);
+                    track.appendChild(marker);
+                });
+            }
+
+            getFilteredItems() {
+                if (!this.aiAnalysis) return [];
+
+                let items = [];
+
+                if (this.activeFilter === 'all') {
+                    // Include all types
+                    ['highlights', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                        if (this.aiAnalysis[type]) {
+                            items.push(...this.aiAnalysis[type].map(item => ({ ...item, type })));
+                        }
+                    });
+                } else {
+                    // Only include selected type
+                    if (this.aiAnalysis[this.activeFilter]) {
+                        items = this.aiAnalysis[this.activeFilter].map(item => ({ ...item, type: this.activeFilter }));
+                    }
+                }
+
+                return items;
+            }
+
+            createMarker(item) {
+                const marker = document.createElement('div');
+                marker.className = 'timeline-marker';
+
+                const startTime = item.timeCodeStart || item.timeCode || 0;
+                const endTime = item.timeCodeEnd || startTime;
+
+                // Position marker
+                const leftPercent = (startTime / this.totalDuration) * 100;
+                marker.style.left = `${leftPercent}%`;
+
+                // Color by type
+                marker.style.backgroundColor = this.colorMap[item.type] || '#666';
+
+                // Segments vs points
+                if (endTime > startTime) {
+                    // Segment (like themes)
+                    const widthPercent = ((endTime - startTime) / this.totalDuration) * 100;
+                    marker.style.width = `${Math.max(widthPercent, 0.5)}%`;
+                    marker.classList.add('segment');
+                } else {
+                    // Point marker
+                    marker.style.width = '4px';
+                }
+
+                // Tooltip data
+                marker.dataset.time = startTime;
+                marker.dataset.summary = item.summary || item.text || item.term || item.theme || 'No description';
+
+                // Click to jump
+                marker.onclick = () => this.jumpToTime(startTime, item);
+
+                // Hover tooltip
+                marker.onmouseenter = (e) => this.showTooltip(e, item, startTime);
+                marker.onmouseleave = () => this.hideTooltip();
+
+                return marker;
+            }
+
+            jumpToTime(timeCode, item) {
+                // Find paragraph that contains this time
+                const paragraph = processedData.paragraphs.find(p =>
+                    timeCode >= p.start && timeCode <= p.end
+                );
+
+                if (paragraph) {
+                    const paraIndex = processedData.paragraphs.indexOf(paragraph);
+                    const paraEl = document.querySelector(`#para-${paraIndex}`);
+
+                    if (paraEl) {
+                        // Scroll to paragraph
+                        paraEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                        // Highlight it
+                        const textEl = paraEl.querySelector('.paragraph-text');
+                        textEl.classList.add('ai-highlighted');
+                        setTimeout(() => textEl.classList.remove('ai-highlighted'), 2000);
+
+                        // If audio is playing, seek to time
+                        if (currentAudio) {
+                            currentAudio.currentTime = timeCode;
+                        }
+                    }
+                }
+            }
+
+            showTooltip(event, item, timeCode) {
+                const tooltip = document.getElementById('timeline-tooltip');
+                const timeEl = document.getElementById('tooltip-time');
+                const summaryEl = document.getElementById('tooltip-summary');
+
+                timeEl.textContent = formatTime(timeCode);
+                summaryEl.textContent = item.summary || item.text || item.term || item.theme || item.toTopic || 'No description';
+
+                // Position tooltip
+                const rect = event.target.getBoundingClientRect();
+                tooltip.style.left = `${rect.left}px`;
+                tooltip.style.top = `${rect.top - 80}px`;
+
+                tooltip.classList.add('show');
+            }
+
+            hideTooltip() {
+                const tooltip = document.getElementById('timeline-tooltip');
+                tooltip.classList.remove('show');
+            }
+        }
+
+        // Initialize AI Navigator
+        let aiNavigator = new AITimelineNavigator();
+
     </script>
 </body>
 </html>

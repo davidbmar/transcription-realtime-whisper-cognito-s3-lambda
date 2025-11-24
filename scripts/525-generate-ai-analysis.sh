@@ -3,7 +3,7 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# Script 520: Generate AI Analysis for Transcripts
+# Script 525: Generate AI Analysis for Transcripts
 # ============================================================================
 # Analyzes CloudDrive transcripts using Claude API to extract structured
 # insights including action items, key terms, themes, topic changes, and
@@ -37,7 +37,7 @@ source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 
 echo "============================================"
-echo "520: Generate AI Analysis for Transcripts"
+echo "525: Generate AI Analysis for Transcripts"
 echo "============================================"
 echo ""
 
@@ -138,7 +138,7 @@ log_info "Running AI analysis..."
 source "$VENV_DIR/bin/activate"
 
 # Run the Python script with all arguments passed through
-python3 "$PROJECT_ROOT/scripts/520-generate-ai-analysis.py" "$@"
+python3 "$PROJECT_ROOT/scripts/lib/ai-analysis.py" "$@"
 RESULT=$?
 
 deactivate
