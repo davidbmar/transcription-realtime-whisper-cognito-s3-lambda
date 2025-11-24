@@ -648,11 +648,19 @@
 
         /* AI Timeline Navigation Styles */
         .ai-nav-container {
+            position: sticky;
+            top: 0;
+            z-index: 100;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             margin-bottom: 24px;
-            overflow: hidden;
+            overflow: visible;
+        }
+
+        /* Add slight padding when scrolled */
+        .ai-nav-container.scrolled {
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
         }
 
         .ai-nav-tabs {
@@ -2688,6 +2696,27 @@
 
         // Initialize AI Navigator
         let aiNavigator = new AITimelineNavigator();
+
+        // Add scroll effect to AI navigation
+        let lastScrollTop = 0;
+        const editorContent = document.querySelector('.editor-content');
+
+        if (editorContent) {
+            editorContent.addEventListener('scroll', function() {
+                const aiNav = document.getElementById('ai-nav-container');
+                if (!aiNav || aiNav.style.display === 'none') return;
+
+                const scrollTop = editorContent.scrollTop;
+
+                if (scrollTop > 50) {
+                    aiNav.classList.add('scrolled');
+                } else {
+                    aiNav.classList.remove('scrolled');
+                }
+
+                lastScrollTop = scrollTop;
+            });
+        }
 
     </script>
 </body>
