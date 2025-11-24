@@ -225,6 +225,32 @@ check_gpu_state() {
 
 start_gpu() {
     log_info "Step 3: Starting GPU instance..."
+
+    # Check if Edge Box IP has changed and update if needed
+    log_info "Checking Edge Box IP configuration..."
+    CURRENT_EDGE_IP=$(curl -s http://checkip.amazonaws.com 2>/dev/null || echo "")
+    CONFIGURED_EDGE_IP=$(grep "^EDGE_BOX_DNS=" .env 2>/dev/null | cut -d'=' -f2 || echo "")
+
+    if [ -n "$CURRENT_EDGE_IP" ] && [ "$CURRENT_EDGE_IP" != "$CONFIGURED_EDGE_IP" ]; then
+        log_warn "Edge Box IP has changed: $CONFIGURED_EDGE_IP → $CURRENT_EDGE_IP"
+        log_info "Updating configuration and SSL certificate..."
+
+        if [ -f "$REPO_ROOT/scripts/825-edge-box-detect-new-ip-and-redeploy.sh" ]; then
+            # Run IP update script (suppress verbose output, keep only errors)
+            if "$REPO_ROOT/scripts/825-edge-box-detect-new-ip-and-redeploy.sh" >/dev/null 2>&1; then
+                log_success "Edge Box configuration updated"
+                # Reload environment to get new IP
+                source "$REPO_ROOT/.env"
+            else
+                log_warn "Failed to auto-update Edge Box IP, continuing anyway..."
+            fi
+        else
+            log_warn "IP update script not found, continuing with current config..."
+        fi
+    else
+        log_success "Edge Box IP is current: $CURRENT_EDGE_IP"
+    fi
+
     GPU_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     if ! aws ec2 start-instances --instance-ids "$GPU_ID" --region "$AWS_REGION" &>/dev/null; then
