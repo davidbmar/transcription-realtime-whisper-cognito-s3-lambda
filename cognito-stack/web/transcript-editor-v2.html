@@ -649,18 +649,34 @@
         /* AI Timeline Navigation Styles */
         .ai-nav-container {
             position: sticky;
-            top: 0;
-            z-index: 100;
+            top: 64px; /* Below header */
+            z-index: 90;
             background: white;
             border-radius: 0 0 12px 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             margin-bottom: 24px;
-            overflow: visible;
+            margin-top: -64px; /* Pull up under header */
+            padding-top: 64px; /* Space for header */
         }
 
         /* Add slight padding when scrolled */
         .ai-nav-container.scrolled {
             box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        /* Main content wrapper for scroll context */
+        .main-content-wrapper {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        /* Editor panel needs to allow scrolling */
+        .editor-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: visible;
         }
 
         .ai-nav-tabs {
@@ -984,8 +1000,8 @@
         </div>
 
         <!-- Main Content Column -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-            <!-- AI Timeline Navigation -->
+        <div class="main-content-wrapper" style="display: flex; flex-direction: column; position: relative; overflow: visible;">
+            <!-- AI Timeline Navigation (Sticky) -->
             <div id="ai-nav-container" class="ai-nav-container" style="display: none;">
                 <!-- Navigation Tabs -->
                 <div class="ai-nav-tabs">
@@ -2699,22 +2715,37 @@
 
         // Add scroll effect to AI navigation
         let lastScrollTop = 0;
-        const editorContent = document.querySelector('.editor-content');
 
-        if (editorContent) {
-            editorContent.addEventListener('scroll', function() {
+        // Listen on window scroll or main content wrapper scroll
+        window.addEventListener('scroll', function() {
+            const aiNav = document.getElementById('ai-nav-container');
+            if (!aiNav || aiNav.style.display === 'none') return;
+
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (scrollTop > 100) {
+                aiNav.classList.add('scrolled');
+            } else {
+                aiNav.classList.remove('scrolled');
+            }
+
+            lastScrollTop = scrollTop;
+        });
+
+        // Also listen on main content wrapper if it scrolls
+        const mainContent = document.querySelector('.main-content-wrapper');
+        if (mainContent) {
+            mainContent.addEventListener('scroll', function() {
                 const aiNav = document.getElementById('ai-nav-container');
                 if (!aiNav || aiNav.style.display === 'none') return;
 
-                const scrollTop = editorContent.scrollTop;
+                const scrollTop = mainContent.scrollTop;
 
                 if (scrollTop > 50) {
                     aiNav.classList.add('scrolled');
                 } else {
                     aiNav.classList.remove('scrolled');
                 }
-
-                lastScrollTop = scrollTop;
             });
         }
 

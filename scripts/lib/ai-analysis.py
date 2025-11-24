@@ -124,40 +124,46 @@ TRANSCRIPT (Duration: {format_time(total_duration)}):
 
 Generate a comprehensive JSON analysis with these exact categories:
 
-1. **actionItems**: Explicit tasks, recommendations, or actionable steps mentioned
+1. **actionItems**: Find 5-10 explicit tasks, recommendations, or actionable steps mentioned
    - Include time codes (in seconds as float)
    - Brief summary (1 sentence)
    - Extract exact quote
    - Priority: "high", "medium", or "low"
+   - Cast a wide net - include suggestions, proposals, calls to action
 
-2. **keyTerms**: Technical terms, domain-specific vocabulary, important concepts
+2. **keyTerms**: Identify 8-15 technical terms, domain-specific vocabulary, important concepts
    - First mention only (don't repeat same term)
    - Include time codes
    - Brief definition or context
    - Mark as firstMention: true
+   - Include jargon, acronyms, specialized terminology
 
-3. **keyThemes**: Main topics or subjects discussed at length
+3. **keyThemes**: Identify 4-8 main topics or subjects discussed at length
    - Time ranges where theme is actively discussed (start and end)
    - Brief summary (2 sentences max)
    - Intensity score (0.0 to 1.0 based on depth/importance)
+   - Include both major and minor themes
 
-4. **topicChanges**: Points where speaker shifts to a new distinct subject
+4. **topicChanges**: Find 6-12 points where speaker shifts to a new distinct subject
    - Exact time code of transition
    - What changed from/to
    - Type: "explicit" (announced) or "implicit" (natural shift)
+   - Be sensitive to subtle transitions, not just major shifts
 
-5. **highlights**: Top 5-10 most significant moments or key insights
+5. **highlights**: Extract 8-15 most significant moments or key insights
    - Time ranges
    - Summary of the insight
    - Importance score (0.0 to 1.0)
    - Categories: ["insight", "prediction", "quote", "decision", "conclusion"]
+   - Include memorable quotes, surprising facts, important statements
 
 IMPORTANT RULES:
 - All time codes must be in SECONDS as float (e.g., 45.2, not "0:45")
 - Parse timestamps from [MM:SS] format in transcript
 - Return ONLY valid JSON, no markdown, no explanation
-- Be selective - quality over quantity
+- Prioritize QUANTITY while maintaining quality - give users many navigation points
 - Focus on what would help someone navigate and understand the content quickly
+- Better to include more items than fewer - users can filter
 
 Expected JSON format:
 {{
