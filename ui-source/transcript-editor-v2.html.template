@@ -646,6 +646,246 @@
             background: var(--primary-dark);
         }
 
+        /* AI Timeline Navigation Styles */
+        .ai-nav-container {
+            position: sticky;
+            top: 64px; /* Below header */
+            z-index: 90;
+            background: white;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 24px;
+            margin-top: -64px; /* Pull up under header */
+            padding-top: 64px; /* Space for header */
+        }
+
+        /* Add slight padding when scrolled */
+        .ai-nav-container.scrolled {
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        /* Main content wrapper for scroll context */
+        .main-content-wrapper {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        /* Editor panel needs to allow scrolling */
+        .editor-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: visible;
+        }
+
+        .ai-nav-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 16px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            overflow-x: auto;
+        }
+
+        .ai-nav-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            background: white;
+            color: var(--gray-700);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .ai-nav-tab:hover {
+            border-color: var(--gray-300);
+            background: var(--gray-100);
+        }
+
+        .ai-nav-tab.active {
+            color: white;
+            border-color: currentColor;
+        }
+
+        .ai-nav-tab.active.highlights { background: #8b5cf6; }
+        .ai-nav-tab.active.questions { background: #ec4899; }
+        .ai-nav-tab.active.actionItems { background: #ef4444; }
+        .ai-nav-tab.active.keyTerms { background: #3b82f6; }
+        .ai-nav-tab.active.keyThemes { background: #f59e0b; }
+        .ai-nav-tab.active.topicChanges { background: #10b981; }
+        .ai-nav-tab.active.all { background: var(--primary); }
+
+        .ai-count-badge {
+            background: rgba(255,255,255,0.3);
+            color: inherit;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .ai-nav-tab.active .ai-count-badge {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .timeline-container {
+            padding: 24px;
+            background: white;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .timeline-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .timeline-duration {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .timeline-track-wrapper {
+            position: relative;
+            height: 60px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            overflow: visible;
+        }
+
+        .timeline-track {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .timeline-marker:hover {
+            width: 8px;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .timeline-marker.segment {
+            height: 100%;
+            opacity: 0.4;
+        }
+
+        .timeline-marker.segment:hover {
+            opacity: 0.6;
+        }
+
+        .timeline-time-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--gray-500);
+        }
+
+        .timeline-tooltip {
+            position: fixed;
+            background: var(--gray-900);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 320px;
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .timeline-tooltip.show {
+            opacity: 1;
+        }
+
+        .tooltip-time {
+            font-weight: 600;
+            color: #fbbf24;
+            margin-bottom: 6px;
+        }
+
+        .tooltip-summary {
+            line-height: 1.5;
+        }
+
+        .ai-highlighted {
+            animation: highlight-pulse 2s ease-in-out;
+        }
+
+        @keyframes highlight-pulse {
+            0%, 100% { background: var(--gray-50); }
+            50% { background: #fef3c7; }
+        }
+
+        /* Question highlighting styles - alternating shades */
+        .question-highlight {
+            font-weight: 700;
+            padding: 2px 0;
+        }
+
+        .question-highlight.shade-1 {
+            color: #ec4899;  /* Base pink */
+        }
+
+        .question-highlight.shade-2 {
+            color: #db2777;  /* Darker pink */
+        }
+
+        .question-highlight.shade-3 {
+            color: #f472b6;  /* Lighter pink */
+        }
+
+        .question-highlight.shade-4 {
+            color: #be185d;  /* Deep pink */
+        }
+
+        .question-paragraph {
+            margin-top: 24px !important;
+            margin-bottom: 24px !important;
+            padding-top: 16px;
+            padding-bottom: 16px;
+            border-left: 4px solid #ec4899;
+            background: #fdf2f8;
+        }
+
+        .ai-loading-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--gray-600);
+        }
+
+        .ai-empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--gray-500);
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .main-container {
@@ -656,6 +896,295 @@
                 position: relative;
                 top: 0;
             }
+
+            .ai-nav-tabs {
+                overflow-x: scroll;
+            }
+
+            .timeline-track-wrapper {
+                height: 80px;
+            }
+        }
+
+        /* ====================================================================
+           AI Configuration Panel
+           ==================================================================== */
+
+        .config-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: var(--gray-500);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .back-button:hover {
+            color: var(--gray-900);
+            background: var(--gray-100);
+        }
+
+        .config-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .category-name-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 4px;
+            transition: border-color 0.2s;
+        }
+
+        .category-name-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .hint {
+            color: var(--gray-500);
+            font-size: 12px;
+            font-style: italic;
+            display: block;
+            margin-top: 4px;
+        }
+
+        /* Prompt Editor */
+        .prompt-editor-wrapper {
+            position: relative;
+            margin-top: 4px;
+        }
+
+        .prompt-editor {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 80px;
+            max-height: 400px;
+            transition: border-color 0.2s;
+        }
+
+        .prompt-editor:focus {
+            border-color: #8b5cf6;
+            outline: none;
+        }
+
+        .prompt-editor.dirty {
+            border-left: 4px solid var(--warning);
+        }
+
+        .expand-button {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .expand-button:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .setting-item label {
+            font-size: 12px;
+            color: var(--gray-600);
+            font-weight: 500;
+        }
+
+        .setting-item select,
+        .setting-item input[type="number"],
+        .setting-item input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            font-size: 13px;
+            transition: border-color 0.2s;
+        }
+
+        .setting-item select:focus,
+        .setting-item input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .setting-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* Status Section */
+        .status-section {
+            background: var(--gray-50);
+        }
+
+        .status-info {
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+        }
+
+        .status-row span:first-child {
+            color: var(--gray-600);
+        }
+
+        .status-row span:last-child {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        /* Action Buttons */
+        .config-actions {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-reanalyze {
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-reanalyze:hover:not(:disabled) {
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-reanalyze:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-save {
+            background: white;
+            border: 2px solid var(--gray-200);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-save:not([disabled]):hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .btn-save[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-save.dirty {
+            border-color: var(--warning);
+            background: #fffbeb;
+        }
+
+        .btn-reset {
+            background: none;
+            border: none;
+            color: var(--gray-600);
+            padding: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .btn-reset:hover {
+            color: var(--gray-900);
+        }
+
+        /* Progress Indicator */
+        .progress-container {
+            padding: 16px;
+            background: #f0f9ff;
+            border-top: 2px solid var(--primary);
+            text-align: center;
+        }
+
+        .progress-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #dbeafe;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #1e40af;
+            font-weight: 500;
+        }
+
+        /* Transitions */
+        #session-info,
+        #ai-config-panel {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        #session-info.hiding,
+        #ai-config-panel.hiding {
+            opacity: 0;
         }
     </style>
 </head>
@@ -705,6 +1234,8 @@
     <div id="main-container" class="main-container" style="display: none;">
         <!-- Sidebar -->
         <div class="sidebar">
+            <!-- Session Info (default view) -->
+            <div id="session-info">
             <!-- Session Selector -->
             <div class="sidebar-section">
                 <div class="sidebar-title" style="display: flex; align-items: center; justify-content: space-between;">
@@ -795,10 +1326,160 @@
             <button class="btn btn-primary" style="width: 100%;" onclick="saveTranscript()">
                 💾 Save Changes
             </button>
+            </div>
+            <!-- End Session Info -->
+
+            <!-- AI Configuration Panel (hidden by default) -->
+            <div id="ai-config-panel" style="display: none;">
+                <!-- Header -->
+                <div class="config-header">
+                    <button onclick="aiConfigPanel.close()" class="back-button">
+                        ← Back to Session
+                    </button>
+                    <h3 style="margin: 0; font-size: 16px; color: var(--gray-900);">✨ AI Category Configuration</h3>
+                </div>
+
+                <!-- Category Name -->
+                <div class="config-section">
+                    <label for="category-name" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--gray-700);">Tab Name:</label>
+                    <input type="text" id="category-name" class="category-name-input" placeholder="e.g., Key Interviewer Questions">
+                    <small class="hint">This name appears in the timeline tab</small>
+                </div>
+
+                <!-- Prompt Editor -->
+                <div class="config-section">
+                    <label for="category-prompt" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--gray-700);">Prompt:</label>
+                    <div class="prompt-editor-wrapper">
+                        <textarea id="category-prompt" class="prompt-editor" rows="4"></textarea>
+                        <button onclick="promptEditor.toggleExpand()" class="expand-button">
+                            ▼ Expand
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="config-section">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--gray-700);">Settings:</label>
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="setting-model">Model:</label>
+                            <select id="setting-model">
+                                <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Fast)</option>
+                                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Best)</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="setting-max-items">Max Items:</label>
+                            <input type="number" id="setting-max-items" min="1" max="50" value="15">
+                        </div>
+
+                        <!-- Category-specific settings rendered dynamically -->
+                        <div id="category-specific-settings"></div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="config-section status-section">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--gray-700);">Status:</label>
+                    <div class="status-info">
+                        <div class="status-row">
+                            <span>Last analyzed:</span>
+                            <span id="last-analyzed-time">Never</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Estimated cost:</span>
+                            <span id="estimated-cost">$0.0000</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Current count:</span>
+                            <span id="current-count">0 items</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="config-actions">
+                    <button onclick="aiConfigPanel.reanalyzeCategory()" class="btn-primary btn-reanalyze">
+                        🔄 Re-analyze This Category
+                    </button>
+
+                    <button onclick="aiConfigPanel.saveConfig()" class="btn-secondary btn-save" disabled>
+                        💾 Save Configuration
+                    </button>
+
+                    <button onclick="aiConfigPanel.resetToDefault()" class="btn-text btn-reset">
+                        Reset to Default
+                    </button>
+                </div>
+
+                <!-- Progress Indicator (shown during re-analysis) -->
+                <div id="reanalysis-progress" class="progress-container" style="display: none;">
+                    <div class="progress-spinner"></div>
+                    <div class="progress-text">
+                        Re-analyzing... <span id="progress-eta">~10s</span>
+                    </div>
+                </div>
+            </div>
+            <!-- End AI Config Panel -->
         </div>
 
-        <!-- Editor Panel -->
-        <div class="editor-panel">
+        <!-- Main Content Column -->
+        <div class="main-content-wrapper" style="display: flex; flex-direction: column; position: relative; overflow: visible;">
+            <!-- AI Timeline Navigation (Sticky) -->
+            <div id="ai-nav-container" class="ai-nav-container" style="display: none;">
+                <!-- Navigation Tabs -->
+                <div class="ai-nav-tabs">
+                    <button class="ai-nav-tab all active" onclick="aiNavigator.filterByType('all')" data-type="all">
+                        🌐 All
+                        <span class="ai-count-badge" id="count-all">0</span>
+                    </button>
+                    <button class="ai-nav-tab highlights" onclick="aiNavigator.filterByType('highlights')" data-type="highlights">
+                        ✨ Highlights
+                        <span class="ai-count-badge" id="count-highlights">0</span>
+                    </button>
+                    <button class="ai-nav-tab questions" onclick="aiNavigator.filterByType('questions')" data-type="questions">
+                        ❓ Questions
+                        <span class="ai-count-badge" id="count-questions">0</span>
+                    </button>
+                    <button class="ai-nav-tab actionItems" onclick="aiNavigator.filterByType('actionItems')" data-type="actionItems">
+                        ✅ Action Items
+                        <span class="ai-count-badge" id="count-actionItems">0</span>
+                    </button>
+                    <button class="ai-nav-tab keyTerms" onclick="aiNavigator.filterByType('keyTerms')" data-type="keyTerms">
+                        📚 Key Terms
+                        <span class="ai-count-badge" id="count-keyTerms">0</span>
+                    </button>
+                    <button class="ai-nav-tab keyThemes" onclick="aiNavigator.filterByType('keyThemes')" data-type="keyThemes">
+                        🎯 Themes
+                        <span class="ai-count-badge" id="count-keyThemes">0</span>
+                    </button>
+                    <button class="ai-nav-tab topicChanges" onclick="aiNavigator.filterByType('topicChanges')" data-type="topicChanges">
+                        🔀 Topic Changes
+                        <span class="ai-count-badge" id="count-topicChanges">0</span>
+                    </button>
+                </div>
+
+                <!-- Timeline Track -->
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Interactive Timeline</div>
+                        <div class="timeline-duration" id="timeline-duration">0:00</div>
+                    </div>
+                    <div class="timeline-track-wrapper">
+                        <div class="timeline-track" id="timeline-track">
+                            <!-- Markers added dynamically -->
+                        </div>
+                    </div>
+                    <div class="timeline-time-labels">
+                        <span>0:00</span>
+                        <span id="timeline-end-label">0:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor Panel -->
+            <div class="editor-panel">
             <div class="editor-toolbar">
                 <div class="toolbar-group">
                     <button class="toolbar-btn" id="edit-mode-btn" title="Toggle Edit Mode" onclick="toggleEditMode()">
@@ -887,11 +1568,17 @@
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
+    <!-- AI Timeline Tooltip -->
+    <div id="timeline-tooltip" class="timeline-tooltip">
+        <div class="tooltip-time" id="tooltip-time"></div>
+        <div class="tooltip-summary" id="tooltip-summary"></div>
+    </div>
+
     <!-- Preprocessor Scripts - Version 2 for cache busting -->
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
-    <script src="TO_BE_REPLACED_APP_URL/transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
+    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
 
     <script>
         // Verify scripts loaded
@@ -908,13 +1595,13 @@
     <script>
         // Configuration
         const config = {
-            userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
-            userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
-            identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
-            region: 'TO_BE_REPLACED_REGION',
-            apiUrl: 'TO_BE_REPLACED_API_URL',
-            s3ApiUrl: 'TO_BE_REPLACED_S3_API_URL',
-            appUrl: 'TO_BE_REPLACED_APP_URL'
+            userPoolId: 'us-east-2_6sN45GbIh',
+            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
+            identityPoolId: 'us-east-2:43b4ec02-d7c0-4c8b-a188-27b9d1f16287',
+            region: 'us-east-2',
+            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            s3ApiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            appUrl: 'https://d2l28rla2hk7np.cloudfront.net'
         };
 
         let transcriptData = null;
@@ -1132,6 +1819,19 @@
                 console.log('Sessions loaded:', data.sessions?.length || 0);
 
                 if (!data.sessions || data.sessions.length === 0) {
+                    // Show empty state for no sessions
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'grid';
+
+                    const editorContent = document.querySelector('.editor-content');
+                    editorContent.innerHTML = `
+                        <div style="text-align: center; padding: 64px 32px; color: var(--gray-500);">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🎙️</div>
+                            <h2 style="color: var(--gray-700); margin-bottom: 8px;">No Transcripts Found</h2>
+                            <p>You haven't recorded any sessions yet.</p>
+                            <p style="margin-top: 16px;">Start by recording a new session in the audio recorder.</p>
+                        </div>
+                    `;
                     showToast('No sessions found', 'error');
                     return;
                 }
@@ -1234,6 +1934,9 @@
                     // Clear audio cache to prevent playing cached audio from previous session
                     audioCache.clear();
 
+                    // Reset AI timeline navigator to clear previous session's data
+                    aiNavigator.reset();
+
                     // Show loading state
                     document.getElementById('loading').style.display = 'flex';
                     document.getElementById('main-container').style.display = 'none';
@@ -1298,6 +2001,9 @@
 
                         // Render
                         renderEditor();
+
+                        // Try to load AI analysis
+                        await loadAIAnalysis();
 
                         // Hide loading, show content
                         document.getElementById('loading').style.display = 'none';
@@ -1375,6 +2081,9 @@
                 // Render
                 renderEditor();
 
+                // Try to load AI analysis
+                await loadAIAnalysis();
+
                 // Hide loading, show content
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('main-container').style.display = 'grid';
@@ -1383,6 +2092,69 @@
             } catch (error) {
                 console.error('Error loading transcript:', error);
                 showToast('Failed to load transcript: ' + error.message, 'error');
+            }
+        }
+
+        // Load AI analysis if available
+        async function loadAIAnalysis() {
+            try {
+                const hasAnalysis = await aiNavigator.loadAnalysis();
+                if (hasAnalysis) {
+                    aiNavigator.render();
+                    console.log('✅ AI Timeline Navigation enabled');
+                } else {
+                    console.log('ℹ️  No AI analysis - timeline hidden');
+                }
+            } catch (error) {
+                console.error('Error loading AI analysis:', error);
+                // Hide timeline if error
+                document.getElementById('ai-nav-container').style.display = 'none';
+            }
+        }
+
+        // Format questions in a paragraph (initial render, no word timing)
+        function formatQuestionsInParagraph(textDiv, para) {
+            const text = para.text;
+            const questionPatterns = [
+                /\?$/,  // Ends with question mark
+                /^(what|where|when|why|who|whom|which|whose|how)\b/i,
+                /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,
+            ];
+
+            // Split into sentences keeping punctuation attached
+            const sentences = text.split(/(?<=[.!?])\s+/);
+            let hasQuestion = false;
+            let formattedHTML = '';
+            let questionIndex = 0;  // Track question number for alternating colors
+
+            sentences.forEach((sentence, i) => {
+                const trimmed = sentence.trim();
+                if (!trimmed) return;
+
+                // Check if this sentence is a question
+                const isQuestion = questionPatterns.some(pattern => pattern.test(trimmed)) ||
+                                 trimmed.includes('?');
+
+                if (isQuestion) {
+                    hasQuestion = true;
+                    // Cycle through 4 shades
+                    const shade = (questionIndex % 4) + 1;
+                    formattedHTML += '<br><span class="question-highlight shade-' + shade + '">' + trimmed + '</span><br>';
+                    questionIndex++;
+                } else {
+                    formattedHTML += trimmed;
+                    if (i < sentences.length - 1) {
+                        formattedHTML += ' ';
+                    }
+                }
+            });
+
+            // Apply formatting
+            if (hasQuestion) {
+                textDiv.innerHTML = formattedHTML;
+                textDiv.parentElement?.classList.add('question-paragraph');
+            } else {
+                textDiv.textContent = text;
             }
         }
 
@@ -1416,9 +2188,11 @@
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
                 text.contentEditable = false;  // Start in read-only mode for text selection
-                text.textContent = para.text;
                 text.dataset.paraIndex = index;
                 text.addEventListener('input', () => markEdited(index));
+
+                // Apply question formatting on initial render
+                formatQuestionsInParagraph(text, para);
 
                 const meta = document.createElement('div');
                 meta.className = 'paragraph-meta';
@@ -1519,6 +2293,15 @@
             // Clear highlighting
             document.querySelectorAll('.paragraph-text').forEach(el => el.classList.remove('playing'));
             document.querySelectorAll('.word-highlight').forEach(el => el.classList.remove('playing'));
+
+            // Restore question formatting for the paragraph that was playing
+            if (currentPlayingIndex !== null && processedData && processedData.paragraphs) {
+                const para = processedData.paragraphs[currentPlayingIndex];
+                const paraText = document.querySelector(`[data-para-index="${currentPlayingIndex}"]`);
+                if (paraText && para) {
+                    formatQuestionsInParagraph(paraText, para);
+                }
+            }
 
             // Reset button
             if (currentPlayButton) {
@@ -1646,12 +2429,80 @@
                 });
             });
 
-            // Wrap each word in a span
-            const html = wordTimings.map((wt, i) => {
-                return `<span class="word-highlight" data-word-index="${i}" data-word-start="${wt.start}" data-word-end="${wt.end}">${wt.word}</span>`;
-            }).join(' ');
+            // Detect questions in the paragraph text
+            const questionPatterns = [
+                /\?$/,  // Ends with question mark
+                /^(what|where|when|why|who|whom|which|whose|how)\b/i,
+                /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,
+            ];
+
+            const sentences = para.text.split(/(?<=[.!?])\s+/);
+            const questionSentences = new Set();
+
+            sentences.forEach(sentence => {
+                const isQuestion = questionPatterns.some(pattern => pattern.test(sentence.trim())) ||
+                                 sentence.includes('?');
+                if (isQuestion) {
+                    questionSentences.add(sentence.trim());
+                }
+            });
+
+            // Build HTML with word spans, detecting question boundaries
+            let html = '';
+            let currentText = '';
+            let wordIndex = 0;
+            let inQuestion = false;
+            let questionIndex = 0;  // Track question number for alternating colors
+
+            wordTimings.forEach((wt, i) => {
+                currentText += (currentText ? ' ' : '') + wt.word;
+
+                // Check if we're starting a question
+                let startQuestion = false;
+                for (const qSentence of questionSentences) {
+                    if (qSentence.startsWith(currentText.trim())) {
+                        startQuestion = true;
+                        break;
+                    }
+                }
+
+                // Add word span
+                const wordSpan = `<span class="word-highlight" data-word-index="${i}" data-word-start="${wt.start}" data-word-end="${wt.end}">${wt.word}</span>`;
+
+                // If starting a question, add break and open question span with shade
+                if (startQuestion && !inQuestion) {
+                    const shade = (questionIndex % 4) + 1;
+                    html += '<br><span class="question-highlight shade-' + shade + '">';
+                    inQuestion = true;
+                }
+
+                html += wordSpan;
+
+                // Check if question ends (contains ? or !)
+                if (inQuestion && (wt.word.includes('?') || wt.word.includes('!'))) {
+                    html += '</span><br>';
+                    inQuestion = false;
+                    currentText = '';
+                    questionIndex++;
+                }
+
+                // Add space between words
+                if (i < wordTimings.length - 1) {
+                    html += ' ';
+                }
+            });
+
+            // Close any unclosed question span
+            if (inQuestion) {
+                html += '</span>';
+            }
 
             paraText.innerHTML = html;
+
+            // Mark paragraph if it contains questions
+            if (questionSentences.size > 0) {
+                paraText.parentElement?.classList.add('question-paragraph');
+            }
         }
 
         // Highlight the current word being spoken (for single paragraph)
@@ -2321,6 +3172,876 @@
                 sessionInfoModal.close();
             }
         });
+
+        // ====================================================================
+        // AI Timeline Navigator
+        // ====================================================================
+
+        class AITimelineNavigator {
+            constructor() {
+                this.aiAnalysis = null;
+                this.activeFilter = 'all';
+                this.totalDuration = 0;
+                this.detectedQuestions = null;
+                this.colorMap = {
+                    highlights: '#8b5cf6',
+                    questions: '#ec4899',
+                    actionItems: '#ef4444',
+                    keyTerms: '#3b82f6',
+                    keyThemes: '#f59e0b',
+                    topicChanges: '#10b981'
+                };
+            }
+
+            reset() {
+                // Reset all state when switching sessions
+                this.aiAnalysis = null;
+                this.activeFilter = 'all';
+                this.totalDuration = 0;
+                this.detectedQuestions = null;
+
+                // Hide the AI navigation container
+                const container = document.getElementById('ai-nav-container');
+                if (container) {
+                    container.style.display = 'none';
+                }
+
+                // Clear timeline markers
+                const track = document.getElementById('timeline-track');
+                if (track) {
+                    track.innerHTML = '';
+                }
+
+                // Reset all count badges to 0
+                ['all', 'highlights', 'questions', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                    const badge = document.getElementById(`count-${type}`);
+                    if (badge) badge.textContent = '0';
+                });
+
+                // Reset active tab to "all"
+                document.querySelectorAll('.ai-nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                const allTab = document.querySelector('.ai-nav-tab[data-type="all"]');
+                if (allTab) {
+                    allTab.classList.add('active');
+                }
+            }
+
+            async loadAnalysis() {
+                if (!currentSession) return false;
+
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
+
+                try {
+                    // Try to load AI analysis
+                    const analysisKey = `${sessionPath}/transcription-ai-analysis.json`;
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(analysisKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        this.aiAnalysis = await response.json();
+                        console.log('✅ AI analysis loaded:', this.aiAnalysis);
+                        return true;
+                    }
+                } catch (error) {
+                    console.log('No AI analysis available for this session');
+                    return false;
+                }
+
+                return false;
+            }
+
+            detectQuestions() {
+                // Detect all questions in the transcript
+                if (!processedData || !processedData.paragraphs) return [];
+
+                const questions = [];
+                const questionPatterns = [
+                    /\?$/,  // Ends with question mark
+                    /^(what|where|when|why|who|whom|which|whose|how)\b/i,  // Question words at start
+                    /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,  // Auxiliary verbs at start
+                ];
+
+                processedData.paragraphs.forEach((para, index) => {
+                    const text = para.text.trim();
+                    const paraDuration = para.end - para.start;
+
+                    // Check if paragraph contains questions
+                    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+
+                    // Calculate approximate position of each sentence within the paragraph
+                    let charsSoFar = 0;
+                    const totalChars = text.length;
+
+                    sentences.forEach(sentence => {
+                        sentence = sentence.trim();
+
+                        // Check if it's a question
+                        const isQuestion = questionPatterns.some(pattern => pattern.test(sentence)) ||
+                                         sentence.includes('?');
+
+                        if (isQuestion) {
+                            // Estimate time position based on character position in paragraph
+                            const sentencePosition = charsSoFar / totalChars;
+                            const estimatedTime = para.start + (paraDuration * sentencePosition);
+
+                            questions.push({
+                                timeCode: estimatedTime,  // Estimated position within paragraph
+                                text: sentence,
+                                summary: sentence.length > 100 ? sentence.substring(0, 97) + '...' : sentence,
+                                paragraphIndex: index,
+                                type: 'questions'
+                            });
+                        }
+
+                        // Update character count for next sentence
+                        charsSoFar += sentence.length + 1; // +1 for the delimiter
+                    });
+                });
+
+                this.detectedQuestions = questions;
+                return questions;
+            }
+
+            render() {
+                if (!this.aiAnalysis || !processedData) {
+                    // Hide AI navigation if no analysis
+                    document.getElementById('ai-nav-container').style.display = 'none';
+                    return;
+                }
+
+                // Show AI navigation
+                document.getElementById('ai-nav-container').style.display = 'block';
+
+                this.totalDuration = processedData.stats.totalDuration;
+
+                // Detect questions from transcript
+                this.detectQuestions();
+
+                // Update duration labels
+                document.getElementById('timeline-duration').textContent = formatDuration(this.totalDuration);
+                document.getElementById('timeline-end-label').textContent = formatDuration(this.totalDuration);
+
+                // Update count badges
+                this.updateCounts();
+
+                // Render markers
+                this.renderMarkers();
+            }
+
+            updateCounts() {
+                const counts = {
+                    highlights: this.aiAnalysis.highlights?.length || 0,
+                    questions: this.detectedQuestions?.length || 0,
+                    actionItems: this.aiAnalysis.actionItems?.length || 0,
+                    keyTerms: this.aiAnalysis.keyTerms?.length || 0,
+                    keyThemes: this.aiAnalysis.keyThemes?.length || 0,
+                    topicChanges: this.aiAnalysis.topicChanges?.length || 0
+                };
+
+                counts.all = Object.values(counts).reduce((a, b) => a + b, 0);
+
+                Object.keys(counts).forEach(type => {
+                    const badge = document.getElementById(`count-${type}`);
+                    if (badge) badge.textContent = counts[type];
+                });
+            }
+
+            filterByType(type) {
+                console.log('🎯 filterByType called with:', type);
+                this.activeFilter = type;
+
+                // Update active tab
+                document.querySelectorAll('.ai-nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`.ai-nav-tab[data-type="${type}"]`).classList.add('active');
+
+                // Show configuration panel for this category (if not "all")
+                console.log('🔍 Checking if should show config:', {
+                    type,
+                    isNotAll: type !== 'all',
+                    hasConfigPanel: !!window.aiConfigPanel,
+                    aiConfigPanel: window.aiConfigPanel
+                });
+
+                if (type !== 'all' && window.aiConfigPanel) {
+                    console.log('✅ Calling aiConfigPanel.showCategory()');
+                    aiConfigPanel.showCategory(type);
+                } else {
+                    console.log('❌ NOT calling showCategory. Reasons:', {
+                        isAll: type === 'all',
+                        noConfigPanel: !window.aiConfigPanel
+                    });
+                }
+
+                // Re-render markers
+                this.renderMarkers();
+            }
+
+            renderMarkers() {
+                const track = document.getElementById('timeline-track');
+                track.innerHTML = '';
+
+                const items = this.getFilteredItems();
+
+                items.forEach(item => {
+                    const marker = this.createMarker(item);
+                    track.appendChild(marker);
+                });
+            }
+
+            getFilteredItems() {
+                if (!this.aiAnalysis) return [];
+
+                let items = [];
+
+                if (this.activeFilter === 'all') {
+                    // Include all types
+                    ['highlights', 'questions', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                        if (type === 'questions' && this.detectedQuestions) {
+                            items.push(...this.detectedQuestions);
+                        } else if (this.aiAnalysis[type]) {
+                            items.push(...this.aiAnalysis[type].map(item => ({ ...item, type })));
+                        }
+                    });
+                } else if (this.activeFilter === 'questions') {
+                    // Show detected questions
+                    if (this.detectedQuestions) {
+                        items = this.detectedQuestions;
+                    }
+                } else {
+                    // Only include selected type from AI analysis
+                    if (this.aiAnalysis[this.activeFilter]) {
+                        items = this.aiAnalysis[this.activeFilter].map(item => ({ ...item, type: this.activeFilter }));
+                    }
+                }
+
+                return items;
+            }
+
+            createMarker(item) {
+                const marker = document.createElement('div');
+                marker.className = 'timeline-marker';
+
+                const startTime = item.timeCodeStart || item.timeCode || 0;
+                const endTime = item.timeCodeEnd || startTime;
+
+                // Position marker
+                const leftPercent = (startTime / this.totalDuration) * 100;
+                marker.style.left = `${leftPercent}%`;
+
+                // Color by type
+                marker.style.backgroundColor = this.colorMap[item.type] || '#666';
+
+                // Segments vs points
+                if (endTime > startTime) {
+                    // Segment (like themes)
+                    const widthPercent = ((endTime - startTime) / this.totalDuration) * 100;
+                    marker.style.width = `${Math.max(widthPercent, 0.5)}%`;
+                    marker.classList.add('segment');
+                } else {
+                    // Point marker
+                    marker.style.width = '4px';
+                }
+
+                // Tooltip data
+                marker.dataset.time = startTime;
+                marker.dataset.summary = item.summary || item.text || item.term || item.theme || 'No description';
+
+                // Click to jump
+                marker.onclick = () => this.jumpToTime(startTime, item);
+
+                // Hover tooltip
+                marker.onmouseenter = (e) => this.showTooltip(e, item, startTime);
+                marker.onmouseleave = () => this.hideTooltip();
+
+                return marker;
+            }
+
+            jumpToTime(timeCode, item) {
+                let paraIndex;
+
+                // For questions, use the stored paragraph index directly
+                if (item.type === 'questions' && item.paragraphIndex !== undefined) {
+                    paraIndex = item.paragraphIndex;
+                } else {
+                    // Find paragraph that contains this time
+                    const paragraph = processedData.paragraphs.find(p =>
+                        timeCode >= p.start && timeCode <= p.end
+                    );
+
+                    if (!paragraph) return;
+                    paraIndex = processedData.paragraphs.indexOf(paragraph);
+                }
+
+                const paraEl = document.querySelector(`#para-${paraIndex}`);
+
+                if (paraEl) {
+                    const textEl = paraEl.querySelector('.paragraph-text');
+
+                    // Get the search text based on item type
+                    const searchText = item.text || item.term || null;
+
+                    // For items with specific text (questions, action items, key terms), search for it
+                    if (searchText) {
+                        // First scroll to paragraph
+                        paraEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        // Use browser's find-in-page API to search and highlight
+                        setTimeout(() => {
+                            // Create a temporary range to find the text
+                            const textContent = textEl.textContent;
+                            const searchIndex = textContent.indexOf(searchText);
+
+                            if (searchIndex !== -1) {
+                                // Use window.find() if available (works in most browsers)
+                                if (window.find) {
+                                    window.find(searchText);
+                                }
+
+                                // Alternative: Create a text highlight using range
+                                const range = document.createRange();
+                                const walker = document.createTreeWalker(
+                                    textEl,
+                                    NodeFilter.SHOW_TEXT,
+                                    null,
+                                    false
+                                );
+
+                                let charCount = 0;
+                                let startNode = null;
+                                let startOffset = 0;
+                                let endNode = null;
+                                let endOffset = 0;
+
+                                while (walker.nextNode()) {
+                                    const node = walker.currentNode;
+                                    const nodeLength = node.textContent.length;
+
+                                    if (charCount + nodeLength >= searchIndex && !startNode) {
+                                        startNode = node;
+                                        startOffset = searchIndex - charCount;
+                                    }
+
+                                    if (charCount + nodeLength >= searchIndex + searchText.length) {
+                                        endNode = node;
+                                        endOffset = searchIndex + searchText.length - charCount;
+                                        break;
+                                    }
+
+                                    charCount += nodeLength;
+                                }
+
+                                if (startNode && endNode) {
+                                    range.setStart(startNode, startOffset);
+                                    range.setEnd(endNode, endOffset);
+
+                                    // Scroll the range into view
+                                    const rect = range.getBoundingClientRect();
+                                    const scrollTop = window.scrollY + rect.top - (window.innerHeight / 2);
+                                    window.scrollTo({ top: scrollTop, behavior: 'smooth' });
+
+                                    // Create temporary highlight
+                                    const span = document.createElement('span');
+                                    span.style.backgroundColor = '#fbbf24';
+                                    span.style.transition = 'background-color 0.3s';
+                                    range.surroundContents(span);
+
+                                    setTimeout(() => {
+                                        span.style.backgroundColor = '';
+                                        setTimeout(() => {
+                                            // Unwrap the span
+                                            const parent = span.parentNode;
+                                            while (span.firstChild) {
+                                                parent.insertBefore(span.firstChild, span);
+                                            }
+                                            parent.removeChild(span);
+                                        }, 300);
+                                    }, 2000);
+                                }
+                            } else {
+                                // Text not found, just highlight paragraph
+                                textEl.classList.add('ai-highlighted');
+                                setTimeout(() => textEl.classList.remove('ai-highlighted'), 2000);
+                            }
+                        }, 300);
+                    } else {
+                        // For items without specific text, just scroll to paragraph and highlight
+                        paraEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                        textEl.classList.add('ai-highlighted');
+                        setTimeout(() => textEl.classList.remove('ai-highlighted'), 2000);
+                    }
+
+                    // If audio is playing, seek to time
+                    if (currentAudio) {
+                        currentAudio.currentTime = timeCode;
+                    }
+                }
+            }
+
+            showTooltip(event, item, timeCode) {
+                const tooltip = document.getElementById('timeline-tooltip');
+                const timeEl = document.getElementById('tooltip-time');
+                const summaryEl = document.getElementById('tooltip-summary');
+
+                timeEl.textContent = formatTime(timeCode);
+                summaryEl.textContent = item.summary || item.text || item.term || item.theme || item.toTopic || 'No description';
+
+                // Position tooltip
+                const rect = event.target.getBoundingClientRect();
+                tooltip.style.left = `${rect.left}px`;
+                tooltip.style.top = `${rect.top - 80}px`;
+
+                tooltip.classList.add('show');
+            }
+
+            hideTooltip() {
+                const tooltip = document.getElementById('timeline-tooltip');
+                tooltip.classList.remove('show');
+            }
+        }
+
+        // Initialize AI Navigator
+        let aiNavigator = new AITimelineNavigator();
+
+        // ====================================================================
+        // AI Configuration Panel
+        // ====================================================================
+
+        class PromptEditor {
+            constructor() {
+                this.isExpanded = false;
+            }
+
+            toggleExpand() {
+                const textarea = document.getElementById('category-prompt');
+                const button = document.querySelector('.expand-button');
+
+                if (!this.isExpanded) {
+                    textarea.style.height = '300px';
+                    button.textContent = '▲ Collapse';
+                    this.isExpanded = true;
+                } else {
+                    textarea.style.height = '80px';
+                    button.textContent = '▼ Expand';
+                    this.isExpanded = false;
+                }
+            }
+        }
+
+        class AIConfigPanel {
+            constructor() {
+                this.currentCategory = null;
+                this.config = null;
+                this.defaultPrompts = null;
+                this.isDirty = false;
+                this.originalValues = {};
+            }
+
+            async init() {
+                await this.loadDefaultPrompts();
+                this.attachEventListeners();
+            }
+
+            async loadDefaultPrompts() {
+                try {
+                    const response = await fetch('/ai-prompts.json');
+                    if (response.ok) {
+                        this.defaultPrompts = await response.json();
+                        console.log('✅ Loaded default AI prompts');
+                    }
+                } catch (error) {
+                    console.error('Error loading default prompts:', error);
+                }
+            }
+
+            async loadConfig() {
+                // Try to load existing AI analysis to get metadata
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
+                const analysisKey = `${sessionPath}/transcription-ai-analysis.json`;
+
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(analysisKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        const analysis = await response.json();
+                        // Extract metadata from analysis
+                        this.config = {
+                            version: "2.0",
+                            sessionId: currentSession.folder,
+                            lastModified: analysis._meta?.lastModified || new Date().toISOString(),
+                            categories: this.buildConfigFromDefaults(),
+                            _meta: analysis._meta || {}
+                        };
+
+                        // Update metadata if available
+                        if (analysis._meta) {
+                            Object.keys(this.config.categories).forEach(cat => {
+                                if (analysis[cat]) {
+                                    this.config.categories[cat].metadata.itemCount = analysis[cat].length;
+                                }
+                            });
+                        }
+
+                        return;
+                    }
+                } catch (error) {
+                    console.log('No AI analysis found, using defaults');
+                }
+
+                // Initialize with defaults
+                this.config = {
+                    version: "2.0",
+                    sessionId: currentSession?.folder || '',
+                    lastModified: new Date().toISOString(),
+                    categories: this.buildConfigFromDefaults(),
+                    _meta: {
+                        totalCost: 0,
+                        totalTokens: 0
+                    }
+                };
+            }
+
+            buildConfigFromDefaults() {
+                const categories = {};
+
+                if (this.defaultPrompts?.templates) {
+                    Object.keys(this.defaultPrompts.templates).forEach(category => {
+                        const template = this.defaultPrompts.templates[category];
+                        categories[category] = {
+                            displayName: template.displayName,
+                            enabled: true,
+                            prompt: template.prompt,
+                            settings: {
+                                model: "claude-3-5-haiku-20241022",
+                                maxTokens: 8000,
+                                ...template.settings
+                            },
+                            metadata: {
+                                lastAnalyzed: null,
+                                itemCount: 0,
+                                tokensUsed: 0,
+                                costUSD: 0
+                            }
+                        };
+                    });
+                }
+
+                return categories;
+            }
+
+            async showCategory(categoryId) {
+                console.log('🔧 AIConfigPanel.showCategory called with:', categoryId);
+                this.currentCategory = categoryId;
+
+                // Load config if not loaded
+                if (!this.config) {
+                    console.log('📥 Loading config...');
+                    await this.loadConfig();
+                }
+
+                // Transition: hide session info, show config panel
+                const sessionInfo = document.getElementById('session-info');
+                const configPanel = document.getElementById('ai-config-panel');
+
+                console.log('🔄 Transitioning panels:', {
+                    sessionInfo: !!sessionInfo,
+                    configPanel: !!configPanel,
+                    sessionInfoDisplay: sessionInfo?.style.display,
+                    configPanelDisplay: configPanel?.style.display
+                });
+
+                if (!sessionInfo || !configPanel) {
+                    console.error('❌ Panel elements not found!');
+                    return;
+                }
+
+                sessionInfo.style.display = 'none';
+                configPanel.style.display = 'block';
+
+                console.log('✅ Panels transitioned, rendering...');
+                this.render();
+                console.log('✅ Render complete');
+            }
+
+            close() {
+                // Transition: show session info, hide config panel
+                const sessionInfo = document.getElementById('session-info');
+                const configPanel = document.getElementById('ai-config-panel');
+
+                // Warn if unsaved changes
+                if (this.isDirty) {
+                    if (!confirm('You have unsaved changes. Close anyway?')) {
+                        return;
+                    }
+                    this.isDirty = false;
+                }
+
+                configPanel.style.display = 'none';
+                sessionInfo.style.display = 'block';
+
+                this.currentCategory = null;
+            }
+
+            render() {
+                if (!this.currentCategory || !this.config) return;
+
+                const categoryConfig = this.config.categories[this.currentCategory];
+                if (!categoryConfig) return;
+
+                // Update category name input
+                document.getElementById('category-name').value = categoryConfig.displayName;
+
+                // Update prompt editor
+                document.getElementById('category-prompt').value = categoryConfig.prompt;
+
+                // Update settings
+                document.getElementById('setting-model').value = categoryConfig.settings.model;
+                document.getElementById('setting-max-items').value = categoryConfig.settings.maxItems || 15;
+
+                // Render category-specific settings
+                this.renderCategorySpecificSettings(this.currentCategory, categoryConfig.settings);
+
+                // Update status
+                const metadata = categoryConfig.metadata;
+                document.getElementById('last-analyzed-time').textContent =
+                    metadata.lastAnalyzed ? this.formatRelativeTime(metadata.lastAnalyzed) : 'Never';
+                document.getElementById('estimated-cost').textContent =
+                    `$${(metadata.costUSD || 0).toFixed(4)}`;
+                document.getElementById('current-count').textContent =
+                    `${metadata.itemCount || 0} items`;
+
+                // Store original values for dirty detection
+                this.originalValues = {
+                    displayName: categoryConfig.displayName,
+                    prompt: categoryConfig.prompt,
+                    settings: JSON.stringify(categoryConfig.settings)
+                };
+
+                this.isDirty = false;
+                this.updateSaveButton();
+            }
+
+            renderCategorySpecificSettings(category, settings) {
+                const container = document.getElementById('category-specific-settings');
+                container.innerHTML = '';
+
+                // Render settings specific to each category
+                switch(category) {
+                    case 'highlights':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-importance">Min Importance:</label>
+                                <input type="number" id="setting-min-importance"
+                                       min="0" max="1" step="0.1"
+                                       value="${settings.minImportance || 0.7}">
+                            </div>
+                        `;
+                        break;
+                    case 'actionItems':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-priority">Min Priority:</label>
+                                <select id="setting-min-priority">
+                                    <option value="low" ${settings.minPriority === 'low' ? 'selected' : ''}>Low</option>
+                                    <option value="medium" ${settings.minPriority === 'medium' ? 'selected' : ''}>Medium</option>
+                                    <option value="high" ${settings.minPriority === 'high' ? 'selected' : ''}>High</option>
+                                </select>
+                            </div>
+                        `;
+                        break;
+                    case 'keyTerms':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-first-mention-only">
+                                    <input type="checkbox" id="setting-first-mention-only"
+                                           ${settings.firstMentionOnly !== false ? 'checked' : ''}>
+                                    First Mention Only
+                                </label>
+                            </div>
+                        `;
+                        break;
+                    case 'keyThemes':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-intensity">Min Intensity:</label>
+                                <input type="number" id="setting-min-intensity"
+                                       min="0" max="1" step="0.1"
+                                       value="${settings.minIntensity || 0.5}">
+                            </div>
+                            <div class="setting-item">
+                                <label for="setting-min-duration">Min Duration (sec):</label>
+                                <input type="number" id="setting-min-duration"
+                                       min="0" step="5"
+                                       value="${settings.minDuration || 30}">
+                            </div>
+                        `;
+                        break;
+                    case 'topicChanges':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-include-implicit">
+                                    <input type="checkbox" id="setting-include-implicit"
+                                           ${settings.includeImplicit !== false ? 'checked' : ''}>
+                                    Include Implicit Transitions
+                                </label>
+                            </div>
+                        `;
+                        break;
+                }
+            }
+
+            attachEventListeners() {
+                // Detect changes to mark dirty
+                const inputs = ['category-name', 'category-prompt', 'setting-model', 'setting-max-items'];
+
+                inputs.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('input', () => this.markDirty());
+                        el.addEventListener('change', () => this.markDirty());
+                    }
+                });
+
+                // Use event delegation for dynamically added category-specific settings
+                document.addEventListener('change', (e) => {
+                    if (e.target.id.startsWith('setting-')) {
+                        this.markDirty();
+                    }
+                });
+            }
+
+            markDirty() {
+                this.isDirty = true;
+                this.updateSaveButton();
+
+                // Add visual indicator to prompt
+                const promptEditor = document.getElementById('category-prompt');
+                if (promptEditor) {
+                    promptEditor.classList.add('dirty');
+                }
+            }
+
+            updateSaveButton() {
+                const saveBtn = document.querySelector('.btn-save');
+                if (saveBtn) {
+                    if (this.isDirty) {
+                        saveBtn.disabled = false;
+                        saveBtn.classList.add('dirty');
+                    } else {
+                        saveBtn.disabled = true;
+                        saveBtn.classList.remove('dirty');
+                    }
+                }
+            }
+
+            async saveConfig() {
+                if (!this.currentCategory) return;
+
+                showToast('Save functionality coming in Phase 3 - backend API', 'info');
+                console.log('Config to save:', this.config);
+
+                // TODO: Implement S3 upload in Phase 3
+                this.isDirty = false;
+                this.updateSaveButton();
+            }
+
+            async reanalyzeCategory() {
+                if (!this.currentCategory) return;
+
+                showToast('Re-analysis functionality coming in Phase 3 - backend API', 'info');
+                console.log('Re-analyze category:', this.currentCategory);
+
+                // TODO: Implement backend API call in Phase 3
+            }
+
+            resetToDefault() {
+                if (!this.currentCategory || !this.defaultPrompts) return;
+
+                if (!confirm('Reset this category to default settings?')) {
+                    return;
+                }
+
+                const template = this.defaultPrompts.templates[this.currentCategory];
+                if (template) {
+                    const categoryConfig = this.config.categories[this.currentCategory];
+                    categoryConfig.displayName = template.displayName;
+                    categoryConfig.prompt = template.prompt;
+                    categoryConfig.settings = {
+                        model: "claude-3-5-haiku-20241022",
+                        maxTokens: 8000,
+                        ...template.settings
+                    };
+
+                    this.render();
+                    this.markDirty();
+                }
+            }
+
+            formatRelativeTime(isoString) {
+                const date = new Date(isoString);
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+
+                if (seconds < 60) return 'Just now';
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            }
+        }
+
+        // Initialize AI Config Panel and Prompt Editor
+        // Make them global so they can be accessed from onclick handlers
+        window.aiConfigPanel = new AIConfigPanel();
+        window.promptEditor = new PromptEditor();
+
+        // Initialize config panel when page loads
+        aiConfigPanel.init();
+
+        // Add scroll effect to AI navigation
+        let lastScrollTop = 0;
+
+        // Listen on window scroll or main content wrapper scroll
+        window.addEventListener('scroll', function() {
+            const aiNav = document.getElementById('ai-nav-container');
+            if (!aiNav || aiNav.style.display === 'none') return;
+
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (scrollTop > 100) {
+                aiNav.classList.add('scrolled');
+            } else {
+                aiNav.classList.remove('scrolled');
+            }
+
+            lastScrollTop = scrollTop;
+        });
+
+        // Also listen on main content wrapper if it scrolls
+        const mainContent = document.querySelector('.main-content-wrapper');
+        if (mainContent) {
+            mainContent.addEventListener('scroll', function() {
+                const aiNav = document.getElementById('ai-nav-container');
+                if (!aiNav || aiNav.style.display === 'none') return;
+
+                const scrollTop = mainContent.scrollTop;
+
+                if (scrollTop > 50) {
+                    aiNav.classList.add('scrolled');
+                } else {
+                    aiNav.classList.remove('scrolled');
+                }
+            });
+        }
+
     </script>
 </body>
 </html>
