@@ -3357,36 +3357,94 @@
                 if (paraEl) {
                     const textEl = paraEl.querySelector('.paragraph-text');
 
-                    // For questions, find and highlight the specific question text
-                    if (item.type === 'questions' && item.text) {
+                    // Get the search text based on item type
+                    const searchText = item.text || item.term || null;
+
+                    // For items with specific text (questions, action items, key terms), search for it
+                    if (searchText) {
                         // First scroll to paragraph
                         paraEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-                        // Find the question-highlight span that contains this text
-                        const questionSpans = textEl.querySelectorAll('.question-highlight');
-                        let targetSpan = null;
+                        // Use browser's find-in-page API to search and highlight
+                        setTimeout(() => {
+                            // Create a temporary range to find the text
+                            const textContent = textEl.textContent;
+                            const searchIndex = textContent.indexOf(searchText);
 
-                        for (const span of questionSpans) {
-                            if (span.textContent.includes(item.text)) {
-                                targetSpan = span;
-                                break;
+                            if (searchIndex !== -1) {
+                                // Use window.find() if available (works in most browsers)
+                                if (window.find) {
+                                    window.find(searchText);
+                                }
+
+                                // Alternative: Create a text highlight using range
+                                const range = document.createRange();
+                                const walker = document.createTreeWalker(
+                                    textEl,
+                                    NodeFilter.SHOW_TEXT,
+                                    null,
+                                    false
+                                );
+
+                                let charCount = 0;
+                                let startNode = null;
+                                let startOffset = 0;
+                                let endNode = null;
+                                let endOffset = 0;
+
+                                while (walker.nextNode()) {
+                                    const node = walker.currentNode;
+                                    const nodeLength = node.textContent.length;
+
+                                    if (charCount + nodeLength >= searchIndex && !startNode) {
+                                        startNode = node;
+                                        startOffset = searchIndex - charCount;
+                                    }
+
+                                    if (charCount + nodeLength >= searchIndex + searchText.length) {
+                                        endNode = node;
+                                        endOffset = searchIndex + searchText.length - charCount;
+                                        break;
+                                    }
+
+                                    charCount += nodeLength;
+                                }
+
+                                if (startNode && endNode) {
+                                    range.setStart(startNode, startOffset);
+                                    range.setEnd(endNode, endOffset);
+
+                                    // Scroll the range into view
+                                    const rect = range.getBoundingClientRect();
+                                    const scrollTop = window.scrollY + rect.top - (window.innerHeight / 2);
+                                    window.scrollTo({ top: scrollTop, behavior: 'smooth' });
+
+                                    // Create temporary highlight
+                                    const span = document.createElement('span');
+                                    span.style.backgroundColor = '#fbbf24';
+                                    span.style.transition = 'background-color 0.3s';
+                                    range.surroundContents(span);
+
+                                    setTimeout(() => {
+                                        span.style.backgroundColor = '';
+                                        setTimeout(() => {
+                                            // Unwrap the span
+                                            const parent = span.parentNode;
+                                            while (span.firstChild) {
+                                                parent.insertBefore(span.firstChild, span);
+                                            }
+                                            parent.removeChild(span);
+                                        }, 300);
+                                    }, 2000);
+                                }
+                            } else {
+                                // Text not found, just highlight paragraph
+                                textEl.classList.add('ai-highlighted');
+                                setTimeout(() => textEl.classList.remove('ai-highlighted'), 2000);
                             }
-                        }
-
-                        if (targetSpan) {
-                            // Scroll the specific question into view
-                            setTimeout(() => {
-                                targetSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                                // Add temporary highlight
-                                targetSpan.style.backgroundColor = '#fbbf24';
-                                setTimeout(() => {
-                                    targetSpan.style.backgroundColor = '';
-                                }, 2000);
-                            }, 300); // Small delay to let paragraph scroll finish
-                        }
+                        }, 300);
                     } else {
-                        // For non-questions, just scroll to paragraph and highlight
+                        // For items without specific text, just scroll to paragraph and highlight
                         paraEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
                         textEl.classList.add('ai-highlighted');
