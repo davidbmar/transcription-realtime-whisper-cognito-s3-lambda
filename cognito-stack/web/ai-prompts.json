@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "templates": {
+    "highlights": {
+      "displayName": "Highlights",
+      "prompt": "Extract 8-15 most significant moments or key insights from this transcript.\n\nFor each highlight include:\n- Time codes (in seconds as float)\n- Summary of the insight (1-2 sentences)\n- Importance score (0.0 to 1.0)\n- Categories: [\"insight\", \"prediction\", \"quote\", \"decision\", \"conclusion\"]\n\nIMPORTANT RULES:\n- All time codes must be in SECONDS as float (e.g., 45.2, not \"0:45\")\n- Parse timestamps from [MM:SS] format in transcript\n- Return ONLY valid JSON, no markdown, no explanation\n- Prioritize QUANTITY while maintaining quality - give users many navigation points\n- Focus on what would help someone navigate and understand the content quickly\n- Better to include more items than fewer - users can filter\n\nReturn format:\n{\n  \"results\": [\n    {\n      \"timeCodeStart\": 180.0,\n      \"timeCodeEnd\": 195.0,\n      \"summary\": \"Key insight about...\",\n      \"importance\": 0.95,\n      \"categories\": [\"insight\", \"prediction\"]\n    }\n  ]\n}",
+      "settings": {
+        "maxItems": 15,
+        "minImportance": 0.7,
+        "temperature": 0.0
+      }
+    },
+    "actionItems": {
+      "displayName": "Action Items",
+      "prompt": "Find 5-10 explicit tasks, recommendations, or actionable steps mentioned in this transcript.\n\nFor each action item include:\n- Time codes (in seconds as float)\n- Brief summary (1 sentence)\n- Extract exact quote\n- Priority: \"high\", \"medium\", or \"low\"\n\nCast a wide net - include suggestions, proposals, calls to action.\n\nIMPORTANT RULES:\n- All time codes must be in SECONDS as float (e.g., 45.2, not \"0:45\")\n- Parse timestamps from [MM:SS] format in transcript\n- Return ONLY valid JSON, no markdown, no explanation\n- Prioritize QUANTITY while maintaining quality\n- Better to include more items than fewer\n\nReturn format:\n{\n  \"results\": [\n    {\n      \"timeCodeStart\": 59.0,\n      \"timeCodeEnd\": 68.5,\n      \"summary\": \"Focus on evolutionary optimization\",\n      \"text\": \"We need to shift our approach to evolutionary algorithms\",\n      \"priority\": \"high\"\n    }\n  ]\n}",
+      "settings": {
+        "maxItems": 10,
+        "minPriority": "medium",
+        "includeSuggestions": true
+      }
+    },
+    "keyTerms": {
+      "displayName": "Key Terms",
+      "prompt": "Identify 8-15 technical terms, domain-specific vocabulary, or important concepts mentioned in this transcript.\n\nFor each term include:\n- First mention only (don't repeat same term)\n- Time codes (in seconds as float)\n- Brief definition or context\n- Mark as firstMention: true\n\nInclude jargon, acronyms, specialized terminology.\n\nIMPORTANT RULES:\n- All time codes must be in SECONDS as float (e.g., 45.2, not \"0:45\")\n- Parse timestamps from [MM:SS] format in transcript\n- Return ONLY valid JSON, no markdown, no explanation\n- Prioritize QUANTITY while maintaining quality\n- Better to include more items than fewer\n\nReturn format:\n{\n  \"results\": [\n    {\n      \"timeCodeStart\": 47.0,\n      \"timeCodeEnd\": 51.0,\n      \"term\": \"Reinforcement Learning\",\n      \"definition\": \"ML technique using rewards and penalties\",\n      \"context\": \"Discussion of AI training methodologies\",\n      \"firstMention\": true\n    }\n  ]\n}",
+      "settings": {
+        "maxItems": 15,
+        "firstMentionOnly": true
+      }
+    },
+    "keyThemes": {
+      "displayName": "Key Themes",
+      "prompt": "Identify 4-8 main topics or subjects discussed at length in this transcript.\n\nFor each theme include:\n- Time ranges where theme is actively discussed (start and end)\n- Brief summary (2 sentences max)\n- Intensity score (0.0 to 1.0 based on depth/importance)\n\nInclude both major and minor themes.\n\nIMPORTANT RULES:\n- All time codes must be in SECONDS as float (e.g., 45.2, not \"0:45\")\n- Parse timestamps from [MM:SS] format in transcript\n- Return ONLY valid JSON, no markdown, no explanation\n- Prioritize QUANTITY while maintaining quality\n- Better to include more items than fewer\n\nReturn format:\n{\n  \"results\": [\n    {\n      \"timeCodeStart\": 120.0,\n      \"timeCodeEnd\": 245.0,\n      \"theme\": \"Evolution vs Traditional Programming\",\n      \"summary\": \"Extended comparison of evolutionary algorithms versus conventional software development approaches\",\n      \"intensity\": 0.89\n    }\n  ]\n}",
+      "settings": {
+        "maxItems": 8,
+        "minIntensity": 0.5,
+        "minDuration": 30
+      }
+    },
+    "topicChanges": {
+      "displayName": "Topic Changes",
+      "prompt": "Find 6-12 points where the speaker shifts to a new distinct subject.\n\nFor each transition include:\n- Exact time code of transition\n- What changed from/to\n- Type: \"explicit\" (announced) or \"implicit\" (natural shift)\n\nBe sensitive to subtle transitions, not just major shifts.\n\nIMPORTANT RULES:\n- All time codes must be in SECONDS as float (e.g., 45.2, not \"0:45\")\n- Parse timestamps from [MM:SS] format in transcript\n- Return ONLY valid JSON, no markdown, no explanation\n- Prioritize QUANTITY while maintaining quality\n- Better to include more items than fewer\n\nReturn format:\n{\n  \"results\": [\n    {\n      \"timeCode\": 32.5,\n      \"fromTopic\": \"Introduction\",\n      \"toTopic\": \"AI Development Timeline\",\n      \"transitionType\": \"explicit\"\n    }\n  ]\n}",
+      "settings": {
+        "maxItems": 12,
+        "includeImplicit": true
+      }
+    }
+  },
+  "presets": {
+    "interview": {
+      "displayName": "Interview Analysis",
+      "description": "Optimized for interview transcripts - focuses on questions, answers, and key insights",
+      "categories": {
+        "highlights": {
+          "displayName": "Key Interviewer Questions",
+          "prompt": "Extract the most important questions asked by the interviewer. Focus on questions that elicited detailed or revealing responses."
+        },
+        "actionItems": {
+          "displayName": "Follow-up Tasks",
+          "prompt": "Find all follow-up tasks, commitments, or action items mentioned by either party."
+        }
+      }
+    },
+    "meeting": {
+      "displayName": "Meeting Notes",
+      "description": "Optimized for meeting transcripts - focuses on decisions, assignments, and discussions",
+      "categories": {
+        "highlights": {
+          "displayName": "Key Decisions",
+          "prompt": "Extract all decisions made during the meeting, including who made them and what was decided."
+        },
+        "actionItems": {
+          "displayName": "Team Assignments",
+          "prompt": "Find all tasks assigned to team members, including deadlines and deliverables."
+        }
+      }
+    },
+    "lecture": {
+      "displayName": "Lecture/Presentation",
+      "description": "Optimized for educational content - focuses on concepts, explanations, and key points",
+      "categories": {
+        "highlights": {
+          "displayName": "Key Concepts",
+          "prompt": "Extract main concepts taught in the lecture, including definitions and explanations."
+        },
+        "keyTerms": {
+          "displayName": "Technical Vocabulary",
+          "prompt": "Identify all technical terms introduced, with clear definitions suitable for students."
+        }
+      }
+    }
+  }
+}

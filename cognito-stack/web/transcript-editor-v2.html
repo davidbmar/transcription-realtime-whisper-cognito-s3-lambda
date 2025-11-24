@@ -873,6 +873,287 @@
                 height: 80px;
             }
         }
+
+        /* ====================================================================
+           AI Configuration Panel
+           ==================================================================== */
+
+        .config-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: var(--gray-500);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .back-button:hover {
+            color: var(--gray-900);
+            background: var(--gray-100);
+        }
+
+        .config-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .category-name-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 4px;
+            transition: border-color 0.2s;
+        }
+
+        .category-name-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .hint {
+            color: var(--gray-500);
+            font-size: 12px;
+            font-style: italic;
+            display: block;
+            margin-top: 4px;
+        }
+
+        /* Prompt Editor */
+        .prompt-editor-wrapper {
+            position: relative;
+            margin-top: 4px;
+        }
+
+        .prompt-editor {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 80px;
+            max-height: 400px;
+            transition: border-color 0.2s;
+        }
+
+        .prompt-editor:focus {
+            border-color: #8b5cf6;
+            outline: none;
+        }
+
+        .prompt-editor.dirty {
+            border-left: 4px solid var(--warning);
+        }
+
+        .expand-button {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .expand-button:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .setting-item label {
+            font-size: 12px;
+            color: var(--gray-600);
+            font-weight: 500;
+        }
+
+        .setting-item select,
+        .setting-item input[type="number"],
+        .setting-item input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            font-size: 13px;
+            transition: border-color 0.2s;
+        }
+
+        .setting-item select:focus,
+        .setting-item input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .setting-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* Status Section */
+        .status-section {
+            background: var(--gray-50);
+        }
+
+        .status-info {
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+        }
+
+        .status-row span:first-child {
+            color: var(--gray-600);
+        }
+
+        .status-row span:last-child {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        /* Action Buttons */
+        .config-actions {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-reanalyze {
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-reanalyze:hover:not(:disabled) {
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-reanalyze:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-save {
+            background: white;
+            border: 2px solid var(--gray-200);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-save:not([disabled]):hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .btn-save[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-save.dirty {
+            border-color: var(--warning);
+            background: #fffbeb;
+        }
+
+        .btn-reset {
+            background: none;
+            border: none;
+            color: var(--gray-600);
+            padding: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .btn-reset:hover {
+            color: var(--gray-900);
+        }
+
+        /* Progress Indicator */
+        .progress-container {
+            padding: 16px;
+            background: #f0f9ff;
+            border-top: 2px solid var(--primary);
+            text-align: center;
+        }
+
+        .progress-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #dbeafe;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #1e40af;
+            font-weight: 500;
+        }
+
+        /* Transitions */
+        #session-info,
+        #ai-config-panel {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        #session-info.hiding,
+        #ai-config-panel.hiding {
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
@@ -921,6 +1202,8 @@
     <div id="main-container" class="main-container" style="display: none;">
         <!-- Sidebar -->
         <div class="sidebar">
+            <!-- Session Info (default view) -->
+            <div id="session-info">
             <!-- Session Selector -->
             <div class="sidebar-section">
                 <div class="sidebar-title">Session</div>
@@ -997,6 +1280,102 @@
             <button class="btn btn-primary" style="width: 100%;" onclick="saveTranscript()">
                 💾 Save Changes
             </button>
+            </div>
+            <!-- End Session Info -->
+
+            <!-- AI Configuration Panel (hidden by default) -->
+            <div id="ai-config-panel" style="display: none;">
+                <!-- Header -->
+                <div class="config-header">
+                    <button onclick="aiConfigPanel.close()" class="back-button">
+                        ← Back to Session
+                    </button>
+                    <h3 style="margin: 0; font-size: 16px; color: var(--gray-900);">✨ AI Category Configuration</h3>
+                </div>
+
+                <!-- Category Name -->
+                <div class="config-section">
+                    <label for="category-name" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--gray-700);">Tab Name:</label>
+                    <input type="text" id="category-name" class="category-name-input" placeholder="e.g., Key Interviewer Questions">
+                    <small class="hint">This name appears in the timeline tab</small>
+                </div>
+
+                <!-- Prompt Editor -->
+                <div class="config-section">
+                    <label for="category-prompt" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--gray-700);">Prompt:</label>
+                    <div class="prompt-editor-wrapper">
+                        <textarea id="category-prompt" class="prompt-editor" rows="4"></textarea>
+                        <button onclick="promptEditor.toggleExpand()" class="expand-button">
+                            ▼ Expand
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="config-section">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--gray-700);">Settings:</label>
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="setting-model">Model:</label>
+                            <select id="setting-model">
+                                <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Fast)</option>
+                                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Best)</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item">
+                            <label for="setting-max-items">Max Items:</label>
+                            <input type="number" id="setting-max-items" min="1" max="50" value="15">
+                        </div>
+
+                        <!-- Category-specific settings rendered dynamically -->
+                        <div id="category-specific-settings"></div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="config-section status-section">
+                    <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--gray-700);">Status:</label>
+                    <div class="status-info">
+                        <div class="status-row">
+                            <span>Last analyzed:</span>
+                            <span id="last-analyzed-time">Never</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Estimated cost:</span>
+                            <span id="estimated-cost">$0.0000</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Current count:</span>
+                            <span id="current-count">0 items</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="config-actions">
+                    <button onclick="aiConfigPanel.reanalyzeCategory()" class="btn-primary btn-reanalyze">
+                        🔄 Re-analyze This Category
+                    </button>
+
+                    <button onclick="aiConfigPanel.saveConfig()" class="btn-secondary btn-save" disabled>
+                        💾 Save Configuration
+                    </button>
+
+                    <button onclick="aiConfigPanel.resetToDefault()" class="btn-text btn-reset">
+                        Reset to Default
+                    </button>
+                </div>
+
+                <!-- Progress Indicator (shown during re-analysis) -->
+                <div id="reanalysis-progress" class="progress-container" style="display: none;">
+                    <div class="progress-spinner"></div>
+                    <div class="progress-text">
+                        Re-analyzing... <span id="progress-eta">~10s</span>
+                    </div>
+                </div>
+            </div>
+            <!-- End AI Config Panel -->
         </div>
 
         <!-- Main Content Column -->
@@ -2621,6 +3000,11 @@
                 });
                 document.querySelector(`.ai-nav-tab[data-type="${type}"]`).classList.add('active');
 
+                // Show configuration panel for this category (if not "all")
+                if (type !== 'all' && window.aiConfigPanel) {
+                    aiConfigPanel.showCategory(type);
+                }
+
                 // Re-render markers
                 this.renderMarkers();
             }
@@ -2749,6 +3133,386 @@
 
         // Initialize AI Navigator
         let aiNavigator = new AITimelineNavigator();
+
+        // ====================================================================
+        // AI Configuration Panel
+        // ====================================================================
+
+        class PromptEditor {
+            constructor() {
+                this.isExpanded = false;
+            }
+
+            toggleExpand() {
+                const textarea = document.getElementById('category-prompt');
+                const button = document.querySelector('.expand-button');
+
+                if (!this.isExpanded) {
+                    textarea.style.height = '300px';
+                    button.textContent = '▲ Collapse';
+                    this.isExpanded = true;
+                } else {
+                    textarea.style.height = '80px';
+                    button.textContent = '▼ Expand';
+                    this.isExpanded = false;
+                }
+            }
+        }
+
+        class AIConfigPanel {
+            constructor() {
+                this.currentCategory = null;
+                this.config = null;
+                this.defaultPrompts = null;
+                this.isDirty = false;
+                this.originalValues = {};
+            }
+
+            async init() {
+                await this.loadDefaultPrompts();
+                this.attachEventListeners();
+            }
+
+            async loadDefaultPrompts() {
+                try {
+                    const response = await fetch('/ai-prompts.json');
+                    if (response.ok) {
+                        this.defaultPrompts = await response.json();
+                        console.log('✅ Loaded default AI prompts');
+                    }
+                } catch (error) {
+                    console.error('Error loading default prompts:', error);
+                }
+            }
+
+            async loadConfig() {
+                // Try to load existing AI analysis to get metadata
+                const userId = getUserId();
+                const sessionFolder = currentSession.folder;
+                const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
+                const analysisKey = `${sessionPath}/transcription-ai-analysis.json`;
+
+                try {
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(analysisKey)}`);
+                    const response = await fetch(downloadData.downloadUrl);
+
+                    if (response.ok) {
+                        const analysis = await response.json();
+                        // Extract metadata from analysis
+                        this.config = {
+                            version: "2.0",
+                            sessionId: currentSession.folder,
+                            lastModified: analysis._meta?.lastModified || new Date().toISOString(),
+                            categories: this.buildConfigFromDefaults(),
+                            _meta: analysis._meta || {}
+                        };
+
+                        // Update metadata if available
+                        if (analysis._meta) {
+                            Object.keys(this.config.categories).forEach(cat => {
+                                if (analysis[cat]) {
+                                    this.config.categories[cat].metadata.itemCount = analysis[cat].length;
+                                }
+                            });
+                        }
+
+                        return;
+                    }
+                } catch (error) {
+                    console.log('No AI analysis found, using defaults');
+                }
+
+                // Initialize with defaults
+                this.config = {
+                    version: "2.0",
+                    sessionId: currentSession?.folder || '',
+                    lastModified: new Date().toISOString(),
+                    categories: this.buildConfigFromDefaults(),
+                    _meta: {
+                        totalCost: 0,
+                        totalTokens: 0
+                    }
+                };
+            }
+
+            buildConfigFromDefaults() {
+                const categories = {};
+
+                if (this.defaultPrompts?.templates) {
+                    Object.keys(this.defaultPrompts.templates).forEach(category => {
+                        const template = this.defaultPrompts.templates[category];
+                        categories[category] = {
+                            displayName: template.displayName,
+                            enabled: true,
+                            prompt: template.prompt,
+                            settings: {
+                                model: "claude-3-5-haiku-20241022",
+                                maxTokens: 8000,
+                                ...template.settings
+                            },
+                            metadata: {
+                                lastAnalyzed: null,
+                                itemCount: 0,
+                                tokensUsed: 0,
+                                costUSD: 0
+                            }
+                        };
+                    });
+                }
+
+                return categories;
+            }
+
+            async showCategory(categoryId) {
+                this.currentCategory = categoryId;
+
+                // Load config if not loaded
+                if (!this.config) {
+                    await this.loadConfig();
+                }
+
+                // Transition: hide session info, show config panel
+                const sessionInfo = document.getElementById('session-info');
+                const configPanel = document.getElementById('ai-config-panel');
+
+                sessionInfo.style.display = 'none';
+                configPanel.style.display = 'block';
+
+                this.render();
+            }
+
+            close() {
+                // Transition: show session info, hide config panel
+                const sessionInfo = document.getElementById('session-info');
+                const configPanel = document.getElementById('ai-config-panel');
+
+                // Warn if unsaved changes
+                if (this.isDirty) {
+                    if (!confirm('You have unsaved changes. Close anyway?')) {
+                        return;
+                    }
+                    this.isDirty = false;
+                }
+
+                configPanel.style.display = 'none';
+                sessionInfo.style.display = 'block';
+
+                this.currentCategory = null;
+            }
+
+            render() {
+                if (!this.currentCategory || !this.config) return;
+
+                const categoryConfig = this.config.categories[this.currentCategory];
+                if (!categoryConfig) return;
+
+                // Update category name input
+                document.getElementById('category-name').value = categoryConfig.displayName;
+
+                // Update prompt editor
+                document.getElementById('category-prompt').value = categoryConfig.prompt;
+
+                // Update settings
+                document.getElementById('setting-model').value = categoryConfig.settings.model;
+                document.getElementById('setting-max-items').value = categoryConfig.settings.maxItems || 15;
+
+                // Render category-specific settings
+                this.renderCategorySpecificSettings(this.currentCategory, categoryConfig.settings);
+
+                // Update status
+                const metadata = categoryConfig.metadata;
+                document.getElementById('last-analyzed-time').textContent =
+                    metadata.lastAnalyzed ? this.formatRelativeTime(metadata.lastAnalyzed) : 'Never';
+                document.getElementById('estimated-cost').textContent =
+                    `$${(metadata.costUSD || 0).toFixed(4)}`;
+                document.getElementById('current-count').textContent =
+                    `${metadata.itemCount || 0} items`;
+
+                // Store original values for dirty detection
+                this.originalValues = {
+                    displayName: categoryConfig.displayName,
+                    prompt: categoryConfig.prompt,
+                    settings: JSON.stringify(categoryConfig.settings)
+                };
+
+                this.isDirty = false;
+                this.updateSaveButton();
+            }
+
+            renderCategorySpecificSettings(category, settings) {
+                const container = document.getElementById('category-specific-settings');
+                container.innerHTML = '';
+
+                // Render settings specific to each category
+                switch(category) {
+                    case 'highlights':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-importance">Min Importance:</label>
+                                <input type="number" id="setting-min-importance"
+                                       min="0" max="1" step="0.1"
+                                       value="${settings.minImportance || 0.7}">
+                            </div>
+                        `;
+                        break;
+                    case 'actionItems':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-priority">Min Priority:</label>
+                                <select id="setting-min-priority">
+                                    <option value="low" ${settings.minPriority === 'low' ? 'selected' : ''}>Low</option>
+                                    <option value="medium" ${settings.minPriority === 'medium' ? 'selected' : ''}>Medium</option>
+                                    <option value="high" ${settings.minPriority === 'high' ? 'selected' : ''}>High</option>
+                                </select>
+                            </div>
+                        `;
+                        break;
+                    case 'keyTerms':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-first-mention-only">
+                                    <input type="checkbox" id="setting-first-mention-only"
+                                           ${settings.firstMentionOnly !== false ? 'checked' : ''}>
+                                    First Mention Only
+                                </label>
+                            </div>
+                        `;
+                        break;
+                    case 'keyThemes':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-min-intensity">Min Intensity:</label>
+                                <input type="number" id="setting-min-intensity"
+                                       min="0" max="1" step="0.1"
+                                       value="${settings.minIntensity || 0.5}">
+                            </div>
+                            <div class="setting-item">
+                                <label for="setting-min-duration">Min Duration (sec):</label>
+                                <input type="number" id="setting-min-duration"
+                                       min="0" step="5"
+                                       value="${settings.minDuration || 30}">
+                            </div>
+                        `;
+                        break;
+                    case 'topicChanges':
+                        container.innerHTML = `
+                            <div class="setting-item">
+                                <label for="setting-include-implicit">
+                                    <input type="checkbox" id="setting-include-implicit"
+                                           ${settings.includeImplicit !== false ? 'checked' : ''}>
+                                    Include Implicit Transitions
+                                </label>
+                            </div>
+                        `;
+                        break;
+                }
+            }
+
+            attachEventListeners() {
+                // Detect changes to mark dirty
+                const inputs = ['category-name', 'category-prompt', 'setting-model', 'setting-max-items'];
+
+                inputs.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('input', () => this.markDirty());
+                        el.addEventListener('change', () => this.markDirty());
+                    }
+                });
+
+                // Use event delegation for dynamically added category-specific settings
+                document.addEventListener('change', (e) => {
+                    if (e.target.id.startsWith('setting-')) {
+                        this.markDirty();
+                    }
+                });
+            }
+
+            markDirty() {
+                this.isDirty = true;
+                this.updateSaveButton();
+
+                // Add visual indicator to prompt
+                const promptEditor = document.getElementById('category-prompt');
+                if (promptEditor) {
+                    promptEditor.classList.add('dirty');
+                }
+            }
+
+            updateSaveButton() {
+                const saveBtn = document.querySelector('.btn-save');
+                if (saveBtn) {
+                    if (this.isDirty) {
+                        saveBtn.disabled = false;
+                        saveBtn.classList.add('dirty');
+                    } else {
+                        saveBtn.disabled = true;
+                        saveBtn.classList.remove('dirty');
+                    }
+                }
+            }
+
+            async saveConfig() {
+                if (!this.currentCategory) return;
+
+                showToast('Save functionality coming in Phase 3 - backend API', 'info');
+                console.log('Config to save:', this.config);
+
+                // TODO: Implement S3 upload in Phase 3
+                this.isDirty = false;
+                this.updateSaveButton();
+            }
+
+            async reanalyzeCategory() {
+                if (!this.currentCategory) return;
+
+                showToast('Re-analysis functionality coming in Phase 3 - backend API', 'info');
+                console.log('Re-analyze category:', this.currentCategory);
+
+                // TODO: Implement backend API call in Phase 3
+            }
+
+            resetToDefault() {
+                if (!this.currentCategory || !this.defaultPrompts) return;
+
+                if (!confirm('Reset this category to default settings?')) {
+                    return;
+                }
+
+                const template = this.defaultPrompts.templates[this.currentCategory];
+                if (template) {
+                    const categoryConfig = this.config.categories[this.currentCategory];
+                    categoryConfig.displayName = template.displayName;
+                    categoryConfig.prompt = template.prompt;
+                    categoryConfig.settings = {
+                        model: "claude-3-5-haiku-20241022",
+                        maxTokens: 8000,
+                        ...template.settings
+                    };
+
+                    this.render();
+                    this.markDirty();
+                }
+            }
+
+            formatRelativeTime(isoString) {
+                const date = new Date(isoString);
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+
+                if (seconds < 60) return 'Just now';
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            }
+        }
+
+        // Initialize AI Config Panel and Prompt Editor
+        let aiConfigPanel = new AIConfigPanel();
+        let promptEditor = new PromptEditor();
+
+        // Initialize config panel when page loads
+        aiConfigPanel.init();
 
         // Add scroll effect to AI navigation
         let lastScrollTop = 0;
