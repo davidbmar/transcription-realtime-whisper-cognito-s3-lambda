@@ -715,6 +715,7 @@
         }
 
         .ai-nav-tab.active.highlights { background: #8b5cf6; }
+        .ai-nav-tab.active.questions { background: #ec4899; }
         .ai-nav-tab.active.actionItems { background: #ef4444; }
         .ai-nav-tab.active.keyTerms { background: #3b82f6; }
         .ai-nav-tab.active.keyThemes { background: #f59e0b; }
@@ -840,6 +841,37 @@
         @keyframes highlight-pulse {
             0%, 100% { background: var(--gray-50); }
             50% { background: #fef3c7; }
+        }
+
+        /* Question highlighting styles - alternating shades */
+        .question-highlight {
+            font-weight: 700;
+            padding: 2px 0;
+        }
+
+        .question-highlight.shade-1 {
+            color: #ec4899;  /* Base pink */
+        }
+
+        .question-highlight.shade-2 {
+            color: #db2777;  /* Darker pink */
+        }
+
+        .question-highlight.shade-3 {
+            color: #f472b6;  /* Lighter pink */
+        }
+
+        .question-highlight.shade-4 {
+            color: #be185d;  /* Deep pink */
+        }
+
+        .question-paragraph {
+            margin-top: 24px !important;
+            margin-bottom: 24px !important;
+            padding-top: 16px;
+            padding-bottom: 16px;
+            border-left: 4px solid #ec4899;
+            background: #fdf2f8;
         }
 
         .ai-loading-state {
@@ -1392,6 +1424,10 @@
                         ✨ Highlights
                         <span class="ai-count-badge" id="count-highlights">0</span>
                     </button>
+                    <button class="ai-nav-tab questions" onclick="aiNavigator.filterByType('questions')" data-type="questions">
+                        ❓ Questions
+                        <span class="ai-count-badge" id="count-questions">0</span>
+                    </button>
                     <button class="ai-nav-tab actionItems" onclick="aiNavigator.filterByType('actionItems')" data-type="actionItems">
                         ✅ Action Items
                         <span class="ai-count-badge" id="count-actionItems">0</span>
@@ -1758,6 +1794,19 @@
                 console.log('Sessions loaded:', data.sessions?.length || 0);
 
                 if (!data.sessions || data.sessions.length === 0) {
+                    // Show empty state for no sessions
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'grid';
+
+                    const editorContent = document.querySelector('.editor-content');
+                    editorContent.innerHTML = `
+                        <div style="text-align: center; padding: 64px 32px; color: var(--gray-500);">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🎙️</div>
+                            <h2 style="color: var(--gray-700); margin-bottom: 8px;">No Transcripts Found</h2>
+                            <p>You haven't recorded any sessions yet.</p>
+                            <p style="margin-top: 16px;">Start by recording a new session in the audio recorder.</p>
+                        </div>
+                    `;
                     showToast('No sessions found', 'error');
                     return;
                 }
@@ -2038,6 +2087,52 @@
             }
         }
 
+        // Format questions in a paragraph (initial render, no word timing)
+        function formatQuestionsInParagraph(textDiv, para) {
+            const text = para.text;
+            const questionPatterns = [
+                /\?$/,  // Ends with question mark
+                /^(what|where|when|why|who|whom|which|whose|how)\b/i,
+                /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,
+            ];
+
+            // Split into sentences keeping punctuation attached
+            const sentences = text.split(/(?<=[.!?])\s+/);
+            let hasQuestion = false;
+            let formattedHTML = '';
+            let questionIndex = 0;  // Track question number for alternating colors
+
+            sentences.forEach((sentence, i) => {
+                const trimmed = sentence.trim();
+                if (!trimmed) return;
+
+                // Check if this sentence is a question
+                const isQuestion = questionPatterns.some(pattern => pattern.test(trimmed)) ||
+                                 trimmed.includes('?');
+
+                if (isQuestion) {
+                    hasQuestion = true;
+                    // Cycle through 4 shades
+                    const shade = (questionIndex % 4) + 1;
+                    formattedHTML += '<br><span class="question-highlight shade-' + shade + '">' + trimmed + '</span><br>';
+                    questionIndex++;
+                } else {
+                    formattedHTML += trimmed;
+                    if (i < sentences.length - 1) {
+                        formattedHTML += ' ';
+                    }
+                }
+            });
+
+            // Apply formatting
+            if (hasQuestion) {
+                textDiv.innerHTML = formattedHTML;
+                textDiv.parentElement?.classList.add('question-paragraph');
+            } else {
+                textDiv.textContent = text;
+            }
+        }
+
         // Render editor
         function renderEditor() {
             const container = document.getElementById('editor-content');
@@ -2068,9 +2163,11 @@
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
                 text.contentEditable = false;  // Start in read-only mode for text selection
-                text.textContent = para.text;
                 text.dataset.paraIndex = index;
                 text.addEventListener('input', () => markEdited(index));
+
+                // Apply question formatting on initial render
+                formatQuestionsInParagraph(text, para);
 
                 const meta = document.createElement('div');
                 meta.className = 'paragraph-meta';
@@ -2171,6 +2268,15 @@
             // Clear highlighting
             document.querySelectorAll('.paragraph-text').forEach(el => el.classList.remove('playing'));
             document.querySelectorAll('.word-highlight').forEach(el => el.classList.remove('playing'));
+
+            // Restore question formatting for the paragraph that was playing
+            if (currentPlayingIndex !== null && processedData && processedData.paragraphs) {
+                const para = processedData.paragraphs[currentPlayingIndex];
+                const paraText = document.querySelector(`[data-para-index="${currentPlayingIndex}"]`);
+                if (paraText && para) {
+                    formatQuestionsInParagraph(paraText, para);
+                }
+            }
 
             // Reset button
             if (currentPlayButton) {
@@ -2298,12 +2404,80 @@
                 });
             });
 
-            // Wrap each word in a span
-            const html = wordTimings.map((wt, i) => {
-                return `<span class="word-highlight" data-word-index="${i}" data-word-start="${wt.start}" data-word-end="${wt.end}">${wt.word}</span>`;
-            }).join(' ');
+            // Detect questions in the paragraph text
+            const questionPatterns = [
+                /\?$/,  // Ends with question mark
+                /^(what|where|when|why|who|whom|which|whose|how)\b/i,
+                /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,
+            ];
+
+            const sentences = para.text.split(/(?<=[.!?])\s+/);
+            const questionSentences = new Set();
+
+            sentences.forEach(sentence => {
+                const isQuestion = questionPatterns.some(pattern => pattern.test(sentence.trim())) ||
+                                 sentence.includes('?');
+                if (isQuestion) {
+                    questionSentences.add(sentence.trim());
+                }
+            });
+
+            // Build HTML with word spans, detecting question boundaries
+            let html = '';
+            let currentText = '';
+            let wordIndex = 0;
+            let inQuestion = false;
+            let questionIndex = 0;  // Track question number for alternating colors
+
+            wordTimings.forEach((wt, i) => {
+                currentText += (currentText ? ' ' : '') + wt.word;
+
+                // Check if we're starting a question
+                let startQuestion = false;
+                for (const qSentence of questionSentences) {
+                    if (qSentence.startsWith(currentText.trim())) {
+                        startQuestion = true;
+                        break;
+                    }
+                }
+
+                // Add word span
+                const wordSpan = `<span class="word-highlight" data-word-index="${i}" data-word-start="${wt.start}" data-word-end="${wt.end}">${wt.word}</span>`;
+
+                // If starting a question, add break and open question span with shade
+                if (startQuestion && !inQuestion) {
+                    const shade = (questionIndex % 4) + 1;
+                    html += '<br><span class="question-highlight shade-' + shade + '">';
+                    inQuestion = true;
+                }
+
+                html += wordSpan;
+
+                // Check if question ends (contains ? or !)
+                if (inQuestion && (wt.word.includes('?') || wt.word.includes('!'))) {
+                    html += '</span><br>';
+                    inQuestion = false;
+                    currentText = '';
+                    questionIndex++;
+                }
+
+                // Add space between words
+                if (i < wordTimings.length - 1) {
+                    html += ' ';
+                }
+            });
+
+            // Close any unclosed question span
+            if (inQuestion) {
+                html += '</span>';
+            }
 
             paraText.innerHTML = html;
+
+            // Mark paragraph if it contains questions
+            if (questionSentences.size > 0) {
+                paraText.parentElement?.classList.add('question-paragraph');
+            }
         }
 
         // Highlight the current word being spoken (for single paragraph)
@@ -2882,8 +3056,10 @@
                 this.aiAnalysis = null;
                 this.activeFilter = 'all';
                 this.totalDuration = 0;
+                this.detectedQuestions = null;
                 this.colorMap = {
                     highlights: '#8b5cf6',
+                    questions: '#ec4899',
                     actionItems: '#ef4444',
                     keyTerms: '#3b82f6',
                     keyThemes: '#f59e0b',
@@ -2896,6 +3072,7 @@
                 this.aiAnalysis = null;
                 this.activeFilter = 'all';
                 this.totalDuration = 0;
+                this.detectedQuestions = null;
 
                 // Hide the AI navigation container
                 const container = document.getElementById('ai-nav-container');
@@ -2910,7 +3087,7 @@
                 }
 
                 // Reset all count badges to 0
-                ['all', 'highlights', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                ['all', 'highlights', 'questions', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
                     const badge = document.getElementById(`count-${type}`);
                     if (badge) badge.textContent = '0';
                 });
@@ -2951,6 +3128,58 @@
                 return false;
             }
 
+            detectQuestions() {
+                // Detect all questions in the transcript
+                if (!processedData || !processedData.paragraphs) return [];
+
+                const questions = [];
+                const questionPatterns = [
+                    /\?$/,  // Ends with question mark
+                    /^(what|where|when|why|who|whom|which|whose|how)\b/i,  // Question words at start
+                    /^(is|are|was|were|do|does|did|can|could|will|would|should|have|has|had)\b/i,  // Auxiliary verbs at start
+                ];
+
+                processedData.paragraphs.forEach((para, index) => {
+                    const text = para.text.trim();
+                    const paraDuration = para.end - para.start;
+
+                    // Check if paragraph contains questions
+                    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+
+                    // Calculate approximate position of each sentence within the paragraph
+                    let charsSoFar = 0;
+                    const totalChars = text.length;
+
+                    sentences.forEach(sentence => {
+                        sentence = sentence.trim();
+
+                        // Check if it's a question
+                        const isQuestion = questionPatterns.some(pattern => pattern.test(sentence)) ||
+                                         sentence.includes('?');
+
+                        if (isQuestion) {
+                            // Estimate time position based on character position in paragraph
+                            const sentencePosition = charsSoFar / totalChars;
+                            const estimatedTime = para.start + (paraDuration * sentencePosition);
+
+                            questions.push({
+                                timeCode: estimatedTime,  // Estimated position within paragraph
+                                text: sentence,
+                                summary: sentence.length > 100 ? sentence.substring(0, 97) + '...' : sentence,
+                                paragraphIndex: index,
+                                type: 'questions'
+                            });
+                        }
+
+                        // Update character count for next sentence
+                        charsSoFar += sentence.length + 1; // +1 for the delimiter
+                    });
+                });
+
+                this.detectedQuestions = questions;
+                return questions;
+            }
+
             render() {
                 if (!this.aiAnalysis || !processedData) {
                     // Hide AI navigation if no analysis
@@ -2962,6 +3191,9 @@
                 document.getElementById('ai-nav-container').style.display = 'block';
 
                 this.totalDuration = processedData.stats.totalDuration;
+
+                // Detect questions from transcript
+                this.detectQuestions();
 
                 // Update duration labels
                 document.getElementById('timeline-duration').textContent = formatDuration(this.totalDuration);
@@ -2977,6 +3209,7 @@
             updateCounts() {
                 const counts = {
                     highlights: this.aiAnalysis.highlights?.length || 0,
+                    questions: this.detectedQuestions?.length || 0,
                     actionItems: this.aiAnalysis.actionItems?.length || 0,
                     keyTerms: this.aiAnalysis.keyTerms?.length || 0,
                     keyThemes: this.aiAnalysis.keyThemes?.length || 0,
@@ -2992,6 +3225,7 @@
             }
 
             filterByType(type) {
+                console.log('🎯 filterByType called with:', type);
                 this.activeFilter = type;
 
                 // Update active tab
@@ -3001,8 +3235,21 @@
                 document.querySelector(`.ai-nav-tab[data-type="${type}"]`).classList.add('active');
 
                 // Show configuration panel for this category (if not "all")
+                console.log('🔍 Checking if should show config:', {
+                    type,
+                    isNotAll: type !== 'all',
+                    hasConfigPanel: !!window.aiConfigPanel,
+                    aiConfigPanel: window.aiConfigPanel
+                });
+
                 if (type !== 'all' && window.aiConfigPanel) {
+                    console.log('✅ Calling aiConfigPanel.showCategory()');
                     aiConfigPanel.showCategory(type);
+                } else {
+                    console.log('❌ NOT calling showCategory. Reasons:', {
+                        isAll: type === 'all',
+                        noConfigPanel: !window.aiConfigPanel
+                    });
                 }
 
                 // Re-render markers
@@ -3028,13 +3275,20 @@
 
                 if (this.activeFilter === 'all') {
                     // Include all types
-                    ['highlights', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
-                        if (this.aiAnalysis[type]) {
+                    ['highlights', 'questions', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                        if (type === 'questions' && this.detectedQuestions) {
+                            items.push(...this.detectedQuestions);
+                        } else if (this.aiAnalysis[type]) {
                             items.push(...this.aiAnalysis[type].map(item => ({ ...item, type })));
                         }
                     });
+                } else if (this.activeFilter === 'questions') {
+                    // Show detected questions
+                    if (this.detectedQuestions) {
+                        items = this.detectedQuestions;
+                    }
                 } else {
-                    // Only include selected type
+                    // Only include selected type from AI analysis
                     if (this.aiAnalysis[this.activeFilter]) {
                         items = this.aiAnalysis[this.activeFilter].map(item => ({ ...item, type: this.activeFilter }));
                     }
@@ -3083,28 +3337,65 @@
             }
 
             jumpToTime(timeCode, item) {
-                // Find paragraph that contains this time
-                const paragraph = processedData.paragraphs.find(p =>
-                    timeCode >= p.start && timeCode <= p.end
-                );
+                let paraIndex;
 
-                if (paragraph) {
-                    const paraIndex = processedData.paragraphs.indexOf(paragraph);
-                    const paraEl = document.querySelector(`#para-${paraIndex}`);
+                // For questions, use the stored paragraph index directly
+                if (item.type === 'questions' && item.paragraphIndex !== undefined) {
+                    paraIndex = item.paragraphIndex;
+                } else {
+                    // Find paragraph that contains this time
+                    const paragraph = processedData.paragraphs.find(p =>
+                        timeCode >= p.start && timeCode <= p.end
+                    );
 
-                    if (paraEl) {
-                        // Scroll to paragraph
+                    if (!paragraph) return;
+                    paraIndex = processedData.paragraphs.indexOf(paragraph);
+                }
+
+                const paraEl = document.querySelector(`#para-${paraIndex}`);
+
+                if (paraEl) {
+                    const textEl = paraEl.querySelector('.paragraph-text');
+
+                    // For questions, find and highlight the specific question text
+                    if (item.type === 'questions' && item.text) {
+                        // First scroll to paragraph
+                        paraEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        // Find the question-highlight span that contains this text
+                        const questionSpans = textEl.querySelectorAll('.question-highlight');
+                        let targetSpan = null;
+
+                        for (const span of questionSpans) {
+                            if (span.textContent.includes(item.text)) {
+                                targetSpan = span;
+                                break;
+                            }
+                        }
+
+                        if (targetSpan) {
+                            // Scroll the specific question into view
+                            setTimeout(() => {
+                                targetSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                                // Add temporary highlight
+                                targetSpan.style.backgroundColor = '#fbbf24';
+                                setTimeout(() => {
+                                    targetSpan.style.backgroundColor = '';
+                                }, 2000);
+                            }, 300); // Small delay to let paragraph scroll finish
+                        }
+                    } else {
+                        // For non-questions, just scroll to paragraph and highlight
                         paraEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                        // Highlight it
-                        const textEl = paraEl.querySelector('.paragraph-text');
                         textEl.classList.add('ai-highlighted');
                         setTimeout(() => textEl.classList.remove('ai-highlighted'), 2000);
+                    }
 
-                        // If audio is playing, seek to time
-                        if (currentAudio) {
-                            currentAudio.currentTime = timeCode;
-                        }
+                    // If audio is playing, seek to time
+                    if (currentAudio) {
+                        currentAudio.currentTime = timeCode;
                     }
                 }
             }
@@ -3264,10 +3555,12 @@
             }
 
             async showCategory(categoryId) {
+                console.log('🔧 AIConfigPanel.showCategory called with:', categoryId);
                 this.currentCategory = categoryId;
 
                 // Load config if not loaded
                 if (!this.config) {
+                    console.log('📥 Loading config...');
                     await this.loadConfig();
                 }
 
@@ -3275,10 +3568,24 @@
                 const sessionInfo = document.getElementById('session-info');
                 const configPanel = document.getElementById('ai-config-panel');
 
+                console.log('🔄 Transitioning panels:', {
+                    sessionInfo: !!sessionInfo,
+                    configPanel: !!configPanel,
+                    sessionInfoDisplay: sessionInfo?.style.display,
+                    configPanelDisplay: configPanel?.style.display
+                });
+
+                if (!sessionInfo || !configPanel) {
+                    console.error('❌ Panel elements not found!');
+                    return;
+                }
+
                 sessionInfo.style.display = 'none';
                 configPanel.style.display = 'block';
 
+                console.log('✅ Panels transitioned, rendering...');
                 this.render();
+                console.log('✅ Render complete');
             }
 
             close() {
@@ -3508,8 +3815,9 @@
         }
 
         // Initialize AI Config Panel and Prompt Editor
-        let aiConfigPanel = new AIConfigPanel();
-        let promptEditor = new PromptEditor();
+        // Make them global so they can be accessed from onclick handlers
+        window.aiConfigPanel = new AIConfigPanel();
+        window.promptEditor = new PromptEditor();
 
         // Initialize config panel when page loads
         aiConfigPanel.init();
