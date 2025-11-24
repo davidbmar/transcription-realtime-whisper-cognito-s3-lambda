@@ -1481,6 +1481,9 @@
                     // Clear audio cache to prevent playing cached audio from previous session
                     audioCache.clear();
 
+                    // Reset AI timeline navigator to clear previous session's data
+                    aiNavigator.reset();
+
                     // Show loading state
                     document.getElementById('loading').style.display = 'flex';
                     document.getElementById('main-container').style.display = 'none';
@@ -2507,6 +2510,40 @@
                     keyThemes: '#f59e0b',
                     topicChanges: '#10b981'
                 };
+            }
+
+            reset() {
+                // Reset all state when switching sessions
+                this.aiAnalysis = null;
+                this.activeFilter = 'all';
+                this.totalDuration = 0;
+
+                // Hide the AI navigation container
+                const container = document.getElementById('ai-nav-container');
+                if (container) {
+                    container.style.display = 'none';
+                }
+
+                // Clear timeline markers
+                const track = document.getElementById('timeline-track');
+                if (track) {
+                    track.innerHTML = '';
+                }
+
+                // Reset all count badges to 0
+                ['all', 'highlights', 'actionItems', 'keyTerms', 'keyThemes', 'topicChanges'].forEach(type => {
+                    const badge = document.getElementById(`count-${type}`);
+                    if (badge) badge.textContent = '0';
+                });
+
+                // Reset active tab to "all"
+                document.querySelectorAll('.ai-nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                const allTab = document.querySelector('.ai-nav-tab[data-type="all"]');
+                if (allTab) {
+                    allTab.classList.add('active');
+                }
             }
 
             async loadAnalysis() {
