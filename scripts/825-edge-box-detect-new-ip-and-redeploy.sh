@@ -225,6 +225,32 @@ if [ "$IP_CHANGED" = "true" ]; then
 
     log_success "✅ Configuration files updated"
 
+    # Update GPU security group to allow SSH from new Edge Box IP
+    if [ -n "${GPU_INSTANCE_ID:-}" ]; then
+        log_info "Updating GPU security group for SSH access..."
+        GPU_SG=$(aws ec2 describe-instances --instance-ids "$GPU_INSTANCE_ID" --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "")
+
+        if [ -n "$GPU_SG" ] && [ "$GPU_SG" != "None" ]; then
+            # Add new IP
+            if aws ec2 authorize-security-group-ingress --group-id "$GPU_SG" --protocol tcp --port 22 --cidr "$CURRENT_EDGE_IP/32" 2>/dev/null; then
+                log_success "  ✅ Added SSH access from $CURRENT_EDGE_IP to GPU security group"
+            else
+                log_info "  ℹ️  SSH rule may already exist (ignoring error)"
+            fi
+
+            # Remove old IP if it exists and is different
+            if [ -n "$OLD_EDGE_IP" ] && [ "$OLD_EDGE_IP" != "$CURRENT_EDGE_IP" ]; then
+                if aws ec2 revoke-security-group-ingress --group-id "$GPU_SG" --protocol tcp --port 22 --cidr "$OLD_EDGE_IP/32" 2>/dev/null; then
+                    log_success "  ✅ Removed old SSH rule for $OLD_EDGE_IP"
+                else
+                    log_info "  ℹ️  Old SSH rule not found (may have been removed already)"
+                fi
+            fi
+        else
+            log_warn "  ⚠️  Could not find GPU security group"
+        fi
+    fi
+
     # Reload environment
     load_environment
     echo ""
