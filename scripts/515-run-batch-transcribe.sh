@@ -1159,6 +1159,29 @@ fi
 
 echo ""
 
+# Step 8: Run AI analysis if chunks were transcribed
+if [ $CHUNKS_TRANSCRIBED -gt 0 ]; then
+    log_info "==================================================================="
+    log_info "Step 8: Running AI analysis on transcribed sessions"
+    log_info "==================================================================="
+    echo ""
+    log_info "  - Chunks transcribed: $CHUNKS_TRANSCRIBED"
+    log_info "  - Running AI analysis on all sessions..."
+    echo ""
+
+    # Run 527 with --all-analyze flag to process all sessions
+    if [ -f "$PROJECT_ROOT/scripts/527-find-session-path.sh" ]; then
+        "$PROJECT_ROOT/scripts/527-find-session-path.sh" --all-analyze
+    else
+        log_warn "527-find-session-path.sh not found - skipping AI analysis"
+    fi
+
+    echo ""
+else
+    log_info "No chunks transcribed - skipping AI analysis"
+    echo ""
+fi
+
 # ============================================================================
 # Success Reporting
 # ============================================================================
