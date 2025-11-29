@@ -147,17 +147,20 @@ class TranscriptPreprocessorBoundary {
    * Create one paragraph per chunk
    */
   createParagraphs(chunkGroups) {
-    // Calculate cumulative time offset for each chunk
-    // This handles variable chunk durations (e.g., 5s, 30s, 2min, etc.)
-    let cumulativeTime = 0;
+    // CHUNK_DURATION must match the playback constant in transcript-editor-v2.html.template
+    // Audio chunks are recorded at fixed 2-minute intervals
+    const CHUNK_DURATION = 120; // seconds per chunk
 
     return chunkGroups.map((chunk, index) => {
-      // Store the current cumulative time as the offset for this chunk
-      const timeOffset = cumulativeTime;
+      // Calculate time offset using chunk index * fixed duration
+      // This aligns with how the audio player calculates absolute time:
+      //   absoluteTime = chunkIndex * CHUNK_DURATION + audio.currentTime
+      //
+      // BUG FIX: Previously used cumulative (chunk.end - chunk.start) which caused drift
+      // because word timestamps don't span the full audio duration (silence at boundaries)
+      const timeOffset = index * CHUNK_DURATION;
 
       // Convert word timestamps to absolute time
-      // BUG FIX: Words had chunk-relative timestamps which caused issues
-      // when topic segmentation merged words from different chunks
       const absoluteWords = chunk.words.map(w => ({
         ...w,
         start: w.start + timeOffset,
@@ -177,10 +180,6 @@ class TranscriptPreprocessorBoundary {
         duration: chunk.end - chunk.start,
         wordCount: absoluteWords.length
       };
-
-      // Update cumulative time for next chunk
-      // Use the actual chunk duration (end - start) to handle variable chunk sizes
-      cumulativeTime += chunk.end - chunk.start;
 
       return paragraph;
     });

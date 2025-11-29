@@ -3458,18 +3458,36 @@
                 if (foundWordEl) {
                     foundWordEl.classList.add('playing');
 
-                    // Scroll into view when word changes
-                    // Use a custom scroll to account for sticky header (72px + playback bar ~60px)
-                    const headerOffset = 150;
-                    const elementPosition = foundWordEl.getBoundingClientRect().top;
+                    // Scroll to center the word in the visible area below the sticky header
+                    // Sticky header = 72px (nav) + ~78px (playback bar) = 150px
+                    const stickyHeaderHeight = 150;
                     const viewportHeight = window.innerHeight;
+                    const visibleAreaHeight = viewportHeight - stickyHeaderHeight;
 
-                    // Scroll if forced (seek) or if element is outside the comfortable viewing area
-                    if (forceScroll || elementPosition < headerOffset || elementPosition > viewportHeight - 100) {
-                        const offsetPosition = foundWordEl.offsetTop - headerOffset - (viewportHeight / 3);
+                    // Get word's current position relative to viewport
+                    const wordRect = foundWordEl.getBoundingClientRect();
+                    const wordViewportTop = wordRect.top;
+
+                    // Define the "comfortable zone" - middle 60% of visible area
+                    const comfortZoneTop = stickyHeaderHeight + (visibleAreaHeight * 0.2);
+                    const comfortZoneBottom = viewportHeight - (visibleAreaHeight * 0.2);
+
+                    // Scroll if forced (seek) or word is outside comfortable zone
+                    const needsScroll = forceScroll ||
+                                        wordViewportTop < comfortZoneTop ||
+                                        wordViewportTop > comfortZoneBottom;
+
+                    if (needsScroll) {
+                        // Calculate absolute position of word in document
+                        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                        const wordAbsoluteTop = wordViewportTop + scrollTop;
+
+                        // Target: put word in center of visible area (below header)
+                        const targetScrollTop = wordAbsoluteTop - stickyHeaderHeight - (visibleAreaHeight / 2);
+
                         window.scrollTo({
-                            top: Math.max(0, offsetPosition),
-                            behavior: 'smooth'
+                            top: Math.max(0, targetScrollTop),
+                            behavior: forceScroll ? 'smooth' : 'auto'
                         });
                     }
                 }
