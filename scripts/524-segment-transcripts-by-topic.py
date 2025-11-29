@@ -1107,12 +1107,20 @@ Examples:
     session_id = ''
 
     if args.session:
-        session_id = args.session.split('/')[-1] if '/' in args.session else args.session
+        # Strip s3://bucket/ prefix if present
+        session_path = args.session
+        if session_path.startswith('s3://'):
+            # Remove s3://bucket/ prefix to get just the key path
+            parts = session_path.replace('s3://', '').split('/', 1)
+            if len(parts) > 1:
+                session_path = parts[1]  # Everything after bucket name
+
+        session_id = session_path.split('/')[-1] if '/' in session_path else session_path
         print(f"Loading transcript from S3...")
-        print(f"  Session: {args.session}")
+        print(f"  Session: {session_path}")
 
         try:
-            processed_data = download_from_s3(args.session)
+            processed_data = download_from_s3(session_path)
         except FileNotFoundError as e:
             print(f"Error: {e}")
             print("Make sure the session has been postprocessed (run script 518)")
@@ -1231,8 +1239,8 @@ Examples:
         print(json.dumps(output_data.get('topicStats', {}), indent=2))
     else:
         if args.session:
-            # Upload to S3
-            output_url = upload_to_s3(args.session, output_data)
+            # Upload to S3 (use cleaned session_path)
+            output_url = upload_to_s3(session_path, output_data)
             print("")
             print(f"Output saved to: {output_url}")
         elif args.output_path:
