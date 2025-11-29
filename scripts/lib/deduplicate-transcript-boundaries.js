@@ -96,11 +96,23 @@ async function downloadChunks(sessionFolder) {
   return chunks;
 }
 
-async function preprocessTranscript(chunks) {
+async function preprocessTranscript(chunks, sessionFolder) {
   console.log('Running boundary deduplication preprocessor...');
 
+  // Detect if this is an upload session (folder name contains "upload")
+  // Upload sessions use cumulative timing because they're single audio files
+  // Live recordings use fixed 2-minute chunk intervals
+  const isUpload = sessionFolder.toLowerCase().includes('upload');
+
+  if (isUpload) {
+    console.log('  Detected UPLOAD session - using cumulative timing mode');
+  } else {
+    console.log('  Detected LIVE session - using fixed 2-minute interval mode');
+  }
+
   const preprocessor = new TranscriptPreprocessorBoundary({
-    maxBoundaryWords: 10
+    maxBoundaryWords: 10,
+    isUpload: isUpload
   });
 
   const result = preprocessor.process(chunks);
@@ -163,7 +175,7 @@ async function main() {
     }
 
     // Step 2: Preprocess
-    const processedData = await preprocessTranscript(chunks);
+    const processedData = await preprocessTranscript(chunks, sessionFolder);
 
     // Step 3: Upload
     await uploadProcessedFile(sessionFolder, processedData);
