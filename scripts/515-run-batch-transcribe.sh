@@ -1182,6 +1182,57 @@ else
     echo ""
 fi
 
+# Step 9: Run topic segmentation on all sessions
+log_info "==================================================================="
+log_info "Step 9: Running topic segmentation on transcribed sessions"
+log_info "==================================================================="
+echo ""
+
+# Run 524 topic segmentation on all sessions that have transcription-processed.json
+if [ -f "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" ]; then
+    log_info "  - Scanning for sessions needing topic segmentation..."
+
+    # Find all sessions with transcription-processed.json but no transcription-topic-segmented.json
+    SESSIONS_TO_SEGMENT=$(aws s3 ls "s3://${COGNITO_S3_BUCKET}/" --recursive 2>/dev/null | \
+        grep "transcription-processed.json" | \
+        awk '{print $4}' | \
+        sed 's|/transcription-processed.json||' | \
+        while read session; do
+            # Check if topic-segmented already exists
+            if ! aws s3 ls "s3://${COGNITO_S3_BUCKET}/${session}/transcription-topic-segmented.json" &>/dev/null; then
+                echo "$session"
+            fi
+        done)
+
+    SEGMENT_COUNT=$(echo "$SESSIONS_TO_SEGMENT" | grep -c . || echo 0)
+
+    if [ "$SEGMENT_COUNT" -gt 0 ] && [ -n "$SESSIONS_TO_SEGMENT" ]; then
+        log_info "  - Found $SEGMENT_COUNT sessions needing topic segmentation"
+        echo ""
+
+        SEGMENTED=0
+        SEGMENT_FAILED=0
+
+        for session in $SESSIONS_TO_SEGMENT; do
+            log_info "  Segmenting: $session"
+            if python3 "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" --session "$session" 2>&1 | grep -q "Topic segmentation complete"; then
+                ((SEGMENTED++))
+            else
+                ((SEGMENT_FAILED++))
+                log_warn "    Failed to segment: $session"
+            fi
+        done
+
+        log_info "  - Topic segmentation complete: $SEGMENTED succeeded, $SEGMENT_FAILED failed"
+    else
+        log_info "  - No sessions need topic segmentation"
+    fi
+else
+    log_warn "524-segment-transcripts-by-topic.py not found - skipping topic segmentation"
+fi
+
+echo ""
+
 # ============================================================================
 # Success Reporting
 # ============================================================================
