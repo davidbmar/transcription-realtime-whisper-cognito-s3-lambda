@@ -3,7 +3,7 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# Script 518: Postprocess Transcripts
+# Script 518: Postprocess Transcripts - Generate Pre-processed Files for Editor
 # ============================================================================
 # Scans all audio sessions and generates pre-processed transcripts for any
 # sessions that are complete but don't have a processed file yet.
@@ -24,10 +24,13 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 # - Automatically after batch transcription completes (called by 515)
 # - Manually via cron to catch any missed sessions
 # - On-demand when loading editor is slow
+# - With --force to regenerate all files (after fixing timestamp bugs)
 #
 # Usage:
-#   ./518-scan-and-preprocess-transcripts.sh            # Process all sessions
-#   ./518-scan-and-preprocess-transcripts.sh --session <folder>  # Process specific session
+#   ./518-postprocess-transcripts.sh                      # Process all sessions
+#   ./518-postprocess-transcripts.sh --session <folder>   # Process specific session
+#   ./518-postprocess-transcripts.sh --force              # Force regenerate ALL files
+#   ./518-postprocess-transcripts.sh --force --session <folder>  # Force specific session
 #
 # Performance:
 #   - Scans ~100 sessions in ~5 seconds
@@ -47,10 +50,44 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 
+# Parse command line arguments
+FORCE_REGENERATE=false
+SESSION_PATH=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_REGENERATE=true
+            shift
+            ;;
+        --session)
+            SESSION_PATH="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--force] [--session <folder>]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "============================================"
-echo "518: Scan and Preprocess Transcripts"
+echo "518: Postprocess Transcripts"
 echo "============================================"
 echo ""
+echo "What this script does:"
+echo "  1. Scans all audio sessions in S3"
+echo "  2. For sessions with all transcription chunks:"
+echo "     - Deduplicate overlapping words at chunk boundaries"
+echo "     - Convert word timestamps to absolute session time"
+echo "     - Apply rule-based formatting"
+echo "     - Run topic segmentation (if enabled)"
+echo "  3. Upload transcription-processed.json for fast editor loading"
+echo ""
+if [ "$FORCE_REGENERATE" = true ]; then
+    echo "MODE: FORCE REGENERATE - Will delete and recreate ALL processed files"
+    echo ""
+fi
 
 BUCKET="${COGNITO_S3_BUCKET}"
 PROCESSED_COUNT=0
@@ -58,6 +95,7 @@ SKIPPED_COUNT=0
 ALREADY_PROCESSED_COUNT=0
 INCOMPLETE_COUNT=0
 INVALIDATED_COUNT=0
+FORCE_DELETED_COUNT=0
 
 # Check prerequisites
 if ! command -v node &> /dev/null; then
@@ -173,10 +211,21 @@ process_session() {
         return 0
     fi
 
-    # CASE 3: Transcription complete, processed file exists, and is up-to-date
+    # CASE 3: Transcription complete, processed file exists
     if has_processed_file "$session_folder"; then
+        # If --force flag, always regenerate
+        if [ "$FORCE_REGENERATE" = true ]; then
+            log_warn "  🔄 FORCE: Deleting existing transcription-processed.json"
+            aws s3 rm "s3://$BUCKET/${session_folder}/transcription-processed.json" 2>&1 | sed 's/^/    /'
+
+            # Also delete topic-segmented file to force regeneration
+            aws s3 rm "s3://$BUCKET/${session_folder}/transcription-topic-segmented.json" 2>&1 | sed 's/^/    /' || true
+
+            FORCE_DELETED_COUNT=$((FORCE_DELETED_COUNT + 1))
+            log_info "  🔄 Regenerating with all $trans_count chunks..."
+            # Fall through to regeneration below
         # Check if the processed file is stale (new chunks added after it was created)
-        if is_processed_stale "$session_folder" "$trans_count"; then
+        elif is_processed_stale "$session_folder" "$trans_count"; then
             log_warn "  ⚠️  STALE: Processed file exists but new chunks were added"
             log_warn "  🗑️  Deleting old transcription-processed.json"
 
@@ -244,10 +293,10 @@ process_session() {
 # Main Logic
 # ============================================================================
 
-# Check if specific session provided
-if [ "${1:-}" = "--session" ] && [ -n "${2:-}" ]; then
-    log_info "Processing specific session: $2"
-    process_session "$2"
+# Check if specific session provided via --session argument
+if [ -n "$SESSION_PATH" ]; then
+    log_info "Processing specific session: $SESSION_PATH"
+    process_session "$SESSION_PATH"
     exit $?
 fi
 
@@ -292,23 +341,30 @@ log_info "Summary:"
 log_info "  Total sessions scanned: $SESSION_COUNT"
 log_info "  Already processed (up-to-date): $ALREADY_PROCESSED_COUNT"
 log_info "  Newly processed: $PROCESSED_COUNT"
+if [ $FORCE_DELETED_COUNT -gt 0 ]; then
+    log_info "  Force regenerated: $FORCE_DELETED_COUNT"
+fi
 log_info "  Invalidated (stale, deleted): $INVALIDATED_COUNT"
 log_info "  Incomplete (in progress): $INCOMPLETE_COUNT"
 log_info "  Skipped (no transcriptions): $SKIPPED_COUNT"
 echo ""
 
 if [ $PROCESSED_COUNT -gt 0 ]; then
-    log_success "✅ Generated $PROCESSED_COUNT new pre-processed transcripts"
+    log_success "Generated $PROCESSED_COUNT new pre-processed transcripts"
     log_info "   These sessions will now load in ~500ms instead of ~5 seconds"
 fi
 
+if [ $FORCE_DELETED_COUNT -gt 0 ]; then
+    log_success "Force regenerated $FORCE_DELETED_COUNT transcripts with fixed timestamps"
+fi
+
 if [ $INVALIDATED_COUNT -gt 0 ]; then
-    log_warn "⚠️  Invalidated $INVALIDATED_COUNT stale pre-processed files"
+    log_warn "Invalidated $INVALIDATED_COUNT stale pre-processed files"
     log_info "   Run this script again after batch transcription completes to regenerate"
 fi
 
 if [ $INCOMPLETE_COUNT -gt 0 ]; then
-    log_info "ℹ️  $INCOMPLETE_COUNT sessions are still being transcribed"
+    log_info "$INCOMPLETE_COUNT sessions are still being transcribed"
     log_info "   Run this script again after batch transcription completes"
 fi
 

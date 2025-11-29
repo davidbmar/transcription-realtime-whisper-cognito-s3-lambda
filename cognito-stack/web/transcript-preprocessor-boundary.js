@@ -155,18 +155,27 @@ class TranscriptPreprocessorBoundary {
       // Store the current cumulative time as the offset for this chunk
       const timeOffset = cumulativeTime;
 
+      // Convert word timestamps to absolute time
+      // BUG FIX: Words had chunk-relative timestamps which caused issues
+      // when topic segmentation merged words from different chunks
+      const absoluteWords = chunk.words.map(w => ({
+        ...w,
+        start: w.start + timeOffset,
+        end: w.end + timeOffset
+      }));
+
       // Create paragraph with absolute timestamps
       const paragraph = {
         id: `para-${chunk.chunkId}`,
-        text: chunk.words.map(w => w.word).join(' ').trim(),
-        words: chunk.words,
+        text: absoluteWords.map(w => w.word).join(' ').trim(),
+        words: absoluteWords,  // Now with absolute timestamps
         segments: chunk.segments,
         chunkIds: [chunk.chunkId],
         chunkIndex: chunk.chunkIndex,
         start: chunk.start + timeOffset,  // Add offset to make absolute time
         end: chunk.end + timeOffset,      // Add offset to make absolute time
         duration: chunk.end - chunk.start,
-        wordCount: chunk.words.length
+        wordCount: absoluteWords.length
       };
 
       // Update cumulative time for next chunk

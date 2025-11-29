@@ -558,6 +558,147 @@
             font-weight: 500;
         }
 
+        /* Global Playback Controls - Sticky Header */
+        .global-playback-bar {
+            position: sticky;
+            top: 72px;
+            z-index: 100;
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 12px 16px;
+            margin: -24px -24px 24px -24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .global-playback-bar.visible {
+            display: block;
+        }
+
+        .global-playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            max-width: 100%;
+        }
+
+        .global-play-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .global-play-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .global-play-btn:disabled {
+            background: var(--gray-300);
+            cursor: not-allowed;
+        }
+
+        .global-time-display {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            color: var(--gray-700);
+            min-width: 120px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .global-scrubber-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 200px;
+        }
+
+        .global-scrubber {
+            flex: 1;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--gray-200);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .global-scrubber::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+
+        .global-scrubber::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .global-scrubber::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .global-speed-select {
+            padding: 6px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--gray-700);
+            background: white;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .global-speed-select:hover {
+            border-color: var(--primary);
+        }
+
+        .global-chunk-indicator {
+            font-size: 11px;
+            color: var(--gray-500);
+            background: var(--gray-100);
+            padding: 4px 8px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        /* Playing paragraph highlight */
+        .paragraph-container.playing-now {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+        }
+
+        /* Clickable paragraph for seeking */
+        .paragraph-container.clickable-seek {
+            cursor: pointer;
+        }
+
+        .paragraph-container.clickable-seek:hover {
+            background: var(--gray-50);
+        }
+
         /* Plugin Modal */
         .modal {
             display: none;
@@ -1576,6 +1717,39 @@
                 </button>
             </div>
 
+            <!-- Global Playback Controls - Sticky Header -->
+            <div id="global-playback-bar" class="global-playback-bar">
+                <div class="global-playback-controls">
+                    <button id="global-play-btn" class="global-play-btn" onclick="toggleGlobalPlayback()" title="Play/Pause (Space)">
+                        <span class="play-icon">▶</span>
+                        <span class="pause-icon" style="display:none">⏸</span>
+                    </button>
+                    <div class="global-time-container">
+                        <span id="global-current-time" class="global-time-display">00:00</span>
+                        <span class="time-separator">/</span>
+                        <span id="global-total-time" class="global-time-display">00:00</span>
+                    </div>
+                    <div class="global-scrubber-container">
+                        <input type="range" id="global-scrubber" class="global-scrubber"
+                               min="0" max="100" value="0" step="0.1"
+                               oninput="onScrubberInput(this.value)"
+                               onchange="onScrubberChange(this.value)">
+                        <div id="scrubber-progress" class="scrubber-progress"></div>
+                    </div>
+                    <div class="global-chunk-indicator">
+                        <span id="chunk-indicator">Chunk 0/0</span>
+                    </div>
+                    <select id="playback-speed" class="global-speed-select" onchange="setPlaybackSpeed(this.value)">
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="editor-content" id="editor-content">
                 <!-- Paragraphs will be rendered here -->
             </div>
@@ -1648,11 +1822,25 @@
         let pluginManager = null;
         let audioCache = new Map();
 
-        // Audio playback state
+        // Audio playback state (legacy - being replaced by global playback)
         let currentAudio = null;
         let currentPlayingIndex = null;
         let currentPlayButton = null;
         let wordHighlightInterval = null;
+
+        // Global Sequential Playback State
+        const CHUNK_DURATION = 120; // seconds per chunk (2 minutes)
+        let globalPlaybackState = {
+            isPlaying: false,
+            currentChunkIndex: 0,      // Which chunk file we're playing (0-based)
+            totalChunks: 0,            // Total number of chunk files
+            absoluteTime: 0,           // Current position in absolute session time
+            totalDuration: 0,          // Total session duration
+            playbackRate: 1.0,         // Current playback speed
+            chunkAudios: [],           // Preloaded Audio objects for each chunk
+            chunkUrls: [],             // Presigned URLs for each chunk
+            isScrubbing: false         // True while user is dragging scrubber
+        };
 
         // Auth functions
         function getAuthToken() {
@@ -2068,6 +2256,9 @@
                     // Render
                     renderEditor();
 
+                    // Initialize global playback controls
+                    await initGlobalPlayback();
+
                     // Try to load AI analysis
                     await loadAIAnalysis();
 
@@ -2146,6 +2337,9 @@
 
                 // Render
                 renderEditor();
+
+                // Initialize global playback controls
+                await initGlobalPlayback();
 
                 // Try to load AI analysis
                 await loadAIAnalysis();
@@ -2381,12 +2575,8 @@
                 const number = document.createElement('div');
                 number.className = 'paragraph-number';
                 number.textContent = index + 1;
-                number.onclick = () => {
-                    const audioBtn = document.querySelector(`button.audio-btn[data-para-index="${index}"]`);
-                    if (audioBtn) {
-                        togglePlayPause(index, audioBtn);
-                    }
-                };
+                number.title = 'Click to play from here';
+                number.onclick = (e) => onParagraphClick(index, e);
 
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
@@ -2394,31 +2584,29 @@
                 text.dataset.paraIndex = index;
                 text.addEventListener('input', () => markEdited(index));
 
-                // Apply question formatting on initial render
-                formatQuestionsInParagraph(text, para);
+                // Apply word wrapping with timestamps on initial render
+                // This enables word-level highlighting during global playback
+                wrapWordsWithTimestamps(text, para);
+
+                // Make entire paragraph clickable for seek
+                paraDiv.classList.add('clickable-seek');
+                paraDiv.onclick = (e) => {
+                    // Only trigger if not clicking on interactive elements
+                    if (!e.target.closest('.chunk-badge') &&
+                        !e.target.closest('.original-text-toggle') &&
+                        !e.target.isContentEditable) {
+                        onParagraphClick(index, e);
+                    }
+                };
 
                 const meta = document.createElement('div');
                 meta.className = 'paragraph-meta';
 
-                // Time
+                // Time - now shows absolute session time
                 const timeMeta = document.createElement('div');
                 timeMeta.className = 'meta-item';
                 timeMeta.innerHTML = `⏱️ ${formatTime(para.start)} - ${formatTime(para.end)}`;
-
-                // Audio button
-                const audioBtn = document.createElement('button');
-                audioBtn.className = 'audio-btn';
-                audioBtn.textContent = '▶ Play';
-                audioBtn.setAttribute('data-para-index', index);
-
-                // Single click: toggle play/pause
-                audioBtn.onclick = () => togglePlayPause(index, audioBtn);
-
-                // Double click: stop playback
-                audioBtn.ondblclick = () => {
-                    stopAudio();
-                    audioBtn.textContent = '▶ Play';
-                };
+                timeMeta.title = 'Click to play from this paragraph';
 
                 // Chunk badges
                 const chunkMeta = document.createElement('div');
@@ -2438,7 +2626,6 @@
                 originalToggle.onclick = () => toggleOriginal(index);
 
                 meta.appendChild(timeMeta);
-                meta.appendChild(audioBtn);
                 meta.appendChild(chunkMeta);
                 meta.appendChild(originalToggle);
 
@@ -2690,8 +2877,10 @@
                     });
                 });
             } else {
-                // No timing data available - just show the text without word spans
-                console.log('No word timing data available, keeping original text');
+                // No timing data available - fall back to simple text rendering
+                console.log('No word timing data available, using simple text rendering');
+                // Use simple question formatting as fallback
+                formatQuestionsInParagraph(paraText, para);
                 return;
             }
 
@@ -2787,27 +2976,9 @@
         }
 
         // Highlight the current word across all paragraphs (for uploaded files)
+        // Delegates to highlightCurrentWordWithScroll for consistent behavior
         function highlightCurrentWordGlobal(currentTime) {
-            // Get all word elements across all paragraphs
-            const allWords = document.querySelectorAll('.word-highlight');
-            let foundWord = false;
-
-            allWords.forEach(word => {
-                const start = parseFloat(word.dataset.wordStart);
-                const end = parseFloat(word.dataset.wordEnd);
-
-                if (currentTime >= start && currentTime < end) {
-                    word.classList.add('playing');
-                    foundWord = true;
-
-                    // Auto-scroll to keep highlighted word in view
-                    if (!foundWord) {
-                        word.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                } else {
-                    word.classList.remove('playing');
-                }
-            });
+            highlightCurrentWordWithScroll(currentTime);
         }
 
         // Get chunk URL
@@ -2846,7 +3017,7 @@
                     extension = mimeToExt[metadata.mimeType] || 'webm';
                 }
 
-                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.${extension}`;
+                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex + 1).padStart(3, '0')}.${extension}`;
                 console.log('Loading uploaded audio chunk:', chunkKey);
 
                 try {
@@ -2860,7 +3031,7 @@
                     for (const ext of fallbackExts) {
                         if (ext === extension) continue; // Already tried
                         try {
-                            const fallbackKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.${ext}`;
+                            const fallbackKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex + 1).padStart(3, '0')}.${ext}`;
                             console.log('Trying fallback extension:', fallbackKey);
                             const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(fallbackKey)}`);
                             audioCache.set(chunkIndex, downloadData.downloadUrl);
@@ -2873,13 +3044,587 @@
                 }
             } else {
                 // Live session - use .webm
-                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex).padStart(3, '0')}.webm`;
+                const chunkKey = `users/${userId}/audio/sessions/${sessionFolder}/chunk-${String(chunkIndex + 1).padStart(3, '0')}.webm`;
 
                 const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(chunkKey)}`);
                 audioCache.set(chunkIndex, downloadData.downloadUrl);
                 return downloadData.downloadUrl;
             }
         }
+
+        // ============================================================================
+        // GLOBAL SEQUENTIAL PLAYBACK FUNCTIONS
+        // ============================================================================
+
+        /**
+         * Initialize global playback - call this after transcript is loaded
+         * Counts audio chunks, calculates total duration, sets up controls
+         */
+        async function initGlobalPlayback() {
+            console.log('[Global Playback] Initializing...');
+
+            // Reset state
+            globalPlaybackState = {
+                isPlaying: false,
+                currentChunkIndex: 0,
+                totalChunks: 0,
+                absoluteTime: 0,
+                totalDuration: 0,
+                playbackRate: 1.0,
+                chunkAudios: [],
+                chunkUrls: [],
+                isScrubbing: false
+            };
+
+            // Count chunks from the processed data
+            if (!processedData || !processedData.paragraphs) {
+                console.warn('[Global Playback] No processed data available');
+                return;
+            }
+
+            const metadata = currentSession.metadata || {};
+            const isUpload = (currentSession.sessionId && currentSession.sessionId.includes('-upload-')) ||
+                             metadata.source === 'upload';
+
+            // For uploads and topic-segmented files, get actual chunk count from metadata
+            // The paragraph chunkIds may be "topic-1", "topic-2" etc which aren't actual audio files
+            let actualChunkCount = 1; // Default to 1 for uploads
+
+            if (metadata.chunks && Array.isArray(metadata.chunks) && metadata.chunks.length > 0) {
+                // Use metadata.chunks which has the actual audio files
+                actualChunkCount = metadata.chunks.length;
+                console.log('[Global Playback] Got chunk count from metadata.chunks:', actualChunkCount);
+            } else if (!isUpload) {
+                // For live sessions without metadata.chunks, count unique chunk-XXX patterns
+                const chunkIds = new Set();
+                processedData.paragraphs.forEach(para => {
+                    if (para.chunkIds) {
+                        para.chunkIds.forEach(id => {
+                            // Only count actual chunk IDs (chunk-001, etc), not topic IDs
+                            if (id.match(/^chunk-\d+$/)) {
+                                chunkIds.add(id);
+                            }
+                        });
+                    }
+                });
+                if (chunkIds.size > 0) {
+                    actualChunkCount = chunkIds.size;
+                } else {
+                    // Fallback: estimate from transcript data if no chunk IDs found
+                    const lastPara = processedData.paragraphs[processedData.paragraphs.length - 1];
+                    if (lastPara && lastPara.end) {
+                        actualChunkCount = Math.ceil(lastPara.end / CHUNK_DURATION);
+                    }
+                }
+            }
+
+            globalPlaybackState.totalChunks = actualChunkCount;
+
+            // Calculate total duration from actual transcript data
+            // For uploads, use the last paragraph's end time (more accurate)
+            // For live sessions, use chunk count * CHUNK_DURATION as fallback
+            if (processedData.paragraphs.length > 0) {
+                // Use the last word/paragraph end time for actual duration
+                const lastPara = processedData.paragraphs[processedData.paragraphs.length - 1];
+                if (lastPara && lastPara.words && lastPara.words.length > 0) {
+                    globalPlaybackState.totalDuration = lastPara.words[lastPara.words.length - 1].end;
+                } else if (lastPara && lastPara.end) {
+                    globalPlaybackState.totalDuration = lastPara.end;
+                } else {
+                    globalPlaybackState.totalDuration = actualChunkCount * CHUNK_DURATION;
+                }
+            } else {
+                globalPlaybackState.totalDuration = actualChunkCount * CHUNK_DURATION;
+            }
+
+            // Store whether this is an upload for audio loading
+            globalPlaybackState.isUpload = isUpload;
+
+            console.log(`[Global Playback] Found ${globalPlaybackState.totalChunks} chunks, total duration: ${formatTime(globalPlaybackState.totalDuration)}, isUpload: ${isUpload}`);
+
+            // Show the playback bar
+            const playbackBar = document.getElementById('global-playback-bar');
+            if (playbackBar) {
+                playbackBar.classList.add('visible');
+            }
+
+            // Update UI
+            updateGlobalPlaybackUI();
+
+            // Add keyboard listener for spacebar
+            document.addEventListener('keydown', handleGlobalKeydown);
+        }
+
+        /**
+         * Handle keyboard shortcuts for playback
+         */
+        function handleGlobalKeydown(e) {
+            // Space to toggle playback (only if not in an input/editable)
+            if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName) && !e.target.isContentEditable) {
+                e.preventDefault();
+                toggleGlobalPlayback();
+            }
+            // Left/Right arrows to seek
+            if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                seekToAbsoluteTime(globalPlaybackState.absoluteTime - 5);
+            }
+            if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                seekToAbsoluteTime(globalPlaybackState.absoluteTime + 5);
+            }
+        }
+
+        /**
+         * Update the global playback UI (time displays, scrubber, etc)
+         */
+        function updateGlobalPlaybackUI() {
+            const currentTimeEl = document.getElementById('global-current-time');
+            const totalTimeEl = document.getElementById('global-total-time');
+            const scrubber = document.getElementById('global-scrubber');
+            const chunkIndicator = document.getElementById('chunk-indicator');
+            const playBtn = document.getElementById('global-play-btn');
+
+            if (currentTimeEl) {
+                currentTimeEl.textContent = formatTime(globalPlaybackState.absoluteTime);
+            }
+            if (totalTimeEl) {
+                totalTimeEl.textContent = formatTime(globalPlaybackState.totalDuration);
+            }
+            if (scrubber && !globalPlaybackState.isScrubbing) {
+                const progress = globalPlaybackState.totalDuration > 0
+                    ? (globalPlaybackState.absoluteTime / globalPlaybackState.totalDuration) * 100
+                    : 0;
+                scrubber.value = progress;
+            }
+            if (chunkIndicator) {
+                chunkIndicator.textContent = `Chunk ${globalPlaybackState.currentChunkIndex + 1}/${globalPlaybackState.totalChunks}`;
+            }
+            if (playBtn) {
+                const playIcon = playBtn.querySelector('.play-icon');
+                const pauseIcon = playBtn.querySelector('.pause-icon');
+                if (globalPlaybackState.isPlaying) {
+                    playIcon.style.display = 'none';
+                    pauseIcon.style.display = 'inline';
+                } else {
+                    playIcon.style.display = 'inline';
+                    pauseIcon.style.display = 'none';
+                }
+            }
+        }
+
+        /**
+         * Toggle global playback (play/pause)
+         */
+        function toggleGlobalPlayback() {
+            if (globalPlaybackState.isPlaying) {
+                pauseGlobal();
+            } else {
+                playGlobal();
+            }
+        }
+
+        /**
+         * Start or resume global playback
+         */
+        async function playGlobal() {
+            console.log('[Global Playback] Play requested at absoluteTime:', globalPlaybackState.absoluteTime);
+
+            // Stop any legacy playback
+            stopAudio();
+
+            globalPlaybackState.isPlaying = true;
+            updateGlobalPlaybackUI();
+
+            // Get the current chunk audio
+            await ensureChunkLoaded(globalPlaybackState.currentChunkIndex);
+
+            const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
+            if (!audio) {
+                console.error('[Global Playback] Failed to load audio for chunk', globalPlaybackState.currentChunkIndex);
+                globalPlaybackState.isPlaying = false;
+                updateGlobalPlaybackUI();
+                return;
+            }
+
+            // Calculate position within this chunk
+            // For uploads (single audio file), use absoluteTime directly
+            // For live sessions (multiple chunks), offset by chunk start time
+            let positionInChunk;
+            if (globalPlaybackState.isUpload || globalPlaybackState.totalChunks === 1) {
+                positionInChunk = globalPlaybackState.absoluteTime;
+            } else {
+                const chunkStartTime = globalPlaybackState.currentChunkIndex * CHUNK_DURATION;
+                positionInChunk = globalPlaybackState.absoluteTime - chunkStartTime;
+            }
+
+            audio.currentTime = Math.max(0, positionInChunk);
+            audio.playbackRate = globalPlaybackState.playbackRate;
+
+            try {
+                await audio.play();
+                console.log('[Global Playback] Playing chunk', globalPlaybackState.currentChunkIndex, 'at position', positionInChunk, 'isUpload:', globalPlaybackState.isUpload);
+
+                // Start time update interval
+                startGlobalTimeUpdate();
+
+                // Highlight current paragraph
+                highlightCurrentParagraph();
+            } catch (error) {
+                console.error('[Global Playback] Play failed:', error);
+                globalPlaybackState.isPlaying = false;
+                updateGlobalPlaybackUI();
+            }
+        }
+
+        /**
+         * Pause global playback
+         */
+        function pauseGlobal() {
+            console.log('[Global Playback] Pause');
+
+            globalPlaybackState.isPlaying = false;
+
+            // Pause current chunk audio
+            const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
+            if (audio) {
+                audio.pause();
+            }
+
+            // Stop time update
+            stopGlobalTimeUpdate();
+
+            updateGlobalPlaybackUI();
+        }
+
+        /**
+         * Ensure a chunk is loaded and ready to play
+         */
+        async function ensureChunkLoaded(chunkIndex) {
+            if (globalPlaybackState.chunkAudios[chunkIndex]) {
+                return; // Already loaded
+            }
+
+            console.log('[Global Playback] Loading chunk', chunkIndex);
+
+            try {
+                const url = await getChunkUrl(chunkIndex);
+                globalPlaybackState.chunkUrls[chunkIndex] = url;
+
+                const audio = new Audio(url);
+                audio.preload = 'auto';
+
+                // Set up event listeners
+                audio.addEventListener('ended', () => onChunkEnded(chunkIndex));
+                audio.addEventListener('error', (e) => {
+                    console.error('[Global Playback] Audio error for chunk', chunkIndex, e);
+                });
+
+                // Wait for enough data to start playing
+                await new Promise((resolve, reject) => {
+                    audio.addEventListener('canplay', resolve, { once: true });
+                    audio.addEventListener('error', reject, { once: true });
+                    audio.load();
+                });
+
+                globalPlaybackState.chunkAudios[chunkIndex] = audio;
+                console.log('[Global Playback] Chunk', chunkIndex, 'loaded successfully');
+
+                // Preload next chunk
+                if (chunkIndex + 1 < globalPlaybackState.totalChunks) {
+                    ensureChunkLoaded(chunkIndex + 1).catch(() => {}); // Don't wait, don't fail
+                }
+            } catch (error) {
+                console.error('[Global Playback] Failed to load chunk', chunkIndex, error);
+            }
+        }
+
+        /**
+         * Handle when a chunk finishes playing
+         */
+        function onChunkEnded(chunkIndex) {
+            console.log('[Global Playback] Chunk', chunkIndex, 'ended');
+
+            if (!globalPlaybackState.isPlaying) {
+                return; // User paused
+            }
+
+            // Move to next chunk
+            if (chunkIndex + 1 < globalPlaybackState.totalChunks) {
+                globalPlaybackState.currentChunkIndex = chunkIndex + 1;
+                globalPlaybackState.absoluteTime = globalPlaybackState.currentChunkIndex * CHUNK_DURATION;
+
+                console.log('[Global Playback] Auto-advancing to chunk', globalPlaybackState.currentChunkIndex);
+                playGlobal();
+            } else {
+                // End of session
+                console.log('[Global Playback] Reached end of session');
+                globalPlaybackState.isPlaying = false;
+                globalPlaybackState.absoluteTime = globalPlaybackState.totalDuration;
+                stopGlobalTimeUpdate();
+                updateGlobalPlaybackUI();
+                clearParagraphHighlight();
+            }
+        }
+
+        // Time update interval
+        let globalTimeUpdateInterval = null;
+
+        /**
+         * Start the interval that updates time display and word highlighting
+         */
+        function startGlobalTimeUpdate() {
+            stopGlobalTimeUpdate(); // Clear any existing
+
+            globalTimeUpdateInterval = setInterval(() => {
+                const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
+                if (!audio) return;
+
+                // Calculate absolute time
+                // For uploads (single audio file), currentTime IS the absolute time
+                // For live sessions (multiple chunks), add chunk offset
+                if (globalPlaybackState.isUpload || globalPlaybackState.totalChunks === 1) {
+                    globalPlaybackState.absoluteTime = audio.currentTime;
+                } else {
+                    const chunkStartTime = globalPlaybackState.currentChunkIndex * CHUNK_DURATION;
+                    globalPlaybackState.absoluteTime = chunkStartTime + audio.currentTime;
+                }
+
+                // Update UI
+                updateGlobalPlaybackUI();
+
+                // Highlight current word and paragraph
+                highlightCurrentWordWithScroll(globalPlaybackState.absoluteTime);
+                highlightCurrentParagraph();
+            }, 100); // Update 10 times per second
+        }
+
+        /**
+         * Stop the time update interval
+         */
+        function stopGlobalTimeUpdate() {
+            if (globalTimeUpdateInterval) {
+                clearInterval(globalTimeUpdateInterval);
+                globalTimeUpdateInterval = null;
+            }
+        }
+
+        // Track the currently highlighted word element to avoid redundant scrolling
+        let lastHighlightedWordEl = null;
+
+        /**
+         * Highlight the current word based on absolute time (for global playback)
+         * @param {number} absoluteTime - The current playback time
+         * @param {boolean} forceScroll - Force scroll to word (used for seeking)
+         */
+        function highlightCurrentWordWithScroll(absoluteTime, forceScroll = false) {
+            // Find word element at current time by iterating through all word elements
+            // This avoids floating point precision issues with querySelector string matching
+            const allWordElements = document.querySelectorAll('.word-highlight');
+            let foundWordEl = null;
+
+            // Debug logging on seek (forceScroll) or every 5 seconds
+            const shouldLog = forceScroll || (Math.floor(absoluteTime) % 5 === 0 && Math.floor(absoluteTime * 10) % 10 === 0);
+            if (shouldLog) {
+                console.log(`[Word Highlight] Seeking to ${absoluteTime.toFixed(2)}s, found ${allWordElements.length} word elements`);
+                if (allWordElements.length > 0) {
+                    const first = allWordElements[0];
+                    const last = allWordElements[allWordElements.length - 1];
+                    console.log(`[Word Highlight] Word time range: ${first.dataset.wordStart}s - ${last.dataset.wordEnd}s`);
+                }
+            }
+
+            for (const wordEl of allWordElements) {
+                const start = parseFloat(wordEl.dataset.wordStart);
+                const end = parseFloat(wordEl.dataset.wordEnd);
+
+                if (absoluteTime >= start && absoluteTime <= end) {
+                    foundWordEl = wordEl;
+                    break;
+                }
+            }
+
+            if (shouldLog) {
+                console.log(`[Word Highlight] Found word: ${foundWordEl ? foundWordEl.textContent : 'NONE'}`);
+            }
+
+            // Only update if the word changed
+            if (foundWordEl !== lastHighlightedWordEl) {
+                // Remove old highlight
+                if (lastHighlightedWordEl) {
+                    lastHighlightedWordEl.classList.remove('playing');
+                }
+
+                if (foundWordEl) {
+                    foundWordEl.classList.add('playing');
+
+                    // Scroll into view when word changes
+                    // Use a custom scroll to account for sticky header (72px + playback bar ~60px)
+                    const headerOffset = 150;
+                    const elementPosition = foundWordEl.getBoundingClientRect().top;
+                    const viewportHeight = window.innerHeight;
+
+                    // Scroll if forced (seek) or if element is outside the comfortable viewing area
+                    if (forceScroll || elementPosition < headerOffset || elementPosition > viewportHeight - 100) {
+                        const offsetPosition = foundWordEl.offsetTop - headerOffset - (viewportHeight / 3);
+                        window.scrollTo({
+                            top: Math.max(0, offsetPosition),
+                            behavior: 'smooth'
+                        });
+                    }
+                }
+
+                lastHighlightedWordEl = foundWordEl;
+            }
+        }
+
+        /**
+         * Highlight the paragraph containing the current playback position
+         */
+        function highlightCurrentParagraph() {
+            // Remove existing highlights
+            document.querySelectorAll('.paragraph-container.playing-now').forEach(el => {
+                el.classList.remove('playing-now');
+            });
+
+            if (!processedData || !processedData.paragraphs) return;
+
+            const absoluteTime = globalPlaybackState.absoluteTime;
+
+            // Find paragraph containing current time
+            for (let i = 0; i < processedData.paragraphs.length; i++) {
+                const para = processedData.paragraphs[i];
+                if (absoluteTime >= para.start && absoluteTime <= para.end) {
+                    const paraEl = document.querySelector(`[data-para-index="${i}"]`);
+                    if (paraEl) {
+                        const container = paraEl.closest('.paragraph-container');
+                        if (container) {
+                            container.classList.add('playing-now');
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        /**
+         * Clear paragraph and word highlights
+         */
+        function clearParagraphHighlight() {
+            document.querySelectorAll('.paragraph-container.playing-now').forEach(el => {
+                el.classList.remove('playing-now');
+            });
+            document.querySelectorAll('.word-highlight.playing').forEach(el => {
+                el.classList.remove('playing');
+            });
+            // Reset word tracking so next highlight will scroll
+            lastHighlightedWordEl = null;
+        }
+
+        /**
+         * Seek to an absolute time position
+         */
+        async function seekToAbsoluteTime(targetTime) {
+            // Clamp to valid range
+            targetTime = Math.max(0, Math.min(targetTime, globalPlaybackState.totalDuration));
+
+            console.log('[Global Playback] Seeking to', formatTime(targetTime));
+
+            // For uploads (single audio file), always use chunk 0
+            // For live sessions (multiple chunks), calculate which chunk
+            let targetChunk;
+            if (globalPlaybackState.isUpload || globalPlaybackState.totalChunks === 1) {
+                targetChunk = 0;
+            } else {
+                targetChunk = Math.floor(targetTime / CHUNK_DURATION);
+            }
+
+            // Stop current audio
+            const currentAudioObj = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
+            if (currentAudioObj) {
+                currentAudioObj.pause();
+            }
+
+            // Update state
+            globalPlaybackState.absoluteTime = targetTime;
+            globalPlaybackState.currentChunkIndex = Math.min(targetChunk, globalPlaybackState.totalChunks - 1);
+
+            // Reset word tracking so scroll happens on seek
+            lastHighlightedWordEl = null;
+
+            // Update UI
+            updateGlobalPlaybackUI();
+            highlightCurrentWordWithScroll(targetTime, true);  // Force scroll on seek
+            highlightCurrentParagraph();
+
+            // If we were playing, continue playing from new position
+            if (globalPlaybackState.isPlaying) {
+                await playGlobal();
+            }
+        }
+
+        /**
+         * Handle scrubber input (while dragging)
+         */
+        function onScrubberInput(value) {
+            globalPlaybackState.isScrubbing = true;
+            const targetTime = (value / 100) * globalPlaybackState.totalDuration;
+            globalPlaybackState.absoluteTime = targetTime;
+
+            // Update time display only (don't seek yet)
+            const currentTimeEl = document.getElementById('global-current-time');
+            if (currentTimeEl) {
+                currentTimeEl.textContent = formatTime(targetTime);
+            }
+        }
+
+        /**
+         * Handle scrubber change (when released)
+         */
+        function onScrubberChange(value) {
+            globalPlaybackState.isScrubbing = false;
+            const targetTime = (value / 100) * globalPlaybackState.totalDuration;
+            seekToAbsoluteTime(targetTime);
+        }
+
+        /**
+         * Set playback speed
+         */
+        function setPlaybackSpeed(rate) {
+            globalPlaybackState.playbackRate = parseFloat(rate);
+            console.log('[Global Playback] Speed set to', globalPlaybackState.playbackRate);
+
+            // Update current audio if playing
+            const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
+            if (audio) {
+                audio.playbackRate = globalPlaybackState.playbackRate;
+            }
+        }
+
+        /**
+         * Handle click on a paragraph to seek to its start time
+         */
+        function onParagraphClick(paraIndex, event) {
+            // Don't seek if clicking on editable text or links
+            if (event.target.isContentEditable || event.target.tagName === 'A') {
+                return;
+            }
+
+            const para = processedData.paragraphs[paraIndex];
+            if (para && typeof para.start === 'number') {
+                console.log('[Global Playback] Paragraph clicked, seeking to', formatTime(para.start));
+                seekToAbsoluteTime(para.start);
+
+                // Start playing if not already
+                if (!globalPlaybackState.isPlaying) {
+                    playGlobal();
+                }
+            }
+        }
+
+        // ============================================================================
+        // END GLOBAL SEQUENTIAL PLAYBACK FUNCTIONS
+        // ============================================================================
 
         // Toggle original text
         function toggleOriginal(index) {
