@@ -342,6 +342,39 @@
             flex-direction: column;
         }
 
+        /* Topic change indicator - shown at paragraph boundaries where topic shifts */
+        .paragraph-container.topic-start {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 2px solid var(--primary-light);
+        }
+
+        .paragraph-container.topic-start::before {
+            content: 'Topic Change';
+            display: block;
+            position: absolute;
+            top: -10px;
+            left: 48px;
+            background: white;
+            padding: 0 8px;
+            font-size: 11px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* First paragraph shouldn't show topic change marker */
+        .paragraph-container.topic-start:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .paragraph-container.topic-start:first-child::before {
+            display: none;
+        }
+
         .paragraph-number {
             position: absolute;
             left: 0;
@@ -1278,6 +1311,10 @@
                         <div class="stat-value" id="stat-wpm">0</div>
                         <div class="stat-label">WPM</div>
                     </div>
+                    <div class="stat-card" id="stat-topics-card" style="display: none;">
+                        <div class="stat-value" id="stat-topics">0</div>
+                        <div class="stat-label">Topics</div>
+                    </div>
                 </div>
             </div>
 
@@ -1990,33 +2027,59 @@
                 const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
                 console.log('Full session path:', sessionPath);
 
-                // FAST PATH: Try to load pre-processed file first
-                console.log('Checking for pre-processed transcript...');
+                // FAST PATH: Try to load topic-segmented file first, then fall back to processed
+                console.log('Checking for topic-segmented or pre-processed transcript...');
+
+                // Try topic-segmented first (has topic breaks marked)
+                const topicSegmentedKey = `${sessionPath}/transcription-topic-segmented.json`;
                 const processedKey = `${sessionPath}/transcription-processed.json`;
 
+                let loadedFrom = null;
+
+                // Try topic-segmented first
                 try {
-                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
                     const response = await fetch(downloadData.downloadUrl);
-
                     if (response.ok) {
-                        console.log('✅ Found pre-processed transcript - loading instantly!');
                         processedData = await response.json();
-
-                        // Render
-                        renderEditor();
-
-                        // Try to load AI analysis
-                        await loadAIAnalysis();
-
-                        // Hide loading, show content
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('main-container').style.display = 'grid';
-
-                        showToast(`Loaded ${processedData.paragraphs.length} paragraphs (pre-processed)`);
-                        return; // Done! Exit early
+                        loadedFrom = 'topic-segmented';
+                        console.log('✅ Found topic-segmented transcript - loading with topic breaks!');
                     }
-                } catch (preprocessError) {
-                    console.log('Pre-processed file not found, falling back to chunk loading...');
+                } catch (e) {
+                    console.log('No topic-segmented file, trying pre-processed...');
+                }
+
+                // Fall back to processed if topic-segmented not found
+                if (!loadedFrom) {
+                    try {
+                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+                        const response = await fetch(downloadData.downloadUrl);
+                        if (response.ok) {
+                            processedData = await response.json();
+                            loadedFrom = 'pre-processed';
+                            console.log('✅ Found pre-processed transcript - loading instantly!');
+                        }
+                    } catch (e) {
+                        console.log('No pre-processed file either');
+                    }
+                }
+
+                if (loadedFrom) {
+                    // Render
+                    renderEditor();
+
+                    // Try to load AI analysis
+                    await loadAIAnalysis();
+
+                    // Hide loading, show content
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'grid';
+
+                    const topicInfo = processedData.metadata?.topicCount
+                        ? ` with ${processedData.metadata.topicCount} topics`
+                        : '';
+                    showToast(`Loaded ${processedData.paragraphs.length} paragraphs${topicInfo} (${loadedFrom})`);
+                    return; // Done! Exit early
                 }
 
                 // FALLBACK PATH: Load individual chunks (slower, but works for in-progress transcriptions)
@@ -2294,11 +2357,26 @@
             document.getElementById('stat-duration').textContent = formatDuration(processedData.stats.totalDuration);
             document.getElementById('stat-wpm').textContent = Math.round(processedData.stats.wordsPerMinute);
 
+            // Show topic count if topic segmentation was performed
+            if (processedData.metadata && processedData.metadata.topicCount) {
+                document.getElementById('stat-topics').textContent = processedData.metadata.topicCount;
+                document.getElementById('stat-topics-card').style.display = 'block';
+            } else if (processedData.topicStats && processedData.topicStats.topicCount) {
+                document.getElementById('stat-topics').textContent = processedData.topicStats.topicCount;
+                document.getElementById('stat-topics-card').style.display = 'block';
+            }
+
             // Render paragraphs
             processedData.paragraphs.forEach((para, index) => {
                 const paraDiv = document.createElement('div');
                 paraDiv.className = 'paragraph-container';
                 paraDiv.id = `para-${index}`;
+
+                // Add topic-start class if this paragraph starts a new topic
+                // (set by script 524-segment-transcripts-by-topic.py)
+                if (para.isTopicStart && index > 0) {
+                    paraDiv.classList.add('topic-start');
+                }
 
                 const number = document.createElement('div');
                 number.className = 'paragraph-number';
@@ -2440,8 +2518,42 @@
         // Play paragraph audio with word-level highlighting
         async function playParagraph(index, button) {
             const para = processedData.paragraphs[index];
-            const firstChunkId = para.chunkIds[0];
-            const chunkIndex = parseInt(firstChunkId.match(/chunk-(\d+)/)?.[1] || '0');
+            const firstChunkId = para.chunkIds?.[0] || '';
+
+            // Get paragraph start time - prefer first word's start if available (more reliable for topic-segmented)
+            let paraStart = para.start;
+            let paraEnd = para.end;
+
+            // If para.words exists, use first/last word timing (more accurate for topic-segmented files)
+            if (para.words && para.words.length > 0) {
+                paraStart = para.words[0].start;
+                paraEnd = para.words[para.words.length - 1].end;
+                console.log(`Using word-level timing: start=${paraStart}, end=${paraEnd}`);
+            }
+
+            // Validate times - if end < start, the data is corrupted (spans multiple chunks)
+            // In this case, just use the start time and play a reasonable duration
+            if (paraEnd < paraStart) {
+                console.warn(`Invalid paragraph times: start=${paraStart}, end=${paraEnd}. Using start time only.`);
+                // Set end to a reasonable duration after start (e.g., remaining chunk time)
+                paraEnd = paraStart + 60; // Play up to 60 seconds
+            }
+
+            // Try to extract chunk number from chunkId (e.g., "chunk-001" -> 1)
+            let chunkIndex = parseInt(firstChunkId.match(/chunk-(\d+)/)?.[1] || '0');
+
+            // If chunkId doesn't match "chunk-XXX" pattern (e.g., topic-segmented files with "topic-X"),
+            // calculate the chunk based on the paragraph's start time
+            // Live sessions use ~120 second chunks (2 minutes)
+            const CHUNK_DURATION = 120; // seconds per chunk
+            let chunkStartOffset = 0; // offset into the chunk file
+
+            if (chunkIndex === 0 && paraStart > 0) {
+                chunkIndex = Math.floor(paraStart / CHUNK_DURATION) + 1;
+                // Calculate the offset within the chunk (paraStart is absolute, but chunk starts at 0)
+                chunkStartOffset = paraStart - ((chunkIndex - 1) * CHUNK_DURATION);
+                console.log(`Calculated chunk ${chunkIndex} from start time ${paraStart}s, seek offset ${chunkStartOffset}s`);
+            }
 
             try {
                 // Load audio chunk
@@ -2477,8 +2589,11 @@
                 wrapWordsWithTimestamps(paraText, para);
 
                 // Play segment
-                console.log('Setting currentTime to:', para.start);
-                audio.currentTime = para.start;
+                // For topic-segmented files, use the calculated offset within the chunk
+                // For regular files (with valid chunk-XXX IDs), use paraStart directly
+                const seekTime = chunkStartOffset > 0 ? chunkStartOffset : paraStart;
+                console.log('Setting currentTime to:', seekTime, '(chunkStartOffset:', chunkStartOffset, ', paraStart:', paraStart, ')');
+                audio.currentTime = seekTime;
                 console.log('Attempting to play audio...');
                 await audio.play();
                 console.log('Audio playing successfully');
@@ -2508,9 +2623,16 @@
 
                 audio.ontimeupdate = () => {
                     // For uploaded files, don't stop at paragraph end - let it play continuously
-                    if (!isUpload && audio.currentTime >= para.end) {
-                        stopAudio();
-                        button.textContent = '▶ Play';
+                    if (!isUpload) {
+                        // For topic-segmented files, calculate the end time within the chunk
+                        const endTime = chunkStartOffset > 0
+                            ? chunkStartOffset + (paraEnd - paraStart)  // relative end within chunk
+                            : paraEnd;  // absolute time for regular files
+
+                        if (audio.currentTime >= endTime) {
+                            stopAudio();
+                            button.textContent = '▶ Play';
+                        }
                     }
                 };
 
@@ -2536,23 +2658,42 @@
 
         // Wrap words in spans with timing data
         function wrapWordsWithTimestamps(paraText, para) {
-            // Build word-level timing map from segments
+            // Build word-level timing map
+            // Topic-segmented files have para.words with exact timing
+            // Regular files have para.segments that need to be split
             const wordTimings = [];
-            para.segments.forEach(segment => {
-                const words = segment.text.trim().split(/\s+/);
-                const segmentDuration = segment.end - segment.start;
-                const avgWordDuration = segmentDuration / words.length;
 
-                words.forEach((word, i) => {
-                    const wordStart = segment.start + (i * avgWordDuration);
-                    const wordEnd = wordStart + avgWordDuration;
+            if (para.words && para.words.length > 0) {
+                // Use exact word-level timing from topic-segmented files
+                para.words.forEach(w => {
                     wordTimings.push({
-                        word: word,
-                        start: wordStart,
-                        end: wordEnd
+                        word: w.word.trim(),
+                        start: w.start,
+                        end: w.end
                     });
                 });
-            });
+            } else if (para.segments && para.segments.length > 0) {
+                // Fall back to estimating from segments
+                para.segments.forEach(segment => {
+                    const words = segment.text.trim().split(/\s+/);
+                    const segmentDuration = segment.end - segment.start;
+                    const avgWordDuration = segmentDuration / words.length;
+
+                    words.forEach((word, i) => {
+                        const wordStart = segment.start + (i * avgWordDuration);
+                        const wordEnd = wordStart + avgWordDuration;
+                        wordTimings.push({
+                            word: word,
+                            start: wordStart,
+                            end: wordEnd
+                        });
+                    });
+                });
+            } else {
+                // No timing data available - just show the text without word spans
+                console.log('No word timing data available, keeping original text');
+                return;
+            }
 
             // Detect questions in the paragraph text
             const questionPatterns = [
@@ -3458,13 +3599,19 @@
             }
 
             updateCounts() {
+                // For topicChanges, prefer the topic count from topic-segmented file (processedData.metadata.topicCount)
+                // over AI analysis topicChanges, since the segmentation is more granular
+                const topicCount = processedData?.metadata?.topicCount ||
+                                   processedData?.topicStats?.topicCount ||
+                                   this.aiAnalysis.topicChanges?.length || 0;
+
                 const counts = {
                     highlights: this.aiAnalysis.highlights?.length || 0,
                     questions: this.detectedQuestions?.length || 0,
                     actionItems: this.aiAnalysis.actionItems?.length || 0,
                     keyTerms: this.aiAnalysis.keyTerms?.length || 0,
                     keyThemes: this.aiAnalysis.keyThemes?.length || 0,
-                    topicChanges: this.aiAnalysis.topicChanges?.length || 0
+                    topicChanges: topicCount
                 };
 
                 counts.all = Object.values(counts).reduce((a, b) => a + b, 0);

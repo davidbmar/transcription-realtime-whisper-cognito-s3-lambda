@@ -214,7 +214,20 @@ process_session() {
         log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
     fi
 
-    # Step 3: Update metadata to mark transcription as complete
+    # Step 3: Run topic segmentation (optional, requires Bedrock access)
+    # Only runs if TOPIC_SIMILARITY_THRESHOLD is set in .env
+    if [ -n "${TOPIC_SIMILARITY_THRESHOLD:-}" ]; then
+        log_info "  🧠 Running topic segmentation..."
+        if python3 "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" \
+            --session "$session_folder" 2>&1 | sed 's/^/    /'; then
+            log_success "  ✅ Topic segmentation complete"
+        else
+            log_warn "  ⚠️  Topic segmentation failed (Bedrock access required)"
+            log_warn "      To enable: set TOPIC_SIMILARITY_THRESHOLD in .env"
+        fi
+    fi
+
+    # Step 4: Update metadata to mark transcription as complete
     log_info "  📝 Updating session metadata..."
     if node "$PROJECT_ROOT/scripts/lib/update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Metadata updated - session marked as complete"
