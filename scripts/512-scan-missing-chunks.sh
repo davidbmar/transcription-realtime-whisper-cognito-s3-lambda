@@ -81,7 +81,7 @@ SCAN_START=$(date +%s)
 
 # Find all sessions with audio chunks (support multiple formats)
 SESSIONS=$(aws s3 ls "s3://$S3_BUCKET/users/" --recursive 2>/dev/null | \
-    grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | \
+    grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac|mp4|mov|m4v|avi)$' | \
     awk '{print $4}' | \
     sed 's|/chunk-.*||' | \
     sort -u)
@@ -138,10 +138,10 @@ for SESSION_PATH in $SESSIONS; do
 
     # Get all audio chunks for this session (support multiple formats)
     AUDIO_CHUNKS=$(aws s3 ls "s3://$S3_BUCKET/$SESSION_PATH/" 2>/dev/null | \
-        grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | \
+        grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac|mp4|mov|m4v|avi)$' | \
         awk '{print $4}' | \
         sed 's/chunk-//' | \
-        sed -E 's/\.(webm|aac|m4a|mp3|wav|ogg|flac)$//' | \
+        sed -E 's/\.(webm|aac|m4a|mp3|wav|ogg|flac|mp4|mov|m4v|avi)$//' | \
         sort -n)
 
     if [ -z "$AUDIO_CHUNKS" ]; then

@@ -37,9 +37,9 @@ else
     log_warn() { echo "[WARN] $*"; }
 fi
 
-# Source riva-common-library for dynamic IP lookup
-if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
-    source "$REPO_ROOT/scripts/riva-common-library.sh"
+# Source common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/common-library.sh"
 fi
 
 echo "============================================"
@@ -68,14 +68,14 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Check if SSL certificates exist
-if [ ! -f "/opt/riva/certs/server.crt" ] || [ ! -f "/opt/riva/certs/server.key" ]; then
-    log_error "SSL certificates not found at /opt/riva/certs/"
+if [ ! -f "/opt/whisperlive/certs/server.crt" ] || [ ! -f "/opt/whisperlive/certs/server.key" ]; then
+    log_error "SSL certificates not found at /opt/whisperlive/certs/"
     log_info "These should have been created by script 010-setup-build-box.sh"
-    log_info "Or copy existing certificates to /opt/riva/certs/"
+    log_info "Or copy existing certificates to /opt/whisperlive/certs/"
     exit 1
 fi
 
-log_success "SSL certificates found at /opt/riva/certs/"
+log_success "SSL certificates found at /opt/whisperlive/certs/"
 echo ""
 
 # ============================================================================
@@ -258,7 +258,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./site:/srv
-      - /opt/riva/certs:/certs:ro
+      - /opt/whisperlive/certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
 

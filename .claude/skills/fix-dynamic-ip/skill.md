@@ -43,7 +43,7 @@ GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")
 ```
 
 ### Standard Functions Available
-From `scripts/riva-common-library.sh`:
+From `scripts/common-library.sh`:
 - `get_instance_ip()` - Look up current IP from instance ID
 - `get_instance_id()` - Get instance ID from name tag
 

@@ -13,7 +13,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./site:/srv
-      - /opt/riva/certs:/certs:ro
+      - /opt/whisperlive/certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
 

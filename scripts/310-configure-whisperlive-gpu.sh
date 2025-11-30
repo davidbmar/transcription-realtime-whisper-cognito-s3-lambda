@@ -37,9 +37,9 @@ else
     log_warn() { echo "[WARN] $*"; }
 fi
 
-# Source riva-common-library for dynamic IP lookup
-if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
-    source "$REPO_ROOT/scripts/riva-common-library.sh"
+# Source common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/common-library.sh"
 fi
 
 echo "============================================"

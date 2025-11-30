@@ -1828,8 +1828,16 @@
         let currentPlayButton = null;
         let wordHighlightInterval = null;
 
+        // Version for debugging cache issues
+        const TRANSCRIPT_EDITOR_VERSION = '2.8.0-detect-actual-playback';
+        console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
+
         // Global Sequential Playback State
         const CHUNK_DURATION = 120; // seconds per chunk (2 minutes)
+
+        // No fixed compensation - instead we detect when audio actually starts playing
+        // by monitoring audio.currentTime advancement
+
         let globalPlaybackState = {
             isPlaying: false,
             currentChunkIndex: 0,      // Which chunk file we're playing (0-based)
@@ -1839,7 +1847,9 @@
             playbackRate: 1.0,         // Current playback speed
             chunkAudios: [],           // Preloaded Audio objects for each chunk
             chunkUrls: [],             // Presigned URLs for each chunk
-            isScrubbing: false         // True while user is dragging scrubber
+            isScrubbing: false,        // True while user is dragging scrubber
+            seekFloorTime: 0,          // Minimum highlight time after seek (prevents jumping before clicked word)
+            currentCompensation: 0.5   // Current delay compensation (calculated per seek based on position)
         };
 
         // Auth functions
@@ -3140,6 +3150,21 @@
             // Store whether this is an upload for audio loading
             globalPlaybackState.isUpload = isUpload;
 
+            // Detect audio format from metadata for compensation calculation
+            let audioFormat = 'unknown';
+            if (metadata.originalFilename) {
+                const parts = metadata.originalFilename.split('.');
+                if (parts.length > 1) {
+                    audioFormat = parts[parts.length - 1].toLowerCase();
+                }
+            } else if (metadata.chunks && metadata.chunks[0] && metadata.chunks[0].filename) {
+                const parts = metadata.chunks[0].filename.split('.');
+                if (parts.length > 1) {
+                    audioFormat = parts[parts.length - 1].toLowerCase();
+                }
+            }
+            globalPlaybackState.audioFormat = audioFormat;
+
             console.log(`[Global Playback] Found ${globalPlaybackState.totalChunks} chunks, total duration: ${formatTime(globalPlaybackState.totalDuration)}, isUpload: ${isUpload}`);
 
             // Show the playback bar
@@ -3261,12 +3286,67 @@
             audio.currentTime = Math.max(0, positionInChunk);
             audio.playbackRate = globalPlaybackState.playbackRate;
 
+            // Debug: Log what the browser actually set currentTime to
+            // AAC files may only seek to keyframes, causing jumps
+            const seekDiff = Math.abs(audio.currentTime - positionInChunk);
+            console.log(`%c[Global Playback] Seek: requested ${positionInChunk.toFixed(2)}s → browser set ${audio.currentTime.toFixed(2)}s (diff: ${seekDiff.toFixed(2)}s)`,
+                seekDiff > 0.5 ? 'color: #ff0000; font-weight: bold' : 'color: #00ff00');
+
             try {
                 await audio.play();
-                console.log('[Global Playback] Playing chunk', globalPlaybackState.currentChunkIndex, 'at position', positionInChunk, 'isUpload:', globalPlaybackState.isUpload);
 
-                // Start time update interval
-                startGlobalTimeUpdate();
+                // Log after play() returns
+                const playDiff = Math.abs(audio.currentTime - positionInChunk);
+                console.log(`%c[Global Playback] After play(): audio at ${audio.currentTime.toFixed(2)}s (requested: ${positionInChunk.toFixed(2)}s, diff: ${playDiff.toFixed(2)}s)`,
+                    playDiff > 0.5 ? 'color: #ff0000; font-weight: bold' : 'color: #00ff00');
+                console.log('[Global Playback] isUpload:', globalPlaybackState.isUpload, 'chunkIndex:', globalPlaybackState.currentChunkIndex);
+
+                // For uploads, detect when audio is ACTUALLY playing (not just buffering)
+                // by monitoring when audio.currentTime starts advancing at real-time speed
+                if (globalPlaybackState.isUpload) {
+                    console.log('[Global Playback] Detecting actual audio playback...');
+                    const playStartTime = Date.now();
+                    let lastCurrentTime = audio.currentTime;
+                    let stableCount = 0;
+
+                    const detectInterval = setInterval(() => {
+                        const now = audio.currentTime;
+                        const elapsed = (Date.now() - playStartTime) / 1000;
+                        const timeAdvance = now - lastCurrentTime;
+
+                        // If audio.currentTime advanced by 0.08-0.15s in ~100ms, it's playing at real-time
+                        if (timeAdvance >= 0.08 && timeAdvance <= 0.15) {
+                            stableCount++;
+                        } else {
+                            stableCount = 0; // Reset if not advancing properly
+                        }
+
+                        // Need 3 consecutive stable advances to confirm real playback
+                        if (stableCount >= 3) {
+                            clearInterval(detectInterval);
+                            console.log(`%c[Global Playback] Audio ACTUALLY playing! Detection time: ${elapsed.toFixed(2)}s`, 'color: #00ff00; font-weight: bold');
+
+                            // Sync highlight to actual audio position
+                            globalPlaybackState.seekFloorTime = audio.currentTime;
+                            globalPlaybackState.absoluteTime = audio.currentTime;
+
+                            // NOW start the time update interval
+                            startGlobalTimeUpdate();
+                        }
+
+                        // Timeout after 10 seconds - start anyway
+                        if (elapsed > 10) {
+                            clearInterval(detectInterval);
+                            console.log(`%c[Global Playback] Detection timeout - starting anyway`, 'color: #ff9900');
+                            startGlobalTimeUpdate();
+                        }
+
+                        lastCurrentTime = now;
+                    }, 100);
+                } else {
+                    // For non-uploads (live recordings with multiple chunks), start immediately
+                    startGlobalTimeUpdate();
+                }
 
                 // Highlight current paragraph
                 highlightCurrentParagraph();
@@ -3376,6 +3456,9 @@
         function startGlobalTimeUpdate() {
             stopGlobalTimeUpdate(); // Clear any existing
 
+            // Log first few updates to debug AAC timing issues
+            let updateCount = 0;
+
             globalTimeUpdateInterval = setInterval(() => {
                 const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
                 if (!audio) return;
@@ -3390,11 +3473,21 @@
                     globalPlaybackState.absoluteTime = chunkStartTime + audio.currentTime;
                 }
 
-                // Update UI
+                // Highlighting time = absoluteTime (no compensation needed)
+                // We already waited for audio to actually start playing before starting this interval
+                let highlightTime = globalPlaybackState.absoluteTime;
+
+                // Debug: Log first 10 time updates to see what's happening
+                if (updateCount < 10) {
+                    console.log(`%c[Time Update ${updateCount}] audio: ${audio.currentTime.toFixed(2)}s → highlight: ${highlightTime.toFixed(2)}s`, 'color: #ffcc00');
+                    updateCount++;
+                }
+
+                // Update UI (shows raw time for scrubber/display)
                 updateGlobalPlaybackUI();
 
-                // Highlight current word and paragraph
-                highlightCurrentWordWithScroll(globalPlaybackState.absoluteTime);
+                // Highlight current word and paragraph using compensated time
+                highlightCurrentWordWithScroll(highlightTime);
                 highlightCurrentParagraph();
             }, 100); // Update 10 times per second
         }
@@ -3434,22 +3527,54 @@
                 }
             }
 
-            for (const wordEl of allWordElements) {
+            // Find the word that contains the current time, or the most recent word
+            // Words have gaps between them, so we can't rely on exact bounds matching
+            let lastWordBeforeTime = null;
+
+            for (let i = 0; i < allWordElements.length; i++) {
+                const wordEl = allWordElements[i];
                 const start = parseFloat(wordEl.dataset.wordStart);
                 const end = parseFloat(wordEl.dataset.wordEnd);
 
+                // Exact match - time is within word bounds
                 if (absoluteTime >= start && absoluteTime <= end) {
                     foundWordEl = wordEl;
                     break;
                 }
+
+                // Track the last word that started before current time
+                // This handles gaps between words
+                if (absoluteTime >= start) {
+                    lastWordBeforeTime = wordEl;
+                }
+
+                // If we've passed the current time, stop searching
+                if (start > absoluteTime) {
+                    break;
+                }
+            }
+
+            // If no exact match, use the last word that started before current time
+            // This keeps that word highlighted during gaps until the next word starts
+            if (!foundWordEl && lastWordBeforeTime) {
+                foundWordEl = lastWordBeforeTime;
             }
 
             if (shouldLog) {
-                console.log(`[Word Highlight] Found word: ${foundWordEl ? foundWordEl.textContent : 'NONE'}`);
+                if (foundWordEl) {
+                    console.log(`[Word Highlight] Found: "${foundWordEl.textContent}" at ${foundWordEl.dataset.wordStart}s-${foundWordEl.dataset.wordEnd}s (match: ${foundWordEl === lastWordBeforeTime ? 'gap-fill' : 'exact'}, seeking: ${absoluteTime.toFixed(2)}s)`);
+                } else {
+                    console.log(`[Word Highlight] NONE found at ${absoluteTime.toFixed(2)}s - first word starts at ${allWordElements.length > 0 ? allWordElements[0].dataset.wordStart : 'N/A'}s`);
+                }
             }
 
             // Only update if the word changed
             if (foundWordEl !== lastHighlightedWordEl) {
+                // Log word transitions (helps debug sync issues)
+                const prevWord = lastHighlightedWordEl ? lastHighlightedWordEl.textContent : 'NONE';
+                const nextWord = foundWordEl ? foundWordEl.textContent : 'NONE';
+                console.log(`%c[Word Change] "${prevWord}" → "${nextWord}" at ${absoluteTime.toFixed(2)}s`, 'color: #00ffff; font-weight: bold');
+
                 // Remove old highlight
                 if (lastHighlightedWordEl) {
                     lastHighlightedWordEl.classList.remove('playing');
@@ -3566,6 +3691,12 @@
             // Update state
             globalPlaybackState.absoluteTime = targetTime;
             globalPlaybackState.currentChunkIndex = Math.min(targetChunk, globalPlaybackState.totalChunks - 1);
+
+            // Set seek floor - highlighting should never go before this time
+            // This prevents AAC compensation from jumping back before the clicked word
+            globalPlaybackState.seekFloorTime = targetTime;
+
+            console.log(`[Global Playback] Set seekFloorTime: ${targetTime.toFixed(2)}s`);
 
             // Reset word tracking so scroll happens on seek
             lastHighlightedWordEl = null;

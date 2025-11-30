@@ -40,7 +40,7 @@ Claude Code should automatically invoke this skill when:
    - GPU: Changes `GPU_IP="${GPU_INSTANCE_IP}"` to `GPU_IP=$(get_instance_ip "$GPU_INSTANCE_ID")`
    - Edge: Changes `EDGE_IP="${EDGE_BOX_IP}"` to `EDGE_IP=$(get_instance_ip "$EDGE_BOX_INSTANCE_ID")`
    - Adds error handling for failed IP lookups
-   - Sources `riva-common-library.sh` if needed (for `get_instance_ip()` function)
+   - Sources `common-library.sh` if needed (for `get_instance_ip()` function)
 
 5. **Make sure implementations reflect to .env**
    - Removes `GPU_INSTANCE_IP` from `.env` (stale IP removed)
@@ -141,7 +141,7 @@ Reference implementations (do NOT modify):
 
 ### Standard Functions Available
 
-From `scripts/riva-common-library.sh`:
+From `scripts/common-library.sh`:
 ```bash
 get_instance_ip() {
     local instance_id="${1:-$(get_instance_id)}"

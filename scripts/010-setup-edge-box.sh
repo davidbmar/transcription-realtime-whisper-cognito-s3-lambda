@@ -83,25 +83,25 @@ echo ""
 # Step 3: Create Project Directory Structure
 # ============================================================================
 echo "Step 3/7: Creating project directory structure..."
-sudo mkdir -p /opt/riva/{certs,logs}
-sudo chown -R $USER:$USER /opt/riva
+sudo mkdir -p /opt/whisperlive/{certs,logs}
+sudo chown -R $USER:$USER /opt/whisperlive
 
 # Copy project files
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-sudo mkdir -p /opt/riva/nvidia-riva-conformer-streaming
-sudo cp -r "$PROJECT_DIR"/* /opt/riva/nvidia-riva-conformer-streaming/
-sudo chown -R $USER:$USER /opt/riva/nvidia-riva-conformer-streaming
+sudo mkdir -p /opt/whisperlive/nvidia-riva-conformer-streaming
+sudo cp -r "$PROJECT_DIR"/* /opt/whisperlive/nvidia-riva-conformer-streaming/
+sudo chown -R $USER:$USER /opt/whisperlive/nvidia-riva-conformer-streaming
 
-echo "✅ Project directory created at /opt/riva/nvidia-riva-conformer-streaming"
+echo "✅ Project directory created at /opt/whisperlive/nvidia-riva-conformer-streaming"
 echo ""
 
 # ============================================================================
 # Step 4: Create Python Virtual Environment
 # ============================================================================
 echo "Step 4/7: Creating Python virtual environment..."
-cd /opt/riva/nvidia-riva-conformer-streaming
+cd /opt/whisperlive/nvidia-riva-conformer-streaming
 
 if [ -d "venv" ]; then
   echo "⚠️  Virtual environment already exists, recreating..."
@@ -139,17 +139,17 @@ echo ""
 # ============================================================================
 echo "Step 6/7: Generating self-signed SSL certificates..."
 
-if [ -f "/opt/riva/certs/server.crt" ]; then
+if [ -f "/opt/whisperlive/certs/server.crt" ]; then
   echo "⚠️  SSL certificates already exist, skipping..."
 else
   openssl req -x509 -newkey rsa:4096 -nodes \
-    -keyout /opt/riva/certs/server.key \
-    -out /opt/riva/certs/server.crt \
+    -keyout /opt/whisperlive/certs/server.key \
+    -out /opt/whisperlive/certs/server.crt \
     -days 365 \
     -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
 
-  chmod 600 /opt/riva/certs/server.key
-  chmod 644 /opt/riva/certs/server.crt
+  chmod 600 /opt/whisperlive/certs/server.key
+  chmod 644 /opt/whisperlive/certs/server.crt
 
   echo "✅ SSL certificates generated"
 fi
@@ -183,9 +183,9 @@ echo "========================================="
 echo "✅ BUILD BOX SETUP COMPLETE"
 echo "========================================="
 echo ""
-echo "📁 Project location: /opt/riva/nvidia-riva-conformer-streaming"
-echo "🐍 Virtual environment: source /opt/riva/nvidia-riva-conformer-streaming/venv/bin/activate"
-echo "🔐 SSL certificates: /opt/riva/certs/"
+echo "📁 Project location: /opt/whisperlive/nvidia-riva-conformer-streaming"
+echo "🐍 Virtual environment: source /opt/whisperlive/nvidia-riva-conformer-streaming/venv/bin/activate"
+echo "🔐 SSL certificates: /opt/whisperlive/certs/"
 echo ""
 echo "Next steps:"
 echo "  1. Configure AWS CLI (if not done): aws configure"

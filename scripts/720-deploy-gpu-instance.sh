@@ -12,7 +12,7 @@ SCRIPT_VERSION="2.0.0"
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/riva-common-library.sh"
+source "$SCRIPT_DIR/common-library.sh"
 
 # ============================================================================
 # Configuration
@@ -137,11 +137,11 @@ docker info | grep nvidia || echo "NVIDIA runtime not detected yet"
 
 # Create directories
 echo "Creating Riva directories..."
-mkdir -p /opt/riva/{logs,models,certs,config}
-chown -R ubuntu:ubuntu /opt/riva
+mkdir -p /opt/whisperlive/{logs,models,certs,config}
+chown -R ubuntu:ubuntu /opt/whisperlive
 
 # Mark initialization complete
-echo "$(date): GPU instance initialization complete" > /opt/riva/init-complete
+echo "$(date): GPU instance initialization complete" > /opt/whisperlive/init-complete
 echo "User data script completed at $(date)"
 EOF
 }

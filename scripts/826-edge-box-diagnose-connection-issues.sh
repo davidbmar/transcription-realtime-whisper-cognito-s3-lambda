@@ -33,9 +33,9 @@ REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 
-# Source riva-common-library for dynamic IP lookup
-if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
-    source "$REPO_ROOT/scripts/riva-common-library.sh"
+# Source common-library for dynamic IP lookup
+if [ -f "$REPO_ROOT/scripts/common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/common-library.sh"
 fi
 
 load_environment
@@ -85,10 +85,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Test 2: SSL Certificate Validity"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if [ -f "/opt/riva/certs/server.crt" ]; then
-    CERT_CN=$(openssl x509 -in /opt/riva/certs/server.crt -noout -subject 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "INVALID")
-    CERT_EXPIRY=$(openssl x509 -in /opt/riva/certs/server.crt -noout -enddate 2>/dev/null | cut -d'=' -f2)
-    CERT_ISSUER=$(openssl x509 -in /opt/riva/certs/server.crt -noout -issuer 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "UNKNOWN")
+if [ -f "/opt/whisperlive/certs/server.crt" ]; then
+    CERT_CN=$(openssl x509 -in /opt/whisperlive/certs/server.crt -noout -subject 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "INVALID")
+    CERT_EXPIRY=$(openssl x509 -in /opt/whisperlive/certs/server.crt -noout -enddate 2>/dev/null | cut -d'=' -f2)
+    CERT_ISSUER=$(openssl x509 -in /opt/whisperlive/certs/server.crt -noout -issuer 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "UNKNOWN")
 
     echo "  Certificate CN:     $CERT_CN"
     echo "  Certificate Issuer: $CERT_ISSUER (self-signed)"
@@ -105,7 +105,7 @@ if [ -f "/opt/riva/certs/server.crt" ]; then
         echo "  ✅ PASS: Certificate matches current IP"
     fi
 else
-    echo "  ❌ ISSUE: Certificate not found at /opt/riva/certs/server.crt"
+    echo "  ❌ ISSUE: Certificate not found at /opt/whisperlive/certs/server.crt"
     echo "     → Run: ./scripts/010-setup-edge-box.sh"
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 fi

@@ -33,7 +33,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 # Load environment and common functions
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
-source "$PROJECT_ROOT/scripts/riva-common-library.sh"
+source "$PROJECT_ROOT/scripts/common-library.sh"
 
 echo "============================================"
 echo "500: Setup Batch Transcription System"

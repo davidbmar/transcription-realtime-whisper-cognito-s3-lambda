@@ -223,7 +223,7 @@ for script in "${PROBLEM_SCRIPTS[@]}"; do
     log_info "Updating: $script"
     log_info "  - Replace static IP variables with dynamic lookup"
     log_info "  - Add error handling for IP lookup failures"
-    log_info "  - Source riva-common-library.sh if needed"
+    log_info "  - Source common-library.sh if needed"
     echo ""
 done
 

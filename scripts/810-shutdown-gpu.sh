@@ -90,6 +90,6 @@ aws ec2 wait instance-stopped \
 log_success "✅ GPU instance stopped successfully"
 echo ""
 log_info "💰 Cost savings: ~\$0.526/hour (only EBS storage charges apply)"
-log_info "📁 All data preserved: /opt/riva/models_conformer_ctc_streaming/"
+log_info "📁 All data preserved: /opt/whisperlive/models_conformer_ctc_streaming/"
 echo ""
 log_info "To restart tomorrow: ./scripts/820-startup-restore.sh"

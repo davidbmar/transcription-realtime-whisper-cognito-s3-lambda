@@ -1877,9 +1877,9 @@
                             <i class="fas fa-folder-open"></i>
                             Choose Files
                         </button>
-                        <input type="file" id="audio-file-input" accept=".aac,.m4a,.wav,.mp3,.webm,.ogg,.flac" multiple style="display: none;">
+                        <input type="file" id="audio-file-input" accept=".aac,.m4a,.wav,.mp3,.webm,.ogg,.flac,.mp4,.m4v,.mov,.avi" multiple style="display: none;">
                         <p style="color: #999; margin-top: 1rem; font-size: 0.9rem;">
-                            Supported formats: .aac, .m4a, .wav, .mp3, .webm, .ogg, .flac (Max 500MB)
+                            Supported: audio (.mp3, .m4a, .aac, .wav) and video (.mp4, .mov) - Max 500MB
                         </p>
                     </div>
 
@@ -2211,14 +2211,22 @@
                     dropZone.style.borderColor = '#e5e7eb';
                     dropZone.style.background = 'white';
 
-                    const files = Array.from(e.dataTransfer.files).filter(file =>
-                        file.type.startsWith('audio/')
-                    );
+                    // Accept audio files and video files (which contain audio tracks)
+                    // Also accept by extension for files where MIME type isn't detected
+                    const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac', '.wma', '.mp4', '.m4v', '.mov', '.webm'];
+                    const files = Array.from(e.dataTransfer.files).filter(file => {
+                        const hasAudioMime = file.type.startsWith('audio/');
+                        const hasVideoMime = file.type.startsWith('video/');
+                        const hasAudioExtension = audioExtensions.some(ext =>
+                            file.name.toLowerCase().endsWith(ext)
+                        );
+                        return hasAudioMime || hasVideoMime || hasAudioExtension;
+                    });
 
                     if (files.length > 0) {
                         await uploadFiles(files);
                     } else {
-                        alert('Please drop audio files only');
+                        alert('Please drop audio or video files (mp3, m4a, aac, wav, mp4, mov, etc.)');
                     }
                 });
             }

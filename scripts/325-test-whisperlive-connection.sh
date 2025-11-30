@@ -45,7 +45,7 @@ echo ""
 # ============================================================================
 log_info "Checking prerequisites..."
 
-# Load environment FIRST (before sourcing riva-common-library)
+# Load environment FIRST (before sourcing common-library)
 # Load .env first, then .env-http can override specific values
 if [ -f "$PROJECT_ROOT/.env" ]; then
     set -a
@@ -60,9 +60,9 @@ if [ -f "$PROJECT_ROOT/.env-http" ]; then
     set +a
 fi
 
-# Source riva-common-library for dynamic IP lookup (AFTER .env is loaded)
-if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
-    source "$REPO_ROOT/scripts/riva-common-library.sh"
+# Source common-library for dynamic IP lookup (AFTER .env is loaded)
+if [ -f "$REPO_ROOT/scripts/common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/common-library.sh"
 fi
 
 # Dynamic IP lookup from instance ID (survives reboots)

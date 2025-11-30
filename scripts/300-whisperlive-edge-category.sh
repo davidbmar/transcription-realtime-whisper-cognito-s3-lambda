@@ -23,7 +23,7 @@ SCRIPTS IN THIS SERIES:
     Deploy Caddy reverse proxy on edge EC2 instance
     - Install Docker and Docker Compose
     - Create Caddyfile for WebSocket proxying
-    - Mount SSL certificates from /opt/riva/certs/
+    - Mount SSL certificates from /opt/whisperlive/certs/
     - Deploy browser clients (index.html, test-whisper.html)
     - Start Caddy container
 
@@ -55,7 +55,7 @@ PREREQUISITES:
   - GPU instance is running with NVIDIA Riva
   - Edge EC2 instance is available
   - Security groups configured (scripts 030, 031, 040)
-  - SSL certificates exist at /opt/riva/certs/
+  - SSL certificates exist at /opt/whisperlive/certs/
 
 DEPLOYMENT ORDER:
   1. Run 305-setup-whisperlive-edge.sh     (on edge EC2)
@@ -67,13 +67,13 @@ IMPORTANT NOTES:
   - WhisperLive expects Float32 PCM audio @ 16kHz, NOT Int16 or WebM
   - Browser clients use AudioContext to send raw Float32 audio
   - Transcriptions come back as JSON with segments array
-  - Edge proxy uses existing SSL certs from /opt/riva/certs/
+  - Edge proxy uses existing SSL certs from /opt/whisperlive/certs/
   - Port 9090 on GPU must be accessible from edge IP only (security)
 
 TROUBLESHOOTING:
   - No transcriptions? Check audio format (Float32 vs Int16)
   - Connection refused? Check security groups and WhisperLive status
-  - SSL errors? Verify certs exist at /opt/riva/certs/
+  - SSL errors? Verify certs exist at /opt/whisperlive/certs/
   - WebSocket 404? Check Caddyfile handle /ws block
 
 For detailed documentation, see:

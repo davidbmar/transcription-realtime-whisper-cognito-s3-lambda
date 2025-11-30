@@ -45,7 +45,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 source "$PROJECT_ROOT/scripts/lib/gpu-cost-functions.sh"
-source "$PROJECT_ROOT/scripts/riva-common-library.sh"
+source "$PROJECT_ROOT/scripts/common-library.sh"
 
 echo "============================================"
 echo "515: Run Batch Transcription"
@@ -477,12 +477,12 @@ get_audio_extension() {
 
     # Try to find the chunk file with any supported extension
     local chunk_file=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | \
-        grep -E "chunk-${chunk_num}\.(webm|aac|m4a|mp3|wav|ogg|flac)$" | \
+        grep -E "chunk-${chunk_num}\.(webm|aac|m4a|mp3|wav|ogg|flac|mp4|mov|m4v|avi)$" | \
         awk '{print $4}' | head -1)
 
     if [ -n "$chunk_file" ]; then
         # Extract extension
-        echo "$chunk_file" | sed -E 's/.*\.(webm|aac|m4a|mp3|wav|ogg|flac)$/\1/'
+        echo "$chunk_file" | sed -E 's/.*\.(webm|aac|m4a|mp3|wav|ogg|flac|mp4|mov|m4v|avi)$/\1/'
     else
         # Default to webm for backwards compatibility
         echo "webm"
@@ -676,7 +676,7 @@ transcribe_chunk_batch() {
 
     while [ $downloaded_count -lt $download_threshold ] && [ $wait_iterations -lt $max_wait_iterations ]; do
         sleep 1
-        downloaded_count=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" \) 2>/dev/null | wc -l)
+        downloaded_count=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" -o -name "*.mp4" -o -name "*.mov" -o -name "*.m4v" -o -name "*.avi" \) 2>/dev/null | wc -l)
         wait_iterations=$((wait_iterations + 1))
     done
 
@@ -806,7 +806,7 @@ transcribe_chunk_batch() {
     done
 
     # Verify all downloads succeeded
-    local download_success=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" \) 2>/dev/null | wc -l)
+    local download_success=$(find "$batch_dir_edge" -maxdepth 1 -type f \( -name "*.webm" -o -name "*.aac" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.wav" -o -name "*.ogg" -o -name "*.flac" -o -name "*.mp4" -o -name "*.mov" -o -name "*.m4v" -o -name "*.avi" \) 2>/dev/null | wc -l)
     local download_failed=$((batch_count - download_success))
 
     if [ $download_failed -gt 0 ]; then

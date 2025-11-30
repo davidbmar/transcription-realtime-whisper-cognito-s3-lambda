@@ -13,6 +13,7 @@
 class TranscriptPreprocessorBoundary {
   constructor(options = {}) {
     this.maxBoundaryWords = options.maxBoundaryWords || 10; // Check up to 10 words at boundaries
+    this.isUpload = options.isUpload || false; // Upload sessions use cumulative timing
   }
 
   /**
@@ -151,14 +152,36 @@ class TranscriptPreprocessorBoundary {
     // Audio chunks are recorded at fixed 2-minute intervals
     const CHUNK_DURATION = 120; // seconds per chunk
 
+    // For uploads: calculate cumulative offsets based on actual chunk end times
+    // This is needed because uploads are single audio files where word timestamps
+    // are relative to each transcription chunk, not to fixed 2-minute intervals
+    let cumulativeOffset = 0;
+    const cumulativeOffsets = chunkGroups.map((chunk, index) => {
+      const offset = cumulativeOffset;
+      // Use the chunk's end time as the duration (last word's end time)
+      cumulativeOffset += chunk.end;
+      return offset;
+    });
+
     return chunkGroups.map((chunk, index) => {
-      // Calculate time offset using chunk index * fixed duration
-      // This aligns with how the audio player calculates absolute time:
-      //   absoluteTime = chunkIndex * CHUNK_DURATION + audio.currentTime
-      //
-      // BUG FIX: Previously used cumulative (chunk.end - chunk.start) which caused drift
-      // because word timestamps don't span the full audio duration (silence at boundaries)
-      const timeOffset = index * CHUNK_DURATION;
+      // Calculate time offset based on session type:
+      // - Live recordings: Use fixed CHUNK_DURATION (120s) intervals
+      //   Audio is chunked at exactly 2-minute boundaries
+      // - Uploads: Use cumulative chunk end times
+      //   Single audio file, transcription chunks have variable timing
+      let timeOffset;
+      if (this.isUpload) {
+        // For uploads: use cumulative offset from previous chunks
+        timeOffset = cumulativeOffsets[index];
+        if (index === 0) {
+          console.log(`[Upload Mode] Using cumulative timing for upload session`);
+        }
+      } else {
+        // For live recordings: use fixed 2-minute intervals
+        // This aligns with how the audio player calculates absolute time:
+        //   absoluteTime = chunkIndex * CHUNK_DURATION + audio.currentTime
+        timeOffset = index * CHUNK_DURATION;
+      }
 
       // Convert word timestamps to absolute time
       const absoluteWords = chunk.words.map(w => ({

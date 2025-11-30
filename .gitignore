@@ -98,3 +98,10 @@ cognito-stack/web/audio-ui-styles.css
 clouddrive-downloads/
 browser-screenshots/
 browser-downloads/
+
+# Local data and backups
+backup-transcriptions/
+batch-reports/
+
+# Separate repositories (not submodules)
+whisperlive-fork/

@@ -709,7 +709,7 @@ WHY ENABLE:
 CERTIFICATES:
   The setup script automatically:
   • Generates self-signed certificate
-  • Stores in /opt/riva/certs/
+  • Stores in /opt/whisperlive/certs/
   • Configures WebSocket bridge to use it
 
 BROWSER WARNING:
@@ -780,12 +780,12 @@ WHEN TO USE WARNING/ERROR:
   • Minimal log volume required
 
 WHERE LOGS GO:
-  • Build box: /opt/riva/logs/
-  • GPU instance: /opt/riva/logs/
+  • Build box: /opt/whisperlive/logs/
+  • GPU instance: /opt/whisperlive/logs/
   • Systemd: journalctl -u riva-websocket-bridge
 
 VIEW LOGS:
-  tail -f /opt/riva/logs/websocket-bridge.log
+  tail -f /opt/whisperlive/logs/websocket-bridge.log
   sudo journalctl -u riva-websocket-bridge -f
 
 Press Enter to continue...
@@ -1453,11 +1453,11 @@ GOLDEN_WAV_S3=
 APP_HOST=0.0.0.0
 APP_PORT=${CONFIG_VALUES[APP_PORT]}
 DEMO_PORT=${CONFIG_VALUES[DEMO_PORT]}
-APP_SSL_CERT=/opt/riva/certs/server.crt
-APP_SSL_KEY=/opt/riva/certs/server.key
+APP_SSL_CERT=/opt/whisperlive/certs/server.crt
+APP_SSL_KEY=/opt/whisperlive/certs/server.key
 
 # WebSocket Bridge Deployment Directory (auto-detected from project name)
-BRIDGE_DEPLOY_DIR=/opt/riva/$(basename "$PROJECT_ROOT")
+BRIDGE_DEPLOY_DIR=/opt/whisperlive/$(basename "$PROJECT_ROOT")
 
 # ============================================================================
 # WebSocket Settings
@@ -1480,7 +1480,7 @@ AUDIO_VAD_THRESHOLD=0.5
 # Observability
 # ============================================================================
 LOG_LEVEL=${CONFIG_VALUES[LOG_LEVEL]}
-LOG_DIR=/opt/riva/logs
+LOG_DIR=/opt/whisperlive/logs
 METRICS_ENABLED=true
 METRICS_PORT=9090
 TRACING_ENABLED=false
@@ -1490,7 +1490,7 @@ TRACING_ENDPOINT=http://localhost:4317
 # Development/Testing
 # ============================================================================
 DEBUG_MODE=false
-TEST_AUDIO_PATH=/opt/riva/test_audio
+TEST_AUDIO_PATH=/opt/whisperlive/test_audio
 
 # ============================================================================
 # Batch Transcription Configuration

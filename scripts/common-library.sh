@@ -1,7 +1,7 @@
 #!/bin/bash
-# RIVA-099: Common GPU Management Functions
-# Shared library for GPU instance management scripts
-# Version: 2.0.0
+# Common GPU Management Functions
+# Shared library for GPU instance management scripts (WhisperLive)
+# Version: 2.1.0
 
 set -euo pipefail
 
@@ -52,7 +52,7 @@ cleanup_on_exit() {
 
         # Release lock if we acquired it
         if [ "$LOCK_ACQUIRED" = "true" ]; then
-            local lock_file="$LOCK_DIR/riva-gpu.lock"
+            local lock_file="$LOCK_DIR/whisperlive-gpu.lock"
             rm -rf "$lock_file" 2>/dev/null || true
             if [ $exit_code -ge 128 ]; then
                 json_log "${SCRIPT_NAME:-common}" "cleanup" "ok" "Lock released during cleanup"
@@ -82,7 +82,7 @@ setup_signal_handlers() {
 init_log() {
     local script_name="${1:-unknown}"
     local timestamp=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
-    LOG_FILE="$LOGS_DIR/riva-run-${timestamp}-${LOG_UUID}.log"
+    LOG_FILE="$LOGS_DIR/whisperlive-run-${timestamp}-${LOG_UUID}.log"
 
     # Print log path for watchers
     echo "LOG_PATH=$LOG_FILE"
@@ -159,7 +159,7 @@ load_env_or_fail() {
     if [ ! -f "$ENV_FILE" ]; then
         json_log "${SCRIPT_NAME:-common}" "load_env" "error" "Configuration file not found: $ENV_FILE"
         echo -e "${RED}❌ Configuration file not found: $ENV_FILE${NC}"
-        echo "Run: ./scripts/riva-005-setup-project-configuration.sh"
+        echo "Run: ./scripts/005-setup-configuration.sh"
         return 1
     fi
 
@@ -316,7 +316,7 @@ EOF
 # Acquire lock with timeout
 # Usage: with_lock COMMAND [ARGS...]
 with_lock() {
-    local lock_file="$LOCK_DIR/riva-gpu.lock"
+    local lock_file="$LOCK_DIR/whisperlive-gpu.lock"
     local timeout="${LOCK_TIMEOUT:-30}"
     local pid=$$
     local hostname=$(hostname)
@@ -411,8 +411,8 @@ get_instance_ip() {
 
 # Ensure security group exists (idempotent)
 ensure_security_group() {
-    local sg_name="${1:-riva-asr-sg-${DEPLOYMENT_ID:-default}}"
-    local sg_desc="${2:-Security group for NVIDIA Parakeet Riva ASR server}"
+    local sg_name="${1:-whisperlive-asr-sg-${DEPLOYMENT_ID:-default}}"
+    local sg_desc="${2:-Security group for WhisperLive ASR server}"
 
     json_log "${SCRIPT_NAME:-common}" "ensure_sg" "ok" "Checking security group" "name=$sg_name"
 
@@ -609,22 +609,22 @@ check_gpu_availability() {
     fi
 }
 
-# Check RIVA containers
-check_riva_containers() {
+# Check WhisperLive containers
+check_whisperlive_containers() {
     local instance_ip="${1}"
     local ssh_key="${2:-$HOME/.ssh/${SSH_KEY_NAME}.pem}"
 
-    json_log "${SCRIPT_NAME:-common}" "riva_check" "ok" "Checking RIVA containers" "ip=$instance_ip"
+    json_log "${SCRIPT_NAME:-common}" "whisperlive_check" "ok" "Checking WhisperLive containers" "ip=$instance_ip"
 
-    local riva_count=$(ssh -i "$ssh_key" -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+    local container_count=$(ssh -i "$ssh_key" -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
         ubuntu@"$instance_ip" \
-        'docker ps --filter "label=nvidia.riva" --format "{{.Names}}" 2>/dev/null | wc -l' || echo "0")
+        'docker ps --filter "name=whisperlive" --format "{{.Names}}" 2>/dev/null | wc -l' || echo "0")
 
-    if [ "$riva_count" -gt 0 ]; then
-        json_log "${SCRIPT_NAME:-common}" "riva_check" "ok" "RIVA containers running" "count=$riva_count"
+    if [ "$container_count" -gt 0 ]; then
+        json_log "${SCRIPT_NAME:-common}" "whisperlive_check" "ok" "WhisperLive containers running" "count=$container_count"
         return 0
     else
-        json_log "${SCRIPT_NAME:-common}" "riva_check" "warn" "No RIVA containers running"
+        json_log "${SCRIPT_NAME:-common}" "whisperlive_check" "warn" "No WhisperLive containers running"
         return 1
     fi
 }
@@ -786,7 +786,7 @@ export -f load_state_cache write_state_cache write_instance_facts
 export -f with_lock
 export -f get_instance_details get_instance_ip ensure_security_group
 export -f wait_for_cloud_init validate_ssh_connectivity
-export -f check_docker_status check_gpu_availability check_riva_containers
+export -f check_docker_status check_gpu_availability check_whisperlive_containers
 export -f get_instance_hourly_rate calculate_running_costs update_cost_metrics
 export -f is_ec2_instance get_ec2_metadata
 export -f format_duration print_status
@@ -796,7 +796,7 @@ export -f format_duration print_status
 # ============================================================================
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    echo "RIVA Common Functions Library v2.0.0"
+    echo "WhisperLive Common Functions Library v2.1.0"
     echo "===================================="
     echo ""
     echo "Available functions:"
@@ -810,5 +810,5 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     echo "  - Utility: format_duration, print_status"
     echo ""
     echo "To use in your script:"
-    echo '  source "$(dirname "$0")/riva-099-common.sh"'
+    echo '  source "$(dirname "$0")/common-library.sh"'
 fi

@@ -40,9 +40,9 @@ REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 load_environment
 
-# Source riva-common-library for dynamic GPU IP lookup
-if [ -f "$REPO_ROOT/scripts/riva-common-library.sh" ]; then
-    source "$REPO_ROOT/scripts/riva-common-library.sh"
+# Source common-library for dynamic GPU IP lookup
+if [ -f "$REPO_ROOT/scripts/common-library.sh" ]; then
+    source "$REPO_ROOT/scripts/common-library.sh"
 fi
 
 echo "============================================"
@@ -83,7 +83,7 @@ elif [ "$CURRENT_EDGE_IP" = "$OLD_EDGE_IP" ]; then
     # Even if IP unchanged, verify certificate is correct
     log_info ""
     log_info "Verifying SSL certificate..."
-    CERT_CN=$(openssl x509 -in /opt/riva/certs/server.crt -noout -subject 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "")
+    CERT_CN=$(openssl x509 -in /opt/whisperlive/certs/server.crt -noout -subject 2>/dev/null | grep -oP 'CN\s*=\s*\K[^,]+' || echo "")
 
     if [ "$CERT_CN" = "$CURRENT_EDGE_IP" ]; then
         log_success "✅ SSL certificate is correct for IP: $CERT_CN"
@@ -287,22 +287,22 @@ if [ "$IP_CHANGED" = "true" ] || [ "${CERT_NEEDS_REGEN:-false}" = "true" ]; then
     log_info "Step 4/7: Regenerating SSL certificate for new IP..."
 
     # Check if certificates directory exists
-    if [ ! -d "/opt/riva/certs" ]; then
-        log_info "Creating /opt/riva/certs directory..."
-        sudo mkdir -p /opt/riva/certs
-        sudo chown -R $USER:$USER /opt/riva
+    if [ ! -d "/opt/whisperlive/certs" ]; then
+        log_info "Creating /opt/whisperlive/certs directory..."
+        sudo mkdir -p /opt/whisperlive/certs
+        sudo chown -R $USER:$USER /opt/whisperlive
     fi
 
     # Backup old certificate if it exists
-    if [ -f "/opt/riva/certs/server.crt" ]; then
+    if [ -f "/opt/whisperlive/certs/server.crt" ]; then
         BACKUP_SUFFIX=$(date +%Y%m%d-%H%M%S)
-        sudo cp /opt/riva/certs/server.crt "/opt/riva/certs/server.crt.backup-$BACKUP_SUFFIX"
-        sudo cp /opt/riva/certs/server.key "/opt/riva/certs/server.key.backup-$BACKUP_SUFFIX"
+        sudo cp /opt/whisperlive/certs/server.crt "/opt/whisperlive/certs/server.crt.backup-$BACKUP_SUFFIX"
+        sudo cp /opt/whisperlive/certs/server.key "/opt/whisperlive/certs/server.key.backup-$BACKUP_SUFFIX"
         log_info "  Backed up old certificate to server.crt.backup-$BACKUP_SUFFIX"
     fi
 
     # Generate new certificate with IP as CN and SAN
-    cd /opt/riva/certs
+    cd /opt/whisperlive/certs
     sudo openssl req -x509 -newkey rsa:4096 -nodes \
         -keyout server.key \
         -out server.crt \

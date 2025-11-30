@@ -452,12 +452,16 @@ module.exports.uploadAudioFile = async (event) => {
       };
     }
 
-    // Validate MIME type
+    // Validate MIME type - allow audio and video files (video files contain audio tracks)
     const allowedTypes = [
+      // Audio formats
       'audio/aac', 'audio/x-m4a', 'audio/m4a',
       'audio/wav', 'audio/x-wav', 'audio/wave',
       'audio/mpeg', 'audio/mp3',
-      'audio/webm', 'audio/ogg', 'audio/flac'
+      'audio/webm', 'audio/ogg', 'audio/flac',
+      // Video formats (contain audio tracks for transcription)
+      'video/mp4', 'video/x-m4v', 'video/quicktime',
+      'video/webm', 'video/ogg', 'video/x-msvideo'
     ];
 
     if (!allowedTypes.includes(mimeType.toLowerCase())) {
