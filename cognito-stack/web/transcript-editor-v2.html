@@ -1048,6 +1048,59 @@
             background: #fdf2f8;
         }
 
+        /* Speaker labels for diarization */
+        .speaker-label {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 8px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .speaker-label.speaker-0 {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .speaker-label.speaker-1 {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .speaker-label.speaker-2 {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .speaker-label.speaker-3 {
+            background: #f3e8ff;
+            color: #6b21a8;
+        }
+
+        .speaker-label.speaker-4 {
+            background: #ffe4e6;
+            color: #be123c;
+        }
+
+        .speaker-label.speaker-5 {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        /* Speaker change indicator */
+        .paragraph-container.speaker-change {
+            margin-top: 16px;
+        }
+
+        /* Speaker stats card */
+        .stat-card.speakers {
+            border-left: 3px solid #6366f1;
+        }
+
         .ai-loading-state {
             text-align: center;
             padding: 32px;
@@ -1455,6 +1508,10 @@
                     <div class="stat-card" id="stat-topics-card" style="display: none;">
                         <div class="stat-value" id="stat-topics">0</div>
                         <div class="stat-label">Topics</div>
+                    </div>
+                    <div class="stat-card speakers" id="stat-speakers-card" style="display: none;">
+                        <div class="stat-value" id="stat-speakers">0</div>
+                        <div class="stat-label">Speakers</div>
                     </div>
                 </div>
             </div>
@@ -2225,26 +2282,75 @@
                 const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
                 console.log('Full session path:', sessionPath);
 
-                // FAST PATH: Try to load topic-segmented file first, then fall back to processed
-                console.log('Checking for topic-segmented or pre-processed transcript...');
+                // FAST PATH: Try to load diarized first, then topic-segmented, then processed
+                console.log('Checking for diarized, topic-segmented, or pre-processed transcript...');
 
-                // Try topic-segmented first (has topic breaks marked)
+                // Priority order: diarized (speaker labels) > topic-segmented > processed
+                const diarizedKey = `${sessionPath}/transcription-diarized.json`;
                 const topicSegmentedKey = `${sessionPath}/transcription-topic-segmented.json`;
                 const processedKey = `${sessionPath}/transcription-processed.json`;
 
                 let loadedFrom = null;
 
-                // Try topic-segmented first
+                // Try diarized first (has speaker labels)
                 try {
-                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKey)}`);
                     const response = await fetch(downloadData.downloadUrl);
                     if (response.ok) {
-                        processedData = await response.json();
-                        loadedFrom = 'topic-segmented';
-                        console.log('✅ Found topic-segmented transcript - loading with topic breaks!');
+                        const diarizedData = await response.json();
+                        // Convert diarized format (segments) to editor format (paragraphs)
+                        if (diarizedData.segments && !diarizedData.paragraphs) {
+                            const paragraphs = diarizedData.segments.map((seg, idx) => ({
+                                text: seg.text,
+                                startTime: seg.start,
+                                endTime: seg.end,
+                                start: seg.start,
+                                end: seg.end,
+                                speaker: seg.speaker,
+                                words: seg.words || [],
+                                chunkIds: ['chunk-001'],
+                                originalText: seg.text
+                            }));
+
+                            // Compute stats from paragraphs
+                            const totalWords = paragraphs.reduce((sum, p) => sum + (p.text || '').split(/\s+/).filter(w => w).length, 0);
+                            const totalDuration = paragraphs.length > 0 ?
+                                Math.max(...paragraphs.map(p => p.endTime || 0)) - Math.min(...paragraphs.map(p => p.startTime || 0)) : 0;
+
+                            processedData = {
+                                paragraphs: paragraphs,
+                                speakers: diarizedData.speakers,
+                                diarization_metadata: diarizedData.diarization_metadata,
+                                stats: {
+                                    paragraphCount: paragraphs.length,
+                                    totalWords: totalWords,
+                                    totalDuration: totalDuration,
+                                    wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
+                                }
+                            };
+                        } else {
+                            processedData = diarizedData;
+                        }
+                        loadedFrom = 'diarized';
+                        console.log('✅ Found diarized transcript - loading with speaker labels!');
                     }
                 } catch (e) {
-                    console.log('No topic-segmented file, trying pre-processed...');
+                    console.log('No diarized file, trying topic-segmented...');
+                }
+
+                // Try topic-segmented next (has topic breaks marked)
+                if (!loadedFrom) {
+                    try {
+                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
+                        const response = await fetch(downloadData.downloadUrl);
+                        if (response.ok) {
+                            processedData = await response.json();
+                            loadedFrom = 'topic-segmented';
+                            console.log('✅ Found topic-segmented transcript - loading with topic breaks!');
+                        }
+                    } catch (e) {
+                        console.log('No topic-segmented file, trying pre-processed...');
+                    }
                 }
 
                 // Fall back to processed if topic-segmented not found
@@ -2570,6 +2676,25 @@
                 document.getElementById('stat-topics-card').style.display = 'block';
             }
 
+            // Show speaker count if diarization was performed
+            if (processedData.speakers && processedData.speakers.length > 0) {
+                document.getElementById('stat-speakers').textContent = processedData.speakers.length;
+                document.getElementById('stat-speakers-card').style.display = 'block';
+            } else if (processedData.diarization_metadata && processedData.diarization_metadata.num_speakers) {
+                document.getElementById('stat-speakers').textContent = processedData.diarization_metadata.num_speakers;
+                document.getElementById('stat-speakers-card').style.display = 'block';
+            }
+
+            // Build speaker index map for consistent colors
+            const speakerList = processedData.speakers || [];
+            const speakerIndexMap = {};
+            speakerList.forEach((speaker, index) => {
+                speakerIndexMap[speaker] = index;
+            });
+
+            // Track previous speaker to detect changes
+            let previousSpeaker = null;
+
             // Render paragraphs
             processedData.paragraphs.forEach((para, index) => {
                 const paraDiv = document.createElement('div');
@@ -2587,6 +2712,23 @@
                 number.textContent = index + 1;
                 number.title = 'Click to play from here';
                 number.onclick = (e) => onParagraphClick(index, e);
+
+                // Add speaker label if diarization data is available
+                const speaker = para.speaker;
+                if (speaker && speaker !== 'UNKNOWN') {
+                    const speakerLabel = document.createElement('span');
+                    speakerLabel.className = 'speaker-label';
+                    const speakerIndex = speakerIndexMap[speaker] !== undefined ? speakerIndexMap[speaker] : 0;
+                    speakerLabel.classList.add(`speaker-${speakerIndex % 6}`);
+                    speakerLabel.textContent = speaker;
+                    paraDiv.appendChild(speakerLabel);
+
+                    // Mark speaker change
+                    if (previousSpeaker && previousSpeaker !== speaker) {
+                        paraDiv.classList.add('speaker-change');
+                    }
+                    previousSpeaker = speaker;
+                }
 
                 const text = document.createElement('div');
                 text.className = 'paragraph-text';
@@ -2621,7 +2763,7 @@
                 // Chunk badges
                 const chunkMeta = document.createElement('div');
                 chunkMeta.className = 'meta-item';
-                para.chunkIds.forEach(chunkId => {
+                (para.chunkIds || []).forEach(chunkId => {
                     const badge = document.createElement('span');
                     badge.className = 'chunk-badge';
                     badge.textContent = chunkId;
@@ -2643,7 +2785,7 @@
                 const originalContent = document.createElement('div');
                 originalContent.className = 'original-text-content';
                 originalContent.id = `original-${index}`;
-                originalContent.textContent = para.segments.map(s => s.text).join(' ');
+                originalContent.textContent = para.segments ? para.segments.map(s => s.text).join(' ') : (para.originalText || para.text || '');
 
                 paraDiv.appendChild(number);
                 paraDiv.appendChild(text);
@@ -3828,7 +3970,7 @@
         // Show chunk details
         function showChunkDetails(chunkId, paraIndex) {
             const para = processedData.paragraphs[paraIndex];
-            const chunkSegments = para.segments.filter(s => s.chunkId === chunkId);
+            const chunkSegments = (para.segments || []).filter(s => s.chunkId === chunkId);
 
             const modalBody = document.getElementById('modal-body');
             modalBody.innerHTML = `

@@ -280,13 +280,30 @@ process_session() {
     log_info "  📝 Updating session metadata..."
     if node "$PROJECT_ROOT/scripts/lib/update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Metadata updated - session marked as complete"
-        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
-        return 0
     else
         log_warn "  ⚠️  Metadata update failed"
-        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
-        return 0
     fi
+
+    # Step 5: Run diarization (if GPU is available and pyannote installed)
+    # Diarization adds speaker labels to the transcript
+    # Only runs on GPU instance where pyannote-audio is installed
+    if command -v nvidia-smi &>/dev/null && python3 -c "import pyannote.audio" &>/dev/null 2>&1; then
+        # Check if diarization already exists
+        if ! aws s3 ls "s3://$BUCKET/${session_folder}/transcription-diarized.json" &>/dev/null; then
+            log_info "  🎙️ Running speaker diarization..."
+            if python3 "$PROJECT_ROOT/scripts/520-diarize-transcripts.py" \
+                --session "$session_folder" 2>&1 | sed 's/^/    /'; then
+                log_success "  ✅ Diarization complete"
+            else
+                log_warn "  ⚠️  Diarization failed (will retry later)"
+            fi
+        else
+            log_info "  ✅ Diarization already exists"
+        fi
+    fi
+
+    PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+    return 0
 }
 
 # ============================================================================

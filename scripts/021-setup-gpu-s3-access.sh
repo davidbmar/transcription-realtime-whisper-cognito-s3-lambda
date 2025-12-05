@@ -40,10 +40,12 @@ source "$ENV_FILE"
 ROLE_NAME="${IAM_ROLE_NAME:-riva-gpu-role}"
 INSTANCE_PROFILE_NAME="${IAM_INSTANCE_PROFILE_NAME:-riva-gpu-profile}"
 POLICY_NAME="riva-gpu-policy"
-S3_BUCKET="${S3_MODEL_BUCKET:-dbm-cf-2-web}"
+S3_MODEL_BUCKET="${S3_MODEL_BUCKET:-dbm-cf-2-web}"
+S3_COGNITO_BUCKET="${COGNITO_S3_BUCKET:-clouddrive-app-bucket}"
 
 echo "Configuration:"
-echo "  • S3 Bucket: $S3_BUCKET"
+echo "  • Model Bucket: $S3_MODEL_BUCKET"
+echo "  • Cognito Bucket: $S3_COGNITO_BUCKET (for transcripts/diarization)"
 echo "  • AWS Region: $AWS_REGION"
 echo "  • GPU Instance: ${GPU_INSTANCE_ID:-not set}"
 echo "  • Role Name: $ROLE_NAME"
@@ -86,14 +88,28 @@ POLICY_DOCUMENT=$(cat <<EOF
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "ModelBucketReadOnly",
             "Effect": "Allow",
             "Action": [
                 "s3:GetObject",
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:s3:::${S3_BUCKET}",
-                "arn:aws:s3:::${S3_BUCKET}/*"
+                "arn:aws:s3:::${S3_MODEL_BUCKET}",
+                "arn:aws:s3:::${S3_MODEL_BUCKET}/*"
+            ]
+        },
+        {
+            "Sid": "CognitoBucketReadWrite",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::${S3_COGNITO_BUCKET}",
+                "arn:aws:s3:::${S3_COGNITO_BUCKET}/*"
             ]
         }
     ]
@@ -110,7 +126,7 @@ else
     aws iam create-policy \
         --policy-name "$POLICY_NAME" \
         --policy-document "$POLICY_DOCUMENT" \
-        --description "Read-only access to $S3_BUCKET for Riva GPU instances" \
+        --description "S3 access for Riva GPU: read $S3_MODEL_BUCKET, read/write $S3_COGNITO_BUCKET" \
         --output text
     echo "✅ Policy created: $POLICY_NAME"
 fi
@@ -287,7 +303,8 @@ if [ -n "${GPU_INSTANCE_ID:-}" ]; then
     echo ""
     echo "Verification:"
     echo "  SSH to GPU: ssh -i ~/.ssh/$SSH_KEY_NAME.pem ubuntu@${GPU_INSTANCE_IP:-<gpu-ip>}"
-    echo "  Test S3 access: aws s3 ls s3://$S3_BUCKET/"
+    echo "  Test model bucket: aws s3 ls s3://$S3_MODEL_BUCKET/"
+    echo "  Test cognito bucket: aws s3 ls s3://$S3_COGNITO_BUCKET/"
 else
     echo "  • Not attached (no GPU_INSTANCE_ID)"
 fi

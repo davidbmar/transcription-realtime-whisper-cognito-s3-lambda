@@ -92,8 +92,8 @@ def main():
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Find all audio files (support multiple formats)
-    audio_extensions = ['*.webm', '*.aac', '*.m4a', '*.mp3', '*.wav', '*.ogg', '*.flac']
+    # Find all audio files (support multiple formats including video files with audio tracks)
+    audio_extensions = ['*.webm', '*.aac', '*.m4a', '*.mp3', '*.wav', '*.ogg', '*.flac', '*.mp4', '*.mov', '*.m4v', '*.avi']
     audio_files = []
     for ext in audio_extensions:
         audio_files.extend(input_dir.glob(ext))
