@@ -46,9 +46,10 @@ const getUserLayerAccess = (groups) => {
     layers.forEach(l => accessibleLayers.add(l));
   }
 
-  // Default: read-only for layers 0-4, write for layer 5
+  // Default: write access to layer 1 (Speaker Chunks) and layer 5 (Annotations)
   if (accessibleLayers.size === 0) {
-    accessibleLayers.add(5);
+    accessibleLayers.add(1);  // Speaker Chunks - for chunk-split annotations
+    accessibleLayers.add(5);  // Annotations - for general annotations
   }
 
   return Array.from(accessibleLayers);
@@ -74,9 +75,9 @@ module.exports.listAnnotations = async (event) => {
     const queryParams = event.queryStringParameters || {};
     const layerFilter = queryParams.layer ? parseInt(queryParams.layer) : null;
 
-    // Collect annotations from layers 5-7
+    // Collect annotations from layers 1, 5-7 (Speaker Chunks + Annotation layers)
     const annotations = [];
-    const layersToFetch = layerFilter ? [layerFilter] : [5, 6, 7];
+    const layersToFetch = layerFilter ? [layerFilter] : [1, 5, 6, 7];
 
     for (const layer of layersToFetch) {
       const key = `users/${userId}/audio/sessions/${sessionId}/layer-${layer}-annotations/annotations.json`;
@@ -128,11 +129,14 @@ module.exports.createAnnotation = async (event) => {
     }
 
     const body = JSON.parse(event.body || '{}');
-    const { layerId, type, target, data } = body;
+    const { layerId: rawLayerId, type, target, data } = body;
 
-    if (!layerId || !type || !target) {
+    if (!rawLayerId || !type || !target) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'layerId, type, and target required' }) };
     }
+
+    // Convert layerId to integer for comparison (may come as string from JSON)
+    const layerId = typeof rawLayerId === 'string' ? parseInt(rawLayerId, 10) : rawLayerId;
 
     // Check layer access
     const accessibleLayers = getUserLayerAccess(groups);
@@ -221,15 +225,20 @@ module.exports.updateAnnotation = async (event) => {
     }
 
     const body = JSON.parse(event.body || '{}');
-    const { layerId, data, resolved } = body;
+    const { layerId: rawLayerId, data, resolved } = body;
 
-    if (!layerId) {
+    if (!rawLayerId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'layerId required' }) };
     }
 
+    // Convert layerId to integer for comparison (may come as string from JSON)
+    const layerId = typeof rawLayerId === 'string' ? parseInt(rawLayerId, 10) : rawLayerId;
+
     // Check layer access
     const accessibleLayers = getUserLayerAccess(groups);
+    console.log('[updateAnnotation] userId:', userId, 'groups:', groups, 'accessibleLayers:', accessibleLayers, 'layerId:', layerId);
     if (!accessibleLayers.includes(layerId)) {
+      console.log('[updateAnnotation] Access denied - layer', layerId, 'not in', accessibleLayers);
       return { statusCode: 403, headers, body: JSON.stringify({ error: `No write access to layer ${layerId}` }) };
     }
 
@@ -374,7 +383,19 @@ module.exports.getLayers = async (event) => {
 
     const layers = {};
 
-    // Layer 2: Speaker chunks
+    // Layer 1: Speaker Chunks (new location for chunk-split annotations)
+    try {
+      const data = await s3.getObject({
+        Bucket: bucketName,
+        Key: `${basePath}/layer-1-annotations/annotations.json`
+      }).promise();
+      layers['1'] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
+    } catch (err) {
+      if (err.code !== 'NoSuchKey') console.error('Layer 1 error:', err);
+      layers['1'] = { status: 'pending' };
+    }
+
+    // Layer 2: Speaker chunks (legacy - for backward compatibility)
     try {
       const data = await s3.getObject({
         Bucket: bucketName,

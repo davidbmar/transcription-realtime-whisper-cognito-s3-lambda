@@ -1777,34 +1777,133 @@
             </div>
 
             <!-- Annotation Layers -->
-            <div class="sidebar-section" id="layers-section">
-                <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Annotation Layers</span>
-                    <span id="layer-role-badge" style="font-size: 10px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px;">Layer 5</span>
+            <!-- Photoshop-Style Layer Panel -->
+            <div class="sidebar-section layer-panel" id="layers-section">
+                <div class="layer-panel-header">
+                    <span class="layer-panel-title">Layers</span>
+                    <button class="layer-add-btn" onclick="layerManager.addLayer()" title="Add Layer">+</button>
                 </div>
-                <div id="layer-toggles" style="display: flex; flex-direction: column; gap: 6px;">
-                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="layer-2-toggle" checked onchange="layerManager.toggleLayer(2, this.checked)" style="accent-color: var(--primary);">
-                        <span style="flex: 1; font-size: 13px;">Layer 2: Speaker Chunks</span>
-                        <span class="layer-count" id="layer-2-count" style="font-size: 11px; color: var(--gray-500);">-</span>
-                    </label>
-                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="layer-5-toggle" checked onchange="layerManager.toggleLayer(5, this.checked)" style="accent-color: #3b82f6;">
-                        <span style="flex: 1; font-size: 13px;">Layer 5: Junior Review</span>
-                        <span class="layer-count" id="layer-5-count" style="font-size: 11px; color: var(--gray-500);">0</span>
-                    </label>
-                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="layer-6-toggle" checked onchange="layerManager.toggleLayer(6, this.checked)" style="accent-color: #8b5cf6;">
-                        <span style="flex: 1; font-size: 13px;">Layer 6: Senior Review</span>
-                        <span class="layer-count" id="layer-6-count" style="font-size: 11px; color: var(--gray-500);">0</span>
-                    </label>
-                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="layer-7-toggle" checked onchange="layerManager.toggleLayer(7, this.checked)" style="accent-color: #dc2626;">
-                        <span style="flex: 1; font-size: 13px;">Layer 7: Principal</span>
-                        <span class="layer-count" id="layer-7-count" style="font-size: 11px; color: var(--gray-500);">0</span>
-                    </label>
+                <div class="layer-stack" id="layer-stack">
+                    <!-- Layers rendered dynamically by renderLayerPanel() -->
                 </div>
             </div>
+            <style>
+                .layer-panel {
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid var(--gray-200);
+                    overflow: hidden;
+                }
+                .layer-panel-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 12px;
+                    background: var(--gray-50);
+                    border-bottom: 1px solid var(--gray-200);
+                }
+                .layer-panel-title {
+                    font-weight: 600;
+                    font-size: 13px;
+                    color: var(--gray-700);
+                }
+                .layer-add-btn {
+                    width: 24px;
+                    height: 24px;
+                    border: none;
+                    background: var(--primary);
+                    color: white;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .layer-add-btn:hover {
+                    background: var(--primary-dark, #1d4ed8);
+                }
+                .layer-stack {
+                    max-height: 280px;
+                    overflow-y: auto;
+                }
+                .layer-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 12px;
+                    border-bottom: 1px solid var(--gray-100);
+                    cursor: pointer;
+                    transition: background 0.15s;
+                }
+                .layer-item:hover {
+                    background: var(--gray-50);
+                }
+                .layer-item.selected {
+                    background: rgba(59, 130, 246, 0.1);
+                    border-left: 3px solid var(--primary);
+                }
+                .layer-item.locked {
+                    opacity: 0.7;
+                }
+                .layer-item.hidden {
+                    opacity: 0.4;
+                }
+                .layer-visibility, .layer-lock {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 2px;
+                    font-size: 14px;
+                    opacity: 0.7;
+                }
+                .layer-visibility:hover, .layer-lock:hover {
+                    opacity: 1;
+                }
+                .layer-visibility.off {
+                    opacity: 0.3;
+                }
+                .layer-color {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 3px;
+                    flex-shrink: 0;
+                }
+                .layer-name {
+                    flex: 1;
+                    font-size: 13px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .layer-count {
+                    font-size: 11px;
+                    color: var(--gray-500);
+                    background: var(--gray-100);
+                    padding: 2px 6px;
+                    border-radius: 8px;
+                    min-width: 20px;
+                    text-align: center;
+                }
+
+                /* Hide speaker chunks when Layer 1 is toggled off */
+                .hide-speaker-chunks .speaker-label {
+                    display: none !important;
+                }
+                .hide-speaker-chunks .segment-wrapper {
+                    background: transparent !important;
+                    border-left: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                .hide-speaker-chunks .segment-speaker-chip {
+                    display: none !important;
+                }
+                .hide-speaker-chunks .split-speaker-btn {
+                    display: none !important;
+                }
+            </style>
 
             <!-- Actions -->
             <div class="sidebar-section">
@@ -2247,7 +2346,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.11.3-debug-hide';
+        const TRANSCRIPT_EDITOR_VERSION = '2.20.0-update-debug';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -2273,57 +2372,285 @@
         // ========================================
         // Layer Management for Annotation Pipeline
         // ========================================
+        // Photoshop-style Layer Manager
+        // Layer 0: Raw Transcription (system, locked)
+        // Layer 1: Speaker Chunks (system, editable)
+        // Layer 100+: User-created annotation layers
         const layerManager = {
+            // Default layer definitions (will be overwritten by session data)
             layers: {
-                2: { name: 'Speaker Chunks', visible: true, data: null },
-                5: { name: 'Junior Review', visible: true, annotations: [] },
-                6: { name: 'Senior Review', visible: true, annotations: [] },
-                7: { name: 'Principal', visible: true, annotations: [] }
+                0: {
+                    id: 0,
+                    name: 'Raw Transcription',
+                    type: 'system',
+                    locked: true,
+                    visible: true,
+                    color: '#6b7280',
+                    order: 0,
+                    annotations: []
+                },
+                1: {
+                    id: 1,
+                    name: 'Speaker Chunks',
+                    type: 'system',
+                    locked: false,
+                    visible: true,
+                    color: '#3b82f6',
+                    order: 1,
+                    annotations: []
+                },
+                5: {
+                    id: 5,
+                    name: 'Annotations',
+                    type: 'user',
+                    locked: false,
+                    visible: true,
+                    color: '#f59e0b',
+                    order: 2,
+                    annotations: []
+                }
             },
-            currentEditLayer: 5, // Default to junior review layer
+            layerOrder: [5, 1, 0], // Top to bottom (highest layer first)
+            activeLayer: 5, // Currently selected layer for editing
+            nextLayerId: 100, // Next ID for user-created layers
 
+            // Get layers sorted by order (top to bottom for display)
+            getOrderedLayers() {
+                return this.layerOrder
+                    .map(id => this.layers[id])
+                    .filter(Boolean);
+            },
+
+            toggleVisibility(layerId) {
+                if (this.layers[layerId]) {
+                    this.layers[layerId].visible = !this.layers[layerId].visible;
+                    this.renderLayerPanel();
+                    this.applyLayerVisibility();
+                    this.renderAnnotations();
+                    console.log(`[Layer] ${layerId} visibility: ${this.layers[layerId].visible}`);
+                }
+            },
+
+            // Apply visibility CSS classes based on layer state
+            applyLayerVisibility() {
+                const transcriptContent = document.getElementById('transcript-content');
+                if (!transcriptContent) return;
+
+                // Layer 1: Speaker Chunks - toggle speaker labels and split wrappers
+                if (this.layers[1]?.visible) {
+                    transcriptContent.classList.remove('hide-speaker-chunks');
+                } else {
+                    transcriptContent.classList.add('hide-speaker-chunks');
+                }
+
+                // Layer 0: Raw Transcription - always visible (base text)
+                // No toggle needed - text is always shown
+            },
+
+            toggleLock(layerId) {
+                const layer = this.layers[layerId];
+                if (layer && layer.type !== 'system') {
+                    // Can't unlock system layers that are always locked
+                    if (layer.id === 0) return;
+                    layer.locked = !layer.locked;
+                    this.renderLayerPanel();
+                    console.log(`[Layer] ${layerId} locked: ${layer.locked}`);
+                }
+            },
+
+            selectLayer(layerId) {
+                if (this.layers[layerId]) {
+                    this.activeLayer = layerId;
+                    this.renderLayerPanel();
+                    console.log(`[Layer] Selected: ${layerId}`);
+                }
+            },
+
+            // Legacy method for compatibility
             toggleLayer(layerId, visible) {
                 if (this.layers[layerId]) {
                     this.layers[layerId].visible = visible;
+                    this.renderLayerPanel();
+                    this.applyLayerVisibility();
                     this.renderAnnotations();
-                    console.log(`Layer ${layerId} visibility: ${visible}`);
                 }
             },
 
+            // Legacy method for compatibility
             setEditLayer(layerId) {
-                this.currentEditLayer = layerId;
-                const badge = document.getElementById('layer-role-badge');
-                if (badge) {
-                    badge.textContent = `Layer ${layerId}`;
-                    const colors = { 5: '#3b82f6', 6: '#8b5cf6', 7: '#dc2626' };
-                    badge.style.background = colors[layerId] || 'var(--primary)';
-                }
+                this.activeLayer = layerId;
+                this.renderLayerPanel();
+            },
+
+            // Alias for backward compatibility
+            get currentEditLayer() {
+                return this.activeLayer;
+            },
+            set currentEditLayer(value) {
+                this.activeLayer = value;
             },
 
             async loadLayersForSession(sessionId) {
                 try {
                     const response = await apiCall(`/api/sessions/${sessionId}/layers`);
+                    console.log('[Layers] Raw response:', response);
                     if (response.layers) {
-                        // Update layer data
+                        // Update layer data from backend
                         for (const [layerId, layerData] of Object.entries(response.layers)) {
-                            if (this.layers[layerId]) {
-                                if (layerData.data) {
-                                    if (layerId === '2') {
-                                        this.layers[layerId].data = layerData.data;
-                                        document.getElementById('layer-2-count').textContent =
-                                            layerData.data.chunks?.length || '-';
-                                    } else {
-                                        this.layers[layerId].annotations = layerData.data.annotations || [];
-                                        document.getElementById(`layer-${layerId}-count`).textContent =
-                                            this.layers[layerId].annotations.length;
-                                    }
-                                }
+                            const lid = parseInt(layerId);
+                            console.log(`[Layers] Processing layer ${layerId} (parsed: ${lid}), status: ${layerData.status}, has data: ${!!layerData.data}`);
+
+                            if (layerData.data?.annotations) {
+                                console.log(`[Layers] Layer ${layerId} has ${layerData.data.annotations.length} annotations`);
+                            }
+
+                            // Layer 1 (Speaker Chunks) - chunk-split annotations
+                            if (lid === 1) {
+                                this.layers[1].annotations = layerData.data?.annotations || [];
+                                console.log(`[Layers] Loaded ${this.layers[1].annotations.length} annotations into Speaker Chunks (layer 1)`);
+                            }
+                            // Layer 2 (legacy speaker chunks) - also goes to layer 1 for backward compat
+                            else if (layerId === '2' && layerData.data?.annotations) {
+                                // Merge with existing layer 1 annotations
+                                const existing = this.layers[1].annotations || [];
+                                this.layers[1].annotations = [...existing, ...layerData.data.annotations];
+                                console.log(`[Layers] Merged ${layerData.data.annotations.length} legacy layer 2 annotations into Speaker Chunks`);
+                            }
+                            // User annotation layers (5, 6, 7)
+                            else if (this.layers[lid] && layerData.data) {
+                                this.layers[lid].annotations = layerData.data.annotations || [];
+                                console.log(`[Layers] Loaded ${this.layers[lid].annotations.length} annotations into layer ${lid}`);
                             }
                         }
                     }
+                    this.renderLayerPanel();
                 } catch (err) {
-                    console.log('Layers not yet available for session (new API):', err.message);
+                    console.log('Layers not yet available for session:', err.message);
+                    this.renderLayerPanel();
                 }
+            },
+
+            // Render the Photoshop-style layer panel
+            renderLayerPanel() {
+                const container = document.getElementById('layer-stack');
+                if (!container) return;
+
+                container.innerHTML = '';
+
+                // Render layers top to bottom
+                for (const layer of this.getOrderedLayers()) {
+                    const item = document.createElement('div');
+                    item.className = 'layer-item' +
+                        (layer.id === this.activeLayer ? ' selected' : '') +
+                        (layer.locked ? ' locked' : '') +
+                        (!layer.visible ? ' hidden' : '');
+                    item.dataset.layerId = layer.id;
+
+                    // Eye icon (visibility)
+                    const eyeBtn = document.createElement('button');
+                    eyeBtn.className = 'layer-visibility' + (!layer.visible ? ' off' : '');
+                    eyeBtn.innerHTML = layer.visible ? '👁' : '👁‍🗨';
+                    eyeBtn.title = layer.visible ? 'Hide layer' : 'Show layer';
+                    eyeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        this.toggleVisibility(layer.id);
+                    };
+
+                    // Lock icon
+                    const lockBtn = document.createElement('button');
+                    lockBtn.className = 'layer-lock';
+                    lockBtn.innerHTML = layer.locked ? '🔒' : '🔓';
+                    lockBtn.title = layer.locked ? 'Locked' : 'Unlocked';
+                    if (layer.id === 0) {
+                        lockBtn.disabled = true;
+                        lockBtn.style.opacity = '0.5';
+                    } else {
+                        lockBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            this.toggleLock(layer.id);
+                        };
+                    }
+
+                    // Color swatch
+                    const colorSwatch = document.createElement('div');
+                    colorSwatch.className = 'layer-color';
+                    colorSwatch.style.background = layer.color;
+
+                    // Layer name
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'layer-name';
+                    nameSpan.textContent = layer.name;
+
+                    // Annotation count
+                    const countSpan = document.createElement('span');
+                    countSpan.className = 'layer-count';
+                    countSpan.textContent = layer.id === 0 ? '-' : (layer.annotations?.length || 0);
+
+                    // Assemble
+                    item.appendChild(eyeBtn);
+                    item.appendChild(lockBtn);
+                    item.appendChild(colorSwatch);
+                    item.appendChild(nameSpan);
+                    item.appendChild(countSpan);
+
+                    // Click to select
+                    item.onclick = () => this.selectLayer(layer.id);
+
+                    container.appendChild(item);
+                }
+            },
+
+            // Add a new user layer
+            addLayer() {
+                const name = prompt('Enter layer name:', `Layer ${this.nextLayerId}`);
+                if (!name) return;
+
+                const colors = ['#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+                const color = colors[Object.keys(this.layers).length % colors.length];
+
+                const newLayer = {
+                    id: this.nextLayerId,
+                    name: name,
+                    type: 'user',
+                    locked: false,
+                    visible: true,
+                    color: color,
+                    order: this.layerOrder.length,
+                    annotations: []
+                };
+
+                this.layers[this.nextLayerId] = newLayer;
+                this.layerOrder.unshift(this.nextLayerId); // Add to top
+                this.activeLayer = this.nextLayerId;
+                this.nextLayerId++;
+
+                this.renderLayerPanel();
+                showToast(`Layer "${name}" created`);
+            },
+
+            // Delete a user layer
+            deleteLayer(layerId) {
+                const layer = this.layers[layerId];
+                if (!layer || layer.type === 'system') {
+                    showToast('Cannot delete system layer', 'error');
+                    return;
+                }
+
+                if (!confirm(`Delete layer "${layer.name}"? This will remove all annotations in this layer.`)) {
+                    return;
+                }
+
+                delete this.layers[layerId];
+                this.layerOrder = this.layerOrder.filter(id => id !== layerId);
+
+                // Select another layer if we deleted the active one
+                if (this.activeLayer === layerId) {
+                    this.activeLayer = this.layerOrder[0] || 5;
+                }
+
+                this.renderLayerPanel();
+                this.renderAnnotations();
+                showToast(`Layer deleted`);
             },
 
             async createAnnotation(type, target, data) {
@@ -2332,9 +2659,14 @@
                     return null;
                 }
 
+                // Route chunk-split annotations to Layer 1 (Speaker Chunks)
+                // All other annotations go to the current edit layer
+                const targetLayer = (type === 'chunk-split') ? 1 : this.currentEditLayer;
+                console.log(`[Layer] Creating ${type} annotation in layer ${targetLayer}`);
+
                 const sessionId = encodeURIComponent(currentSession.folder);
                 const body = {
-                    layerId: this.currentEditLayer,
+                    layerId: targetLayer,
                     type,
                     target,
                     data
@@ -2347,9 +2679,11 @@
                     });
 
                     if (response.annotation) {
-                        this.layers[this.currentEditLayer].annotations.push(response.annotation);
-                        document.getElementById(`layer-${this.currentEditLayer}-count`).textContent =
-                            this.layers[this.currentEditLayer].annotations.length;
+                        this.layers[targetLayer].annotations.push(response.annotation);
+                        const countEl = document.getElementById(`layer-${targetLayer}-count`);
+                        if (countEl) {
+                            countEl.textContent = this.layers[targetLayer].annotations.length;
+                        }
                         this.renderAnnotations();
                         showToast('Annotation saved');
                         return response.annotation;
@@ -2394,8 +2728,11 @@
                             const idx = layer.annotations.findIndex(a => a.id === annotationId);
                             if (idx !== -1) {
                                 layer.annotations.splice(idx, 1);
-                                document.getElementById(`layer-${layerId}-count`).textContent =
-                                    layer.annotations.length;
+                                const countEl = document.getElementById(`layer-${layerId}-count`);
+                                if (countEl) {
+                                    countEl.textContent = layer.annotations.length;
+                                }
+                                console.log(`[Delete] Removed annotation from layer ${layerId}`);
                                 break;
                             }
                         }
@@ -2490,7 +2827,22 @@
                 const textEl = chunkEl.querySelector('.paragraph-text');
                 if (!textEl) return;
 
-                const words = textEl.querySelectorAll('.word-highlight');
+                // CLEANUP: Remove any existing segment wrappers first (prevents duplication)
+                textEl.querySelectorAll('.segment-wrapper').forEach(wrapper => {
+                    // Move children (words) back out to textEl
+                    while (wrapper.firstChild) {
+                        // Skip speaker chips and delete buttons - just move word elements
+                        const child = wrapper.firstChild;
+                        if (child.classList?.contains('word-highlight')) {
+                            textEl.insertBefore(child, wrapper);
+                        } else {
+                            wrapper.removeChild(child);
+                        }
+                    }
+                    wrapper.remove();
+                });
+
+                const words = Array.from(textEl.querySelectorAll('.word-highlight'));
                 const segments = annotation.data.segments;
 
                 console.log('[Render] Applying chunk-split to', chunkEl.dataset.chunkId, 'with', segments.length, 'segments');
@@ -2514,8 +2866,24 @@
                 chunkEl.classList.add('has-split-annotation');
                 console.log('[Render] Added has-split-annotation class to', chunkEl.dataset.chunkId);
 
-                // Create segment wrappers for saved splits
-                segments.forEach((seg, segIdx) => {
+                // STEP 1: Collect all word nodes for each segment BEFORE any DOM changes
+                const segmentWordNodes = segments.map(seg => {
+                    const wordNodes = [];
+                    for (let i = seg.startWord; i <= seg.endWord && i < words.length; i++) {
+                        wordNodes.push(words[i]);
+                    }
+                    return wordNodes;
+                });
+
+                // STEP 2: Ensure all words are direct children of textEl (flat structure)
+                segmentWordNodes.flat().forEach(word => {
+                    if (word.parentNode !== textEl) {
+                        textEl.appendChild(word);
+                    }
+                });
+
+                // STEP 3: Create ALL wrappers first (they will be siblings)
+                const wrappers = segments.map((seg, segIdx) => {
                     const wrapper = document.createElement('div');
                     wrapper.className = 'segment-wrapper saved';
                     wrapper.dataset.annotationId = annotation.id;
@@ -2529,11 +2897,11 @@
                         position: relative;
                     `;
 
-                    // Add speaker label (not editable for saved splits - shows read-only)
+                    // Add speaker label - clickable to change speaker
                     const chip = document.createElement('span');
                     chip.className = 'segment-speaker-chip saved';
                     const displayName = speakerNames[seg.speaker] || seg.speaker;
-                    chip.textContent = displayName;
+                    chip.textContent = displayName + ' ▼';
                     chip.style.cssText = `
                         display: inline-block;
                         background: white;
@@ -2545,7 +2913,13 @@
                         margin-right: 8px;
                         font-weight: 600;
                         box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        cursor: pointer;
                     `;
+                    chip.onclick = (e) => {
+                        e.stopPropagation();
+                        this.showSavedSpeakerPicker(chip, annotation, segIdx);
+                    };
+                    wrapper.appendChild(chip);
 
                     // Add delete button on first segment only (deletes the whole split)
                     if (segIdx === 0) {
@@ -2569,20 +2943,146 @@
                         wrapper.appendChild(deleteBtn);
                     }
 
-                    // Collect words for this segment
-                    const segmentWords = [];
-                    for (let i = seg.startWord; i <= seg.endWord && i < words.length; i++) {
-                        segmentWords.push(words[i]);
-                    }
-
-                    // Move words into wrapper
-                    if (segmentWords.length > 0) {
-                        const firstWord = segmentWords[0];
-                        firstWord.parentNode.insertBefore(wrapper, firstWord);
-                        wrapper.appendChild(chip);
-                        segmentWords.forEach(w => wrapper.appendChild(w));
-                    }
+                    return wrapper;
                 });
+
+                // STEP 4: Append all wrappers to textEl as siblings
+                wrappers.forEach(wrapper => {
+                    textEl.appendChild(wrapper);
+                });
+
+                // STEP 5: Move words into their respective wrappers
+                segments.forEach((seg, segIdx) => {
+                    const wrapper = wrappers[segIdx];
+                    const wordNodes = segmentWordNodes[segIdx];
+                    wordNodes.forEach(word => wrapper.appendChild(word));
+                });
+            },
+
+            // Show speaker picker for saved split annotations
+            showSavedSpeakerPicker(chip, annotation, segmentIndex) {
+                // Remove existing pickers
+                document.querySelectorAll('.speaker-picker').forEach(p => p.remove());
+
+                const picker = document.createElement('div');
+                picker.className = 'speaker-picker';
+                picker.style.cssText = `
+                    position: absolute;
+                    background: white;
+                    border: 1px solid var(--gray-300);
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 1001;
+                    padding: 8px;
+                    min-width: 160px;
+                `;
+
+                // Get available speakers from transcript data
+                const speakerList = processedData?.speakers || [];
+                const speakers = speakerList.length > 0
+                    ? speakerList.map(id => [id, speakerNames[id] || id])
+                    : [['SPEAKER_00', 'Speaker 1'], ['SPEAKER_01', 'Speaker 2']];
+
+                speakers.forEach(([id, name]) => {
+                    const btn = document.createElement('button');
+                    btn.textContent = name;
+                    btn.style.cssText = `
+                        display: block;
+                        width: 100%;
+                        padding: 8px 12px;
+                        border: none;
+                        background: white;
+                        text-align: left;
+                        cursor: pointer;
+                        border-radius: 4px;
+                        font-size: 13px;
+                    `;
+                    btn.onmouseenter = () => btn.style.background = 'var(--gray-100)';
+                    btn.onmouseleave = () => btn.style.background = 'white';
+                    btn.onclick = async () => {
+                        // Update the annotation segment
+                        annotation.data.segments[segmentIndex].speaker = id;
+                        chip.textContent = name + ' ▼';
+                        picker.remove();
+
+                        // Save the updated annotation
+                        await this.updateAnnotation(annotation);
+                        showToast(`Speaker changed to ${name}`);
+                    };
+                    picker.appendChild(btn);
+                });
+
+                // Position picker below the chip
+                const rect = chip.getBoundingClientRect();
+                picker.style.left = `${rect.left}px`;
+                picker.style.top = `${rect.bottom + 4}px`;
+                picker.style.position = 'fixed';
+
+                document.body.appendChild(picker);
+
+                // Close picker when clicking outside
+                const closeHandler = (e) => {
+                    if (!picker.contains(e.target) && e.target !== chip) {
+                        picker.remove();
+                        document.removeEventListener('click', closeHandler);
+                    }
+                };
+                setTimeout(() => document.addEventListener('click', closeHandler), 0);
+            },
+
+            // Update an existing annotation
+            async updateAnnotation(annotation) {
+                if (!currentSession?.folder) {
+                    console.error('No session folder available');
+                    return false;
+                }
+
+                console.log('[Update] Looking for annotation:', annotation.id);
+                console.log('[Update] Current layers state:', Object.keys(this.layers).map(k =>
+                    `Layer ${k}: ${this.layers[k].annotations?.length || 0} annotations`
+                ));
+
+                // Find which layer contains this annotation
+                let foundLayerId = null;
+                for (const [layerId, layer] of Object.entries(this.layers)) {
+                    if (layer.annotations?.some(a => a.id === annotation.id)) {
+                        foundLayerId = layerId;
+                        console.log(`[Update] Found annotation in layer ${layerId}`);
+                        break;
+                    }
+                }
+
+                if (!foundLayerId) {
+                    console.error('Annotation not found in any layer:', annotation.id);
+                    console.log('[Update] Dumping all annotations for debugging:');
+                    for (const [layerId, layer] of Object.entries(this.layers)) {
+                        console.log(`  Layer ${layerId}:`, layer.annotations?.map(a => a.id) || []);
+                    }
+                    return false;
+                }
+
+                const sessionId = encodeURIComponent(currentSession.folder);
+
+                // Convert to integer for backend
+                const layerIdInt = parseInt(foundLayerId, 10);
+                console.log(`[Update] Sending update to layer ${layerIdInt} (was string: "${foundLayerId}")`);
+
+                try {
+                    const response = await apiCall(`/api/sessions/${sessionId}/annotations/${annotation.id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            layerId: layerIdInt,
+                            data: annotation.data  // Backend expects 'data' field for partial update
+                        })
+                    });
+
+                    console.log('[LayerManager] Annotation updated:', response);
+                    return true;
+                } catch (error) {
+                    console.error('[LayerManager] Failed to update annotation:', error);
+                    showToast('Failed to update annotation', 'error');
+                    return false;
+                }
             }
         };
 
@@ -2748,8 +3248,68 @@
                     });
                 }
 
-                // Visually wrap each segment
-                this.segments.forEach((seg, segIdx) => {
+                // IMPORTANT: Capture ALL nodes in a static array BEFORE modifying the DOM
+                // This fixes the bug where processing segment 1 modifies the DOM,
+                // causing segment 2 to miss elements that were moved into segment 1's wrapper
+                const allNodes = [];
+                let node = textEl.firstChild;
+                let wordCount = 0;
+                while (node) {
+                    if (node.classList?.contains('word-highlight')) {
+                        allNodes.push({ node, type: 'word', wordIndex: wordCount });
+                        wordCount++;
+                    } else if (node.classList?.contains('blade-target')) {
+                        const bladeIdx = parseInt(node.dataset.splitIndex);
+                        const isCut = node.classList.contains('cut');
+                        allNodes.push({ node, type: 'blade', bladeIndex: bladeIdx, isCut });
+                    }
+                    node = node.nextSibling;
+                }
+
+                // Now assign each node to a segment
+                const segmentNodes = this.segments.map(() => []);
+
+                allNodes.forEach(item => {
+                    if (item.type === 'word') {
+                        // Find which segment this word belongs to
+                        for (let segIdx = 0; segIdx < this.segments.length; segIdx++) {
+                            const seg = this.segments[segIdx];
+                            if (item.wordIndex >= seg.startWord && item.wordIndex <= seg.endWord) {
+                                segmentNodes[segIdx].push(item.node);
+                                break;
+                            }
+                        }
+                    } else if (item.type === 'blade') {
+                        // Blade at index X is positioned BEFORE word X
+                        // Include in the segment that contains word X, OR
+                        // if it's a cut blade, include at the END of the previous segment
+                        for (let segIdx = 0; segIdx < this.segments.length; segIdx++) {
+                            const seg = this.segments[segIdx];
+                            // Non-cut blades go with their word (blade X goes with word X)
+                            if (item.bladeIndex >= seg.startWord && item.bladeIndex <= seg.endWord) {
+                                segmentNodes[segIdx].push(item.node);
+                                break;
+                            }
+                            // Cut blade at segment boundary goes to the END of the previous segment
+                            if (item.isCut && item.bladeIndex === seg.endWord + 1) {
+                                segmentNodes[segIdx].push(item.node);
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                // First, move ALL nodes back to textEl to ensure flat structure
+                // This handles any case where nodes might be in nested wrappers
+                segmentNodes.flat().forEach(node => {
+                    if (node.parentNode !== textEl) {
+                        textEl.appendChild(node);
+                    }
+                });
+
+                // Now create ALL wrappers first, then populate them
+                // This ensures wrappers are siblings, not nested
+                const wrappers = this.segments.map((seg, segIdx) => {
                     const wrapper = document.createElement('div');
                     wrapper.className = 'segment-wrapper';
                     wrapper.dataset.segmentIndex = segIdx;
@@ -2786,35 +3346,21 @@
                         e.stopPropagation();
                         this.showSpeakerPicker(chip, segIdx);
                     };
+                    wrapper.appendChild(chip);
 
-                    // Get the word elements for this segment
-                    const segmentWords = [];
-                    let node = textEl.firstChild;
-                    let wordCount = 0;
-                    while (node) {
-                        const next = node.nextSibling;
-                        // FIX: words have class 'word-highlight', not 'word'
-                        if (node.classList?.contains('word-highlight')) {
-                            if (wordCount >= seg.startWord && wordCount <= seg.endWord) {
-                                segmentWords.push(node);
-                            }
-                            wordCount++;
-                        } else if (node.classList?.contains('blade-target')) {
-                            const bladeIdx = parseInt(node.dataset.splitIndex);
-                            if (bladeIdx > seg.startWord && bladeIdx <= seg.endWord) {
-                                segmentWords.push(node);
-                            }
-                        }
-                        node = next;
-                    }
+                    return wrapper;
+                });
 
-                    // Move words into wrapper
-                    if (segmentWords.length > 0) {
-                        const firstWord = segmentWords[0];
-                        firstWord.parentNode.insertBefore(wrapper, firstWord);
-                        wrapper.appendChild(chip);
-                        segmentWords.forEach(w => wrapper.appendChild(w));
-                    }
+                // Insert all wrappers into textEl as siblings
+                wrappers.forEach(wrapper => {
+                    textEl.appendChild(wrapper);
+                });
+
+                // Now move nodes into their respective wrappers
+                this.segments.forEach((seg, segIdx) => {
+                    const nodesForSegment = segmentNodes[segIdx];
+                    const wrapper = wrappers[segIdx];
+                    nodesForSegment.forEach(n => wrapper.appendChild(n));
                 });
             },
 
@@ -3109,6 +3655,9 @@
             console.log('Preprocessor initialized:', preprocessor);
 
             pluginManager = new UIPluginManager();
+
+            // Initialize layer panel
+            layerManager.renderLayerPanel();
 
             // Setup timezone selector
             setupTimezoneSelector();
