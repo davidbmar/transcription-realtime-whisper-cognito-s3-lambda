@@ -1,0 +1,18 @@
+# ============================================================================
+# DIARIZATION SCRIPTS (520-523)
+# ============================================================================
+#
+# Speaker diarization using pyannote.audio on GPU.
+# Adds speaker labels (SPEAKER_00, SPEAKER_01, etc.) to transcripts.
+#
+# Runs on: GPU instance (requires CUDA + pyannote-audio)
+#
+# Scripts in this section:
+#   520-diarize-transcripts.py  - Main diarization logic
+#
+# Output: transcription-diarized.json per session
+#
+# Skip logic: Checks for existing transcription-diarized.json
+# Force flag: --backfill to re-run on all sessions
+#
+# ============================================================================

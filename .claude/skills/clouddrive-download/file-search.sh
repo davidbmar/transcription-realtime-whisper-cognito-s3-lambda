@@ -4,9 +4,12 @@
 # Search and list files in CloudDrive S3 storage
 #
 # Usage: ./file-search.sh [pattern]
-#        ./file-search.sh --list (list all files)
+#        ./file-search.sh --list (list all files for default user)
+#        ./file-search.sh --all (search ALL users - faster for finding uploads)
+#        ./file-search.sh --recent [N] (show N most recent files across all users, default 20)
 #        ./file-search.sh --folders (list folders only)
-#        ./file-search.sh "*.png" (search by pattern)
+#        ./file-search.sh "pattern" (search by pattern in default user)
+#        ./file-search.sh --all "pattern" (search pattern across ALL users)
 
 set -euo pipefail
 
@@ -248,6 +251,105 @@ search_files() {
     fi
 }
 
+# Search ALL users for a pattern (faster for finding specific uploads)
+search_all_users() {
+    local search_pattern="${1:-}"
+
+    if [[ -n "$search_pattern" ]]; then
+        log_info "Searching ALL users for: $search_pattern"
+    else
+        log_info "Listing files from ALL users"
+    fi
+    log_info ""
+
+    # Get all files across all users using s3api for more details
+    local results=$(aws s3api list-objects-v2 \
+        --bucket "$BUCKET" \
+        --prefix "users/" \
+        --query 'Contents[?!contains(Key, `.folder`)].{Key:Key,Size:Size,LastModified:LastModified}' \
+        --output text 2>/dev/null | sort -k3 -r)
+
+    if [[ -z "$results" || "$results" == "None" ]]; then
+        log_warn "No files found"
+        return
+    fi
+
+    local match_count=0
+
+    echo -e "${CYAN}KEY                                                                    SIZE       MODIFIED${NC}"
+    echo "=================================================================================================="
+
+    while IFS=$'\t' read -r key modified size; do
+        [[ -z "$key" ]] && continue
+        [[ "$key" == *".folder"* ]] && continue
+
+        # Extract filename for pattern matching
+        local filename=$(basename "$key")
+
+        # If pattern provided, filter
+        if [[ -n "$search_pattern" ]]; then
+            if ! echo "$key" | grep -qi "$search_pattern"; then
+                continue
+            fi
+        fi
+
+        # Format output
+        local human_sz=$(human_size ${size:-0})
+        local short_date=$(echo "$modified" | cut -d'T' -f1)
+
+        printf "%-70s %10s  %s\n" "$key" "$human_sz" "$short_date"
+        ((match_count++)) || true
+    done <<< "$results"
+
+    echo "=================================================================================================="
+
+    if [[ $match_count -eq 0 && -n "$search_pattern" ]]; then
+        log_warn "No matches found for: $search_pattern"
+    else
+        log_success "Found $match_count file(s)"
+    fi
+}
+
+# Show N most recent files across all users
+show_recent() {
+    local limit="${1:-20}"
+
+    log_info "Showing $limit most recent files across ALL users"
+    log_info ""
+
+    # Get recent files sorted by last modified
+    local results=$(aws s3api list-objects-v2 \
+        --bucket "$BUCKET" \
+        --prefix "users/" \
+        --query "sort_by(Contents, &LastModified)[-${limit}:].{Key:Key,Size:Size,LastModified:LastModified}" \
+        --output text 2>/dev/null)
+
+    if [[ -z "$results" || "$results" == "None" ]]; then
+        log_warn "No files found"
+        return
+    fi
+
+    local file_count=0
+
+    echo -e "${CYAN}RECENT FILES (newest first):${NC}"
+    echo "=================================================================================================="
+
+    # Reverse to show newest first
+    while IFS=$'\t' read -r key modified size; do
+        [[ -z "$key" ]] && continue
+        [[ "$key" == *".folder"* ]] && continue
+
+        local human_sz=$(human_size ${size:-0})
+        local short_date=$(echo "$modified" | cut -d'T' -f1,2 | tr 'T' ' ' | cut -c1-16)
+
+        printf "%-16s  %10s  %s\n" "$short_date" "$human_sz" "$key"
+        ((file_count++)) || true
+    done <<< "$(echo "$results" | tac)"
+
+    echo "=================================================================================================="
+    log_success "Showing $file_count most recent file(s)"
+}
+
 # Main execution
 main() {
     local command="${1:---list}"
@@ -269,32 +371,53 @@ main() {
         exit 1
     fi
 
-    # Get user ID
-    local user_id=$(get_user_id)
-    log_info "User ID: $user_id"
-    log_info ""
-
     case "$command" in
+        --all)
+            # Search all users (with optional pattern as second arg)
+            search_all_users "${2:-}"
+            ;;
+        --recent)
+            # Show N most recent files (second arg is count, default 20)
+            show_recent "${2:-20}"
+            ;;
         --list)
+            # Get user ID for single-user operations
+            local user_id=$(get_user_id)
+            log_info "User ID: $user_id"
+            log_info ""
             list_files "$user_id"
             ;;
         --folders)
+            local user_id=$(get_user_id)
+            log_info "User ID: $user_id"
+            log_info ""
             list_folders "$user_id"
             ;;
-        --help)
+        --help|-h)
             echo "CloudDrive File Search Utility"
             echo ""
             echo "Usage:"
-            echo "  $0                    List all files"
-            echo "  $0 --list             List all files"
-            echo "  $0 --folders          List folders only"
-            echo "  $0 <pattern>          Search files by pattern"
-            echo "  $0 '*.png'            Find all PNG files"
-            echo "  $0 'screenshot'       Find files with 'screenshot' in name"
-            echo "  $0 --help             Show this help"
+            echo "  $0                      List all files (default user)"
+            echo "  $0 --list               List all files (default user)"
+            echo "  $0 --all                List ALL files across ALL users"
+            echo "  $0 --all <pattern>      Search ALL users for pattern"
+            echo "  $0 --recent [N]         Show N most recent files (default: 20)"
+            echo "  $0 --folders            List folders only (default user)"
+            echo "  $0 <pattern>            Search files by pattern (default user)"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --all 'audible'      Find 'audible' in any user's files"
+            echo "  $0 --all '.png'         Find all PNG files across all users"
+            echo "  $0 --recent 10          Show 10 most recently uploaded files"
+            echo "  $0 'screenshot'         Search in default user's files"
+            echo ""
+            echo "Tip: Use --all for faster searching when you don't know which user uploaded a file"
             ;;
         *)
-            # Search mode
+            # Search mode (default user)
+            local user_id=$(get_user_id)
+            log_info "User ID: $user_id"
+            log_info ""
             search_files "$user_id" "$command"
             ;;
     esac

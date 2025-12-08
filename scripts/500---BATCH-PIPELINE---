@@ -1,0 +1,22 @@
+# ============================================================================
+# BATCH PIPELINE SCRIPTS (500-519)
+# ============================================================================
+#
+# These scripts handle batch transcription and orchestration.
+#
+# Execution order when 515 runs:
+#   Phase 1: 512 (scan for missing transcriptions)
+#   Phase 2: GPU transcription
+#   Phase 3: 520 (diarization on GPU)
+#   Phase 4: 518 (postprocess on edge)
+#   Phase 5: 524, 525 (enrich - topics & AI)
+#   Phase 6: Report
+#
+# Main entry point: ./scripts/515-run-batch-transcribe.sh
+#
+# Scripts in this section:
+#   512-scan-missing-chunks.sh      - Scan S3 for untranscribed audio
+#   515-run-batch-transcribe.sh     - MAIN ORCHESTRATOR
+#   518-postprocess-transcripts.sh  - Dedupe, format, update metadata
+#
+# ============================================================================

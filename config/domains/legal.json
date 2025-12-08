@@ -1,0 +1,76 @@
+{
+  "domain": "legal",
+  "version": "1.0",
+  "name": "Legal & Depositions",
+  "description": "Tags for legal proceedings, depositions, hearings, and contracts",
+  "tagCategories": [
+    {
+      "id": "procedural",
+      "name": "Procedural",
+      "description": "Court procedure and ruling tags",
+      "tags": [
+        { "id": "objection", "label": "Objection", "color": "#ef4444", "hotkey": "o", "icon": "gavel" },
+        { "id": "sustained", "label": "Sustained", "color": "#10b981", "hotkey": "s", "icon": "check" },
+        { "id": "overruled", "label": "Overruled", "color": "#f97316", "hotkey": "r", "icon": "x" },
+        { "id": "stipulation", "label": "Stipulation", "color": "#8b5cf6", "hotkey": "t", "icon": "handshake" },
+        { "id": "motion", "label": "Motion", "color": "#6366f1", "icon": "document" },
+        { "id": "sidebar", "label": "Sidebar", "color": "#a855f7", "icon": "users" }
+      ]
+    },
+    {
+      "id": "references",
+      "name": "References",
+      "description": "Document and evidence references",
+      "tags": [
+        { "id": "exhibit", "label": "Exhibit", "color": "#3b82f6", "hasValue": true, "placeholder": "Exhibit ID (e.g., A, B-1)", "icon": "file" },
+        { "id": "witness-statement", "label": "Witness Statement", "color": "#06b6d4", "icon": "user" },
+        { "id": "prior-testimony", "label": "Prior Testimony", "color": "#0ea5e9", "icon": "book" },
+        { "id": "deposition-reference", "label": "Deposition Ref", "color": "#0891b2", "icon": "link" }
+      ]
+    },
+    {
+      "id": "pii",
+      "name": "PII/Sensitive",
+      "description": "Personally identifiable information for redaction",
+      "tags": [
+        { "id": "name", "label": "Name", "redactable": true, "replacement": "[NAME REDACTED]", "color": "#dc2626" },
+        { "id": "address", "label": "Address", "redactable": true, "replacement": "[ADDRESS REDACTED]", "color": "#dc2626" },
+        { "id": "ssn", "label": "SSN", "redactable": true, "replacement": "[SSN REDACTED]", "color": "#dc2626" },
+        { "id": "dob", "label": "Date of Birth", "redactable": true, "replacement": "[DOB REDACTED]", "color": "#dc2626" },
+        { "id": "phone", "label": "Phone Number", "redactable": true, "replacement": "[PHONE REDACTED]", "color": "#dc2626" },
+        { "id": "email", "label": "Email", "redactable": true, "replacement": "[EMAIL REDACTED]", "color": "#dc2626" },
+        { "id": "financial", "label": "Financial Info", "redactable": true, "replacement": "[FINANCIAL REDACTED]", "color": "#dc2626" }
+      ]
+    },
+    {
+      "id": "actions",
+      "name": "Actions",
+      "description": "Action items and follow-ups",
+      "tags": [
+        { "id": "action-item", "label": "Action Item", "color": "#f59e0b", "icon": "task" },
+        { "id": "follow-up", "label": "Follow Up", "color": "#ec4899", "icon": "clock" },
+        { "id": "deadline", "label": "Deadline", "color": "#ef4444", "hasValue": true, "placeholder": "Date", "icon": "calendar" }
+      ]
+    }
+  ],
+  "roles": [
+    { "id": "paralegal", "layer": 5, "label": "Paralegal", "color": "#3b82f6" },
+    { "id": "associate", "layer": 6, "label": "Associate Attorney", "color": "#8b5cf6" },
+    { "id": "partner", "layer": 7, "label": "Partner", "color": "#dc2626" }
+  ],
+  "speakerRoles": [
+    { "id": "witness", "label": "Witness" },
+    { "id": "plaintiff-attorney", "label": "Plaintiff's Attorney" },
+    { "id": "defense-attorney", "label": "Defense Attorney" },
+    { "id": "judge", "label": "Judge" },
+    { "id": "court-reporter", "label": "Court Reporter" },
+    { "id": "interpreter", "label": "Interpreter" }
+  ],
+  "highlightColors": [
+    { "id": "yellow", "label": "Yellow", "color": "rgba(251, 191, 36, 0.3)" },
+    { "id": "green", "label": "Green", "color": "rgba(34, 197, 94, 0.3)" },
+    { "id": "blue", "label": "Blue", "color": "rgba(59, 130, 246, 0.3)" },
+    { "id": "pink", "label": "Pink", "color": "rgba(236, 72, 153, 0.3)" },
+    { "id": "orange", "label": "Orange", "color": "rgba(249, 115, 22, 0.3)" }
+  ]
+}

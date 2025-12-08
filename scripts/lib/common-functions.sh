@@ -43,6 +43,16 @@ log_execution_start() {
     echo ""
 }
 
+# Log a major phase header (for multi-phase scripts like 515)
+log_phase() {
+    local phase_name="$1"
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║ $phase_name"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+}
+
 # Load environment with validation
 load_environment() {
     if [[ ! -f .env ]]; then

@@ -397,7 +397,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
-    parser.add_argument('--session', help='Process specific session path')
+    parser.add_argument('--session', help='Process specific session (ID or full path)')
+    parser.add_argument('--user', help='User ID (required with --session if providing session ID only)')
     parser.add_argument('--backfill', action='store_true',
                         help='Process ALL sessions (ignore existing diarization)')
     parser.add_argument('--dry-run', action='store_true',
@@ -422,7 +423,29 @@ def main():
 
     # Get sessions to process
     if args.session:
-        sessions = [args.session]
+        session_input = args.session
+        # Check if it's a full path or just session ID
+        if session_input.startswith('users/'):
+            # Full path provided
+            sessions = [session_input]
+        else:
+            # Just session ID - need user ID to construct path
+            if args.user:
+                session_path = f"users/{args.user}/audio/sessions/{session_input}"
+                sessions = [session_path]
+                print(f"[INFO] Constructed session path: {session_path}")
+            else:
+                # Try to find the session by scanning
+                print(f"[INFO] Searching for session {session_input}...")
+                all_sessions = list_sessions_needing_diarization(bucket, backfill=True)
+                matching = [s for s in all_sessions if session_input in s]
+                if matching:
+                    sessions = matching
+                    print(f"[INFO] Found {len(matching)} matching session(s)")
+                else:
+                    print(f"[ERROR] Session not found: {session_input}", file=sys.stderr)
+                    print("[HINT] Provide --user USER_ID to specify user", file=sys.stderr)
+                    sys.exit(1)
     else:
         sessions = list_sessions_needing_diarization(bucket, backfill=args.backfill)
 

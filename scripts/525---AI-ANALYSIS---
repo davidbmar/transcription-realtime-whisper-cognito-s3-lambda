@@ -1,0 +1,19 @@
+# ============================================================================
+# AI ANALYSIS SCRIPTS (525-529)
+# ============================================================================
+#
+# Claude API analysis for transcripts - extracts action items, themes,
+# key highlights, and generates summaries.
+#
+# Runs on: Edge box (requires ANTHROPIC_API_KEY)
+#
+# Scripts in this section:
+#   525-generate-ai-analysis.sh   - Run Claude analysis on a session
+#   527-find-session-path.sh      - Interactive session finder & batch wrapper
+#
+# Output: transcription-ai-analysis.json per session
+#
+# Skip logic: Checks for existing transcription-ai-analysis.json
+# Force flag: --force to re-run on all sessions
+#
+# ============================================================================

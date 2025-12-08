@@ -55,6 +55,7 @@ provider:
 
 custom:
   s3Bucket: ${env:COGNITO_S3_BUCKET, '${self:service}-bucket'}
+  cloudfrontUrl: ${env:CLOUDFRONT_URL, 'https://example.cloudfront.net'}
 
 functions:
   # Test endpoint
@@ -426,6 +427,126 @@ functions:
           method: get
           cors: true
           # NO authorizer - public endpoint for batch script
+
+  # Annotations API - Layer-based annotation CRUD
+  listAnnotations:
+    handler: api/annotations.listAnnotations
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/annotations
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  createAnnotation:
+    handler: api/annotations.createAnnotation
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/annotations
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  updateAnnotation:
+    handler: api/annotations.updateAnnotation
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/annotations/{annotationId}
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  deleteAnnotation:
+    handler: api/annotations.deleteAnnotation
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/annotations/{annotationId}
+          method: delete
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  getLayers:
+    handler: api/annotations.getLayers
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/layers
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  completeLayer:
+    handler: api/annotations.completeLayer
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/layers/{layerId}/complete
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  listDomains:
+    handler: api/annotations.listDomains
+    environment:
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/domains
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  exportTrainingData:
+    handler: api/annotations.exportTrainingData
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/export/training
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
 
 resources:
   Resources:

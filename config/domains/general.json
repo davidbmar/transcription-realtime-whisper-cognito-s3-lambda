@@ -1,0 +1,75 @@
+{
+  "domain": "general",
+  "version": "1.0",
+  "name": "General Purpose",
+  "description": "Universal tags for meetings, interviews, and general transcription",
+  "tagCategories": [
+    {
+      "id": "content",
+      "name": "Content",
+      "description": "Content organization tags",
+      "tags": [
+        { "id": "key-point", "label": "Key Point", "color": "#f59e0b", "hotkey": "k", "icon": "star" },
+        { "id": "decision", "label": "Decision", "color": "#10b981", "hotkey": "d", "icon": "check-circle" },
+        { "id": "question", "label": "Question", "color": "#3b82f6", "hotkey": "q", "icon": "help-circle" },
+        { "id": "answer", "label": "Answer", "color": "#06b6d4", "icon": "message-circle" },
+        { "id": "clarification", "label": "Clarification", "color": "#8b5cf6", "icon": "info" }
+      ]
+    },
+    {
+      "id": "actions",
+      "name": "Actions",
+      "description": "Action items and follow-ups",
+      "tags": [
+        { "id": "action-item", "label": "Action Item", "color": "#ef4444", "hotkey": "a", "icon": "task" },
+        { "id": "deadline", "label": "Deadline", "color": "#dc2626", "hasValue": true, "placeholder": "Date", "icon": "calendar" },
+        { "id": "owner", "label": "Owner", "color": "#ec4899", "hasValue": true, "placeholder": "Person name", "icon": "user" },
+        { "id": "follow-up", "label": "Follow Up", "color": "#f97316", "icon": "clock" },
+        { "id": "blocker", "label": "Blocker", "color": "#dc2626", "icon": "x-octagon" }
+      ]
+    },
+    {
+      "id": "pii",
+      "name": "PII/Sensitive",
+      "description": "Personally identifiable information for redaction",
+      "tags": [
+        { "id": "name", "label": "Name", "redactable": true, "replacement": "[NAME]", "color": "#dc2626" },
+        { "id": "email", "label": "Email", "redactable": true, "replacement": "[EMAIL]", "color": "#dc2626" },
+        { "id": "phone", "label": "Phone", "redactable": true, "replacement": "[PHONE]", "color": "#dc2626" },
+        { "id": "address", "label": "Address", "redactable": true, "replacement": "[ADDRESS]", "color": "#dc2626" },
+        { "id": "company", "label": "Company", "redactable": true, "replacement": "[COMPANY]", "color": "#dc2626" }
+      ]
+    },
+    {
+      "id": "editorial",
+      "name": "Editorial",
+      "description": "Editing and correction marks",
+      "tags": [
+        { "id": "unclear", "label": "Unclear", "color": "#9ca3af", "icon": "help-circle" },
+        { "id": "inaudible", "label": "Inaudible", "color": "#6b7280", "icon": "volume-x" },
+        { "id": "crosstalk", "label": "Crosstalk", "color": "#a855f7", "icon": "users" },
+        { "id": "correction", "label": "Correction", "color": "#eab308", "icon": "edit" }
+      ]
+    }
+  ],
+  "roles": [
+    { "id": "transcriber", "layer": 5, "label": "Transcriber", "color": "#3b82f6" },
+    { "id": "reviewer", "layer": 6, "label": "Reviewer", "color": "#8b5cf6" },
+    { "id": "approver", "layer": 7, "label": "Approver", "color": "#dc2626" }
+  ],
+  "speakerRoles": [
+    { "id": "speaker-1", "label": "Speaker 1" },
+    { "id": "speaker-2", "label": "Speaker 2" },
+    { "id": "speaker-3", "label": "Speaker 3" },
+    { "id": "moderator", "label": "Moderator" },
+    { "id": "interviewer", "label": "Interviewer" },
+    { "id": "interviewee", "label": "Interviewee" }
+  ],
+  "highlightColors": [
+    { "id": "yellow", "label": "Yellow", "color": "rgba(251, 191, 36, 0.3)" },
+    { "id": "green", "label": "Green", "color": "rgba(34, 197, 94, 0.3)" },
+    { "id": "blue", "label": "Blue", "color": "rgba(59, 130, 246, 0.3)" },
+    { "id": "pink", "label": "Pink", "color": "rgba(236, 72, 153, 0.3)" },
+    { "id": "orange", "label": "Orange", "color": "rgba(249, 115, 22, 0.3)" }
+  ]
+}

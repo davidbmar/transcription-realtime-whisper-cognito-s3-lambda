@@ -1,0 +1,18 @@
+# ============================================================================
+# TOPIC SEGMENTATION SCRIPTS (524)
+# ============================================================================
+#
+# Detects topic boundaries in transcripts using AWS Bedrock embeddings.
+# Groups transcript segments by semantic similarity.
+#
+# Runs on: Edge box (requires AWS Bedrock access)
+#
+# Scripts in this section:
+#   524-segment-transcripts-by-topic.py  - Topic boundary detection
+#
+# Output: transcription-topic-segmented.json per session
+#
+# Skip logic: Checks for existing transcription-topic-segmented.json
+# Force flag: --force to re-run on all sessions
+#
+# ============================================================================

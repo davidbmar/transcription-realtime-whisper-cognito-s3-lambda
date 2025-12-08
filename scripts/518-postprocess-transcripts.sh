@@ -263,20 +263,7 @@ process_session() {
         log_warn "  ⚠️  Formatting failed, but preprocessing succeeded"
     fi
 
-    # Step 3: Run topic segmentation (optional, requires Bedrock access)
-    # Only runs if TOPIC_SIMILARITY_THRESHOLD is set in .env
-    if [ -n "${TOPIC_SIMILARITY_THRESHOLD:-}" ]; then
-        log_info "  🧠 Running topic segmentation..."
-        if python3 "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" \
-            --session "$session_folder" 2>&1 | sed 's/^/    /'; then
-            log_success "  ✅ Topic segmentation complete"
-        else
-            log_warn "  ⚠️  Topic segmentation failed (Bedrock access required)"
-            log_warn "      To enable: set TOPIC_SIMILARITY_THRESHOLD in .env"
-        fi
-    fi
-
-    # Step 4: Update metadata to mark transcription as complete
+    # Step 3: Update metadata to mark transcription as complete
     log_info "  📝 Updating session metadata..."
     if node "$PROJECT_ROOT/scripts/lib/update-session-metadata.js" "$session_folder" complete 2>&1 | sed 's/^/    /'; then
         log_success "  ✅ Metadata updated - session marked as complete"
@@ -284,23 +271,9 @@ process_session() {
         log_warn "  ⚠️  Metadata update failed"
     fi
 
-    # Step 5: Run diarization (if GPU is available and pyannote installed)
-    # Diarization adds speaker labels to the transcript
-    # Only runs on GPU instance where pyannote-audio is installed
-    if command -v nvidia-smi &>/dev/null && python3 -c "import pyannote.audio" &>/dev/null 2>&1; then
-        # Check if diarization already exists
-        if ! aws s3 ls "s3://$BUCKET/${session_folder}/transcription-diarized.json" &>/dev/null; then
-            log_info "  🎙️ Running speaker diarization..."
-            if python3 "$PROJECT_ROOT/scripts/520-diarize-transcripts.py" \
-                --session "$session_folder" 2>&1 | sed 's/^/    /'; then
-                log_success "  ✅ Diarization complete"
-            else
-                log_warn "  ⚠️  Diarization failed (will retry later)"
-            fi
-        else
-            log_info "  ✅ Diarization already exists"
-        fi
-    fi
+    # NOTE: Diarization (520) and topic segmentation (524) are now handled by
+    # 515-run-batch-transcribe.sh in Phase 3 and Phase 5 respectively.
+    # This keeps 518 focused on: dedupe → format → metadata only.
 
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
     return 0

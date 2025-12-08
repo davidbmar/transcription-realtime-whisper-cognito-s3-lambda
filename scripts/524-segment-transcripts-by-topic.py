@@ -1066,6 +1066,11 @@ Examples:
         action='store_true',
         help='Force regenerate embeddings (skip S3 Vectors cache)'
     )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force re-run even if topic-segmented output already exists'
+    )
 
     args = parser.parse_args()
 
@@ -1116,6 +1121,19 @@ Examples:
                 session_path = parts[1]  # Everything after bucket name
 
         session_id = session_path.split('/')[-1] if '/' in session_path else session_path
+
+        # Check if output already exists (skip unless --force)
+        if not args.force and not args.dry_run:
+            s3 = get_s3_client()
+            output_key = f"{session_path}/transcription-topic-segmented.json"
+            try:
+                s3.head_object(Bucket=S3_BUCKET, Key=output_key)
+                print(f"[SKIP] {session_path} - topic segmentation already exists")
+                print(f"       Use --force to re-run")
+                sys.exit(0)
+            except ClientError:
+                pass  # File doesn't exist, proceed with processing
+
         print(f"Loading transcript from S3...")
         print(f"  Session: {session_path}")
 

@@ -1134,6 +1134,35 @@ else
     log_to_edge_box "VERIFICATION_SUCCESS" "retries=$RETRY_ATTEMPT"
 fi
 
+# ============================================================================
+# PHASE 3: DIARIZATION (on GPU, while still running)
+# ============================================================================
+log_phase "Phase 3: Speaker Diarization"
+
+if [ "${SKIP_DIARIZATION:-false}" != "true" ]; then
+    log_info "Running speaker diarization on GPU..."
+
+    DIARIZE_FLAGS=""
+    if [ "${FORCE_DIARIZATION:-false}" == "true" ]; then
+        DIARIZE_FLAGS="--backfill"
+        log_info "  Force mode: will re-run diarization on all sessions"
+    fi
+
+    # Run diarization on GPU via SSH (520 handles skip logic internally)
+    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i "$SSH_KEY" \
+        ${SSH_USER}@${GPU_IP} \
+        "cd /home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4 && \
+         source .env && \
+         python3 scripts/520-diarize-transcripts.py $DIARIZE_FLAGS" 2>&1 | sed 's/^/    /'; then
+        log_success "Diarization complete"
+    else
+        log_warn "Diarization failed (will retry on next batch run)"
+    fi
+else
+    log_info "Skipping diarization (SKIP_DIARIZATION=true)"
+fi
+echo ""
+
 # Step 5: Stop GPU if we started it
 if [ "$WE_STARTED_GPU" = "true" ]; then
     stop_gpu
@@ -1144,93 +1173,72 @@ fi
 generate_report "success" $GPU_WAS_RUNNING "$MISSING_COUNT"
 echo ""
 
-# Step 7: Generate pre-processed transcripts for fast editor loading
-log_info "==================================================================="
-log_info "Step 7: Running transcript postprocessing pipeline"
-log_info "==================================================================="
-echo ""
+# ============================================================================
+# PHASE 4: POSTPROCESSING (on edge box)
+# ============================================================================
+log_phase "Phase 4: Transcript Postprocessing"
 
-# Run 518 to scan and postprocess any complete sessions
+# Run 518 to dedupe, format, and update metadata (simplified - no diarization/topic calls)
 if [ -f "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh" ]; then
     "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh"
 else
     log_warn "518-postprocess-transcripts.sh not found - skipping postprocessing"
 fi
-
 echo ""
 
-# Step 8: Run AI analysis if chunks were transcribed
-if [ $CHUNKS_TRANSCRIBED -gt 0 ]; then
-    log_info "==================================================================="
-    log_info "Step 8: Running AI analysis on transcribed sessions"
-    log_info "==================================================================="
-    echo ""
-    log_info "  - Chunks transcribed: $CHUNKS_TRANSCRIBED"
-    log_info "  - Running AI analysis on all sessions..."
-    echo ""
+# ============================================================================
+# PHASE 5: AI ENRICHMENT (on edge box)
+# ============================================================================
+log_phase "Phase 5: AI Enrichment"
 
-    # Run 527 with --all-analyze flag to process all sessions
+# 5a: Topic Segmentation
+if [ "${SKIP_TOPIC_SEGMENTATION:-false}" != "true" ]; then
+    log_info "Running topic segmentation..."
+
+    if [ -f "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" ]; then
+        TOPIC_FLAGS=""
+        if [ "${FORCE_TOPIC_SEGMENTATION:-false}" == "true" ]; then
+            TOPIC_FLAGS="--force"
+            log_info "  Force mode: will re-run topic segmentation on all sessions"
+        fi
+
+        # 524 handles skip-if-exists logic internally
+        if python3 "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" $TOPIC_FLAGS 2>&1 | sed 's/^/    /'; then
+            log_success "Topic segmentation complete"
+        else
+            log_warn "Topic segmentation had issues (check logs)"
+        fi
+    else
+        log_warn "524-segment-transcripts-by-topic.py not found"
+    fi
+else
+    log_info "Skipping topic segmentation (SKIP_TOPIC_SEGMENTATION=true)"
+fi
+echo ""
+
+# 5b: AI Analysis
+if [ "${SKIP_AI_ANALYSIS:-false}" != "true" ]; then
+    log_info "Running AI analysis..."
+
     if [ -f "$PROJECT_ROOT/scripts/527-find-session-path.sh" ]; then
-        "$PROJECT_ROOT/scripts/527-find-session-path.sh" --all-analyze
+        AI_FLAGS="--all-analyze"
+        if [ "${FORCE_AI_ANALYSIS:-false}" == "true" ]; then
+            AI_FLAGS="$AI_FLAGS --force"
+            log_info "  Force mode: will re-run AI analysis on all sessions"
+        fi
+
+        # 527/525 handles skip-if-exists logic internally
+        if "$PROJECT_ROOT/scripts/527-find-session-path.sh" $AI_FLAGS 2>&1 | sed 's/^/    /'; then
+            log_success "AI analysis complete"
+        else
+            log_warn "AI analysis had issues (check logs)"
+        fi
     else
-        log_warn "527-find-session-path.sh not found - skipping AI analysis"
-    fi
-
-    echo ""
-else
-    log_info "No chunks transcribed - skipping AI analysis"
-    echo ""
-fi
-
-# Step 9: Run topic segmentation on all sessions
-log_info "==================================================================="
-log_info "Step 9: Running topic segmentation on transcribed sessions"
-log_info "==================================================================="
-echo ""
-
-# Run 524 topic segmentation on all sessions that have transcription-processed.json
-if [ -f "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" ]; then
-    log_info "  - Scanning for sessions needing topic segmentation..."
-
-    # Find all sessions with transcription-processed.json but no transcription-topic-segmented.json
-    SESSIONS_TO_SEGMENT=$(aws s3 ls "s3://${COGNITO_S3_BUCKET}/" --recursive 2>/dev/null | \
-        grep "transcription-processed.json" | \
-        awk '{print $4}' | \
-        sed 's|/transcription-processed.json||' | \
-        while read session; do
-            # Check if topic-segmented already exists
-            if ! aws s3 ls "s3://${COGNITO_S3_BUCKET}/${session}/transcription-topic-segmented.json" &>/dev/null; then
-                echo "$session"
-            fi
-        done)
-
-    SEGMENT_COUNT=$(echo "$SESSIONS_TO_SEGMENT" | grep -c . || echo 0)
-
-    if [ "$SEGMENT_COUNT" -gt 0 ] && [ -n "$SESSIONS_TO_SEGMENT" ]; then
-        log_info "  - Found $SEGMENT_COUNT sessions needing topic segmentation"
-        echo ""
-
-        SEGMENTED=0
-        SEGMENT_FAILED=0
-
-        for session in $SESSIONS_TO_SEGMENT; do
-            log_info "  Segmenting: $session"
-            if python3 "$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py" --session "$session" 2>&1 | grep -q "Topic segmentation complete"; then
-                ((SEGMENTED++))
-            else
-                ((SEGMENT_FAILED++))
-                log_warn "    Failed to segment: $session"
-            fi
-        done
-
-        log_info "  - Topic segmentation complete: $SEGMENTED succeeded, $SEGMENT_FAILED failed"
-    else
-        log_info "  - No sessions need topic segmentation"
+        log_warn "527-find-session-path.sh not found"
     fi
 else
-    log_warn "524-segment-transcripts-by-topic.py not found - skipping topic segmentation"
+    log_info "Skipping AI analysis (SKIP_AI_ANALYSIS=true)"
 fi
-
 echo ""
 
 # ============================================================================

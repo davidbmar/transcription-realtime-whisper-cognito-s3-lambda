@@ -330,6 +330,7 @@
         /* Editor Content */
         .editor-content {
             padding: 32px;
+            padding-bottom: 100px; /* Space for fixed bottom playback bar */
             max-width: 900px;
             margin: 0 auto;
         }
@@ -415,6 +416,10 @@
             -webkit-user-select: text;
             -moz-user-select: text;
             -ms-user-select: text;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         .paragraph-text:hover {
@@ -558,21 +563,62 @@
             font-weight: 500;
         }
 
-        /* Global Playback Controls - Sticky Header */
+        /* Global Playback Controls - Fixed Bottom Bar (spans second column only) */
         .global-playback-bar {
-            position: sticky;
-            top: 72px;
-            z-index: 100;
+            position: fixed;
+            bottom: 0;
+            /* Account for sidebar (320px) + gap (24px) + container padding (24px) */
+            left: calc(50% - 700px + 320px + 24px + 24px);
+            /* Match the main content area width */
+            right: calc(50% - 700px + 24px);
+            z-index: 1000;
             background: white;
-            border-bottom: 1px solid var(--gray-200);
-            padding: 12px 16px;
-            margin: -24px -24px 24px -24px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-top: 1px solid var(--gray-200);
+            border-radius: 12px 12px 0 0;
+            padding: 16px 24px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
             display: none;
+        }
+
+        /* When viewport is smaller than max-width, adjust positioning */
+        @media (max-width: 1448px) {
+            .global-playback-bar {
+                left: calc(320px + 24px + 24px);
+                right: 24px;
+            }
         }
 
         .global-playback-bar.visible {
             display: block;
+        }
+
+        /* Skip buttons (rewind/forward) - Audible style */
+        .skip-btn {
+            background: transparent;
+            color: #1a1a1a;
+            border: none;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            padding: 0;
+        }
+
+        .skip-btn svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .skip-btn:hover {
+            opacity: 0.7;
+        }
+
+        .skip-btn:active {
+            transform: scale(0.95);
         }
 
         .global-playback-controls {
@@ -582,24 +628,32 @@
             max-width: 100%;
         }
 
+        /* Play button - Audible style (large solid black circle) */
         .global-play-btn {
-            background: var(--primary);
+            background: #1a1a1a;
             color: white;
             border: none;
-            width: 48px;
-            height: 48px;
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
             flex-shrink: 0;
+            padding: 0;
+        }
+
+        .global-play-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
         }
 
         .global-play-btn:hover {
-            background: var(--primary-dark);
+            background: #333;
             transform: scale(1.05);
         }
 
@@ -788,6 +842,111 @@
 
         .toast.error {
             background: var(--danger);
+        }
+
+        /* Annotation Highlight Styles */
+        .annotation-highlight {
+            position: relative;
+        }
+
+        .annotation-tag {
+            background: rgba(59, 130, 246, 0.2);
+            border-bottom: 2px solid #3b82f6;
+        }
+
+        .annotation-redaction {
+            background: #dc2626;
+            color: white !important;
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+
+        .annotation-comment {
+            background: rgba(251, 191, 36, 0.3);
+            border-bottom: 2px dashed #f59e0b;
+        }
+
+        /* Split Mode Styles */
+        .split-mode {
+            background: rgba(239, 68, 68, 0.05) !important;
+            border: 2px dashed var(--danger) !important;
+            padding: 12px !important;
+        }
+
+        .split-mode .paragraph-text {
+            cursor: text;
+        }
+
+        .split-mode .blade-target {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ctext x='0' y='20' font-size='20'%3E✂️%3C/text%3E%3C/svg%3E") 12 12, crosshair !important;
+        }
+
+        .split-mode .blade-target:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-radius: 2px;
+        }
+
+        .split-mode .blade-target.cut {
+            color: var(--danger) !important;
+            font-size: 16px;
+        }
+
+        .segment-wrapper {
+            display: inline;
+            border-radius: 4px;
+            padding: 2px 4px;
+            margin: 2px 4px 2px 0;
+        }
+
+        .segment-wrapper.saved {
+            display: block;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .segment-speaker-chip {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .segment-speaker-chip:hover {
+            background: var(--primary-light) !important;
+            border-color: var(--primary) !important;
+        }
+
+        .split-marker {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Speaker Split Button */
+        .split-speaker-btn {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .paragraph-container:hover .split-speaker-btn {
+            opacity: 1;
+        }
+
+        .split-speaker-btn:hover {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
         }
 
         /* Button Styles */
@@ -1089,6 +1248,92 @@
         .speaker-label.speaker-5 {
             background: #e0f2fe;
             color: #0369a1;
+        }
+
+        /* Hide speaker label when paragraph has split annotation */
+        .has-split-annotation > .speaker-label,
+        .has-split-annotation > .split-speaker-btn,
+        .hidden-by-split {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Delete annotation button */
+        .delete-split-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .segment-wrapper.saved:hover .delete-split-btn {
+            opacity: 1;
+        }
+
+        .delete-split-btn:hover {
+            background: #dc2626;
+        }
+
+        /* Speaker legend in sidebar */
+        .speaker-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .speaker-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+
+        .speaker-color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .speaker-name-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            font-size: 12px;
+            min-width: 0;
+        }
+
+        .speaker-name-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .speaker-merge-select {
+            font-size: 11px;
+            padding: 2px 4px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            max-width: 80px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .speaker-merge-select:hover {
+            border-color: var(--gray-400);
         }
 
         /* Speaker change indicator */
@@ -1516,6 +1761,51 @@
                 </div>
             </div>
 
+            <!-- Speakers (only shown if diarization data exists) -->
+            <div class="sidebar-section" id="speakers-section" style="display: none;">
+                <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Speakers</span>
+                    <button id="save-speakers-btn" onclick="saveSpeakerNames()"
+                            style="font-size: 11px; padding: 2px 8px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;"
+                            title="Save speaker names">
+                        Save
+                    </button>
+                </div>
+                <div id="speaker-list" class="speaker-legend">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Annotation Layers -->
+            <div class="sidebar-section" id="layers-section">
+                <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Annotation Layers</span>
+                    <span id="layer-role-badge" style="font-size: 10px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px;">Layer 5</span>
+                </div>
+                <div id="layer-toggles" style="display: flex; flex-direction: column; gap: 6px;">
+                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="layer-2-toggle" checked onchange="layerManager.toggleLayer(2, this.checked)" style="accent-color: var(--primary);">
+                        <span style="flex: 1; font-size: 13px;">Layer 2: Speaker Chunks</span>
+                        <span class="layer-count" id="layer-2-count" style="font-size: 11px; color: var(--gray-500);">-</span>
+                    </label>
+                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="layer-5-toggle" checked onchange="layerManager.toggleLayer(5, this.checked)" style="accent-color: #3b82f6;">
+                        <span style="flex: 1; font-size: 13px;">Layer 5: Junior Review</span>
+                        <span class="layer-count" id="layer-5-count" style="font-size: 11px; color: var(--gray-500);">0</span>
+                    </label>
+                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="layer-6-toggle" checked onchange="layerManager.toggleLayer(6, this.checked)" style="accent-color: #8b5cf6;">
+                        <span style="flex: 1; font-size: 13px;">Layer 6: Senior Review</span>
+                        <span class="layer-count" id="layer-6-count" style="font-size: 11px; color: var(--gray-500);">0</span>
+                    </label>
+                    <label class="layer-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--gray-50); border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="layer-7-toggle" checked onchange="layerManager.toggleLayer(7, this.checked)" style="accent-color: #dc2626;">
+                        <span style="flex: 1; font-size: 13px;">Layer 7: Principal</span>
+                        <span class="layer-count" id="layer-7-count" style="font-size: 11px; color: var(--gray-500);">0</span>
+                    </label>
+                </div>
+            </div>
+
             <!-- Actions -->
             <div class="sidebar-section">
                 <div class="sidebar-title">Actions</div>
@@ -1774,12 +2064,37 @@
                 </button>
             </div>
 
-            <!-- Global Playback Controls - Sticky Header -->
+            <!-- Global Playback Controls - Fixed Bottom Bar -->
             <div id="global-playback-bar" class="global-playback-bar">
                 <div class="global-playback-controls">
+                    <!-- Rewind 15 seconds - Audible style circular arrow with number -->
+                    <button class="skip-btn" onclick="skipBackward(15)" title="Rewind 15 seconds">
+                        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 8C13.373 8 8 13.373 8 20s5.373 12 12 12 12-5.373 12-12" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
+                            <path d="M8 12V8h4" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <text x="20" y="24" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">15</text>
+                        </svg>
+                    </button>
+                    <!-- Play/Pause - Audible style solid black circle -->
                     <button id="global-play-btn" class="global-play-btn" onclick="toggleGlobalPlayback()" title="Play/Pause (Space)">
-                        <span class="play-icon">▶</span>
-                        <span class="pause-icon" style="display:none">⏸</span>
+                        <span class="play-icon">
+                            <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </span>
+                        <span class="pause-icon" style="display:none">
+                            <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
+                            </svg>
+                        </span>
+                    </button>
+                    <!-- Forward 15 seconds - Audible style circular arrow with number -->
+                    <button class="skip-btn" onclick="skipForward(15)" title="Forward 15 seconds">
+                        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 8c6.627 0 12 5.373 12 12s-5.373 12-12 12S8 26.627 8 20" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
+                            <path d="M32 12V8h-4" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <text x="20" y="24" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a1a">15</text>
+                        </svg>
                     </button>
                     <div class="global-time-container">
                         <span id="global-current-time" class="global-time-display">00:00</span>
@@ -1802,7 +2117,9 @@
                         <option value="1" selected>1x</option>
                         <option value="1.25">1.25x</option>
                         <option value="1.5">1.5x</option>
+                        <option value="1.75">1.75x</option>
                         <option value="2">2x</option>
+                        <option value="2.25">2.25x</option>
                     </select>
                 </div>
             </div>
@@ -1835,6 +2152,49 @@
 
     <!-- Toast -->
     <div id="toast" class="toast"></div>
+
+    <!-- Split Mode Toolbar -->
+    <div id="split-toolbar" style="
+        display: none;
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        border: 2px solid var(--danger);
+        border-radius: 12px;
+        padding: 16px 24px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        z-index: 2000;
+        gap: 16px;
+        align-items: center;
+    ">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-weight: 600; color: var(--danger); font-size: 15px;">✂️ Blade Tool Active</span>
+            <span id="split-count" style="color: var(--gray-500); font-size: 13px;">Hover between words and click to cut</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button onclick="speakerSplitManager.saveSplits()" style="
+                background: var(--success);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 14px;
+            ">✓ Save</button>
+            <button onclick="speakerSplitManager.cancelSplit()" style="
+                background: var(--gray-100);
+                color: var(--gray-700);
+                border: 1px solid var(--gray-300);
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+            ">Cancel</button>
+        </div>
+    </div>
 
     <!-- AI Timeline Tooltip -->
     <div id="timeline-tooltip" class="timeline-tooltip">
@@ -1878,6 +2238,7 @@
         let preprocessor = null;
         let pluginManager = null;
         let audioCache = new Map();
+        let speakerNames = {}; // Maps SPEAKER_XX -> display name
 
         // Audio playback state (legacy - being replaced by global playback)
         let currentAudio = null;
@@ -1886,7 +2247,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.8.0-detect-actual-playback';
+        const TRANSCRIPT_EDITOR_VERSION = '2.11.3-debug-hide';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -1907,6 +2268,750 @@
             isScrubbing: false,        // True while user is dragging scrubber
             seekFloorTime: 0,          // Minimum highlight time after seek (prevents jumping before clicked word)
             currentCompensation: 0.5   // Current delay compensation (calculated per seek based on position)
+        };
+
+        // ========================================
+        // Layer Management for Annotation Pipeline
+        // ========================================
+        const layerManager = {
+            layers: {
+                2: { name: 'Speaker Chunks', visible: true, data: null },
+                5: { name: 'Junior Review', visible: true, annotations: [] },
+                6: { name: 'Senior Review', visible: true, annotations: [] },
+                7: { name: 'Principal', visible: true, annotations: [] }
+            },
+            currentEditLayer: 5, // Default to junior review layer
+
+            toggleLayer(layerId, visible) {
+                if (this.layers[layerId]) {
+                    this.layers[layerId].visible = visible;
+                    this.renderAnnotations();
+                    console.log(`Layer ${layerId} visibility: ${visible}`);
+                }
+            },
+
+            setEditLayer(layerId) {
+                this.currentEditLayer = layerId;
+                const badge = document.getElementById('layer-role-badge');
+                if (badge) {
+                    badge.textContent = `Layer ${layerId}`;
+                    const colors = { 5: '#3b82f6', 6: '#8b5cf6', 7: '#dc2626' };
+                    badge.style.background = colors[layerId] || 'var(--primary)';
+                }
+            },
+
+            async loadLayersForSession(sessionId) {
+                try {
+                    const response = await apiCall(`/api/sessions/${sessionId}/layers`);
+                    if (response.layers) {
+                        // Update layer data
+                        for (const [layerId, layerData] of Object.entries(response.layers)) {
+                            if (this.layers[layerId]) {
+                                if (layerData.data) {
+                                    if (layerId === '2') {
+                                        this.layers[layerId].data = layerData.data;
+                                        document.getElementById('layer-2-count').textContent =
+                                            layerData.data.chunks?.length || '-';
+                                    } else {
+                                        this.layers[layerId].annotations = layerData.data.annotations || [];
+                                        document.getElementById(`layer-${layerId}-count`).textContent =
+                                            this.layers[layerId].annotations.length;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.log('Layers not yet available for session (new API):', err.message);
+                }
+            },
+
+            async createAnnotation(type, target, data) {
+                if (!currentSession?.folder) {
+                    console.error('No session folder available');
+                    return null;
+                }
+
+                const sessionId = encodeURIComponent(currentSession.folder);
+                const body = {
+                    layerId: this.currentEditLayer,
+                    type,
+                    target,
+                    data
+                };
+
+                try {
+                    const response = await apiCall(`/api/sessions/${sessionId}/annotations`, {
+                        method: 'POST',
+                        body: JSON.stringify(body)
+                    });
+
+                    if (response.annotation) {
+                        this.layers[this.currentEditLayer].annotations.push(response.annotation);
+                        document.getElementById(`layer-${this.currentEditLayer}-count`).textContent =
+                            this.layers[this.currentEditLayer].annotations.length;
+                        this.renderAnnotations();
+                        showToast('Annotation saved');
+                        return response.annotation;
+                    }
+                } catch (err) {
+                    showToast('Failed to save annotation', 'error');
+                    console.error('Create annotation error:', err);
+                }
+                return null;
+            },
+
+            async deleteAnnotation(annotationId) {
+                if (!currentSession?.folder) {
+                    console.error('No session folder available');
+                    return false;
+                }
+
+                // Find which layer contains this annotation
+                let foundLayerId = null;
+                for (const [layerId, layer] of Object.entries(this.layers)) {
+                    if (layer.annotations?.some(a => a.id === annotationId)) {
+                        foundLayerId = layerId;
+                        break;
+                    }
+                }
+
+                if (!foundLayerId) {
+                    console.error('Annotation not found in any layer:', annotationId);
+                    return false;
+                }
+
+                const sessionId = encodeURIComponent(currentSession.folder);
+
+                try {
+                    await apiCall(`/api/sessions/${sessionId}/annotations/${annotationId}?layerId=${foundLayerId}`, {
+                        method: 'DELETE'
+                    });
+
+                    // Remove from local layer data
+                    for (const [layerId, layer] of Object.entries(this.layers)) {
+                        if (layer.annotations) {
+                            const idx = layer.annotations.findIndex(a => a.id === annotationId);
+                            if (idx !== -1) {
+                                layer.annotations.splice(idx, 1);
+                                document.getElementById(`layer-${layerId}-count`).textContent =
+                                    layer.annotations.length;
+                                break;
+                            }
+                        }
+                    }
+
+                    this.renderAnnotations();
+                    showToast('Annotation deleted');
+                    return true;
+                } catch (err) {
+                    showToast('Failed to delete annotation', 'error');
+                    console.error('Delete annotation error:', err);
+                    return false;
+                }
+            },
+
+            getAllVisibleAnnotations() {
+                const result = [];
+                for (const [layerId, layer] of Object.entries(this.layers)) {
+                    if (layer.visible && layer.annotations) {
+                        for (const annotation of layer.annotations) {
+                            result.push({ ...annotation, layerId: parseInt(layerId) });
+                        }
+                    }
+                }
+                return result;
+            },
+
+            renderAnnotations() {
+                // Apply visible annotations to transcript display
+                const annotations = this.getAllVisibleAnnotations();
+
+                // Clear existing annotation highlights
+                document.querySelectorAll('.annotation-highlight').forEach(el => {
+                    el.classList.remove('annotation-highlight', 'annotation-tag', 'annotation-redaction', 'annotation-comment');
+                });
+
+                // Clear existing chunk-split segment wrappers (but not ones being actively edited)
+                document.querySelectorAll('.segment-wrapper.saved').forEach(w => {
+                    // Only move word-highlight elements back, NOT the chips
+                    const wordsToMove = Array.from(w.querySelectorAll('.word-highlight'));
+                    wordsToMove.forEach(word => {
+                        w.parentNode.insertBefore(word, w);
+                    });
+                    w.remove(); // This removes the wrapper AND any chips inside it
+                });
+
+                // Restore hidden speaker labels and remove split class
+                document.querySelectorAll('.has-split-annotation').forEach(el => {
+                    el.classList.remove('has-split-annotation');
+                    const speakerLabel = el.querySelector('.speaker-label');
+                    if (speakerLabel) {
+                        speakerLabel.style.display = '';
+                    }
+                });
+
+                // Remove any orphaned segment speaker chips (from previous buggy cleanup)
+                document.querySelectorAll('.segment-speaker-chip').forEach(c => {
+                    // Only remove if it's not inside an active (non-saved) wrapper
+                    if (!c.closest('.segment-wrapper:not(.saved)')) {
+                        c.remove();
+                    }
+                });
+
+                // Apply each annotation's styling
+                for (const annotation of annotations) {
+                    if (annotation.target?.chunkId) {
+                        const chunkEl = document.querySelector(`[data-chunk-id="${annotation.target.chunkId}"]`);
+
+                        // Handle chunk-split annotations
+                        if (annotation.type === 'chunk-split' && chunkEl && annotation.data?.segments) {
+                            this.renderChunkSplit(chunkEl, annotation);
+                            continue;
+                        }
+
+                        if (chunkEl && annotation.target.wordStart !== undefined) {
+                            // Highlight specific words
+                            const words = chunkEl.querySelectorAll('.word-highlight');
+                            for (let i = annotation.target.wordStart; i <= (annotation.target.wordEnd || annotation.target.wordStart); i++) {
+                                if (words[i]) {
+                                    words[i].classList.add('annotation-highlight');
+                                    if (annotation.type === 'tag') words[i].classList.add('annotation-tag');
+                                    if (annotation.type === 'redaction') words[i].classList.add('annotation-redaction');
+                                    if (annotation.type === 'comment') words[i].classList.add('annotation-comment');
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            renderChunkSplit(chunkEl, annotation) {
+                const textEl = chunkEl.querySelector('.paragraph-text');
+                if (!textEl) return;
+
+                const words = textEl.querySelectorAll('.word-highlight');
+                const segments = annotation.data.segments;
+
+                console.log('[Render] Applying chunk-split to', chunkEl.dataset.chunkId, 'with', segments.length, 'segments');
+
+                // Hide the original paragraph speaker label since we're showing segment-level speakers
+                const originalSpeakerLabel = chunkEl.querySelector(':scope > .speaker-label');
+                console.log('[Render] Found speaker label:', originalSpeakerLabel, 'in chunk', chunkEl.dataset.chunkId);
+                if (originalSpeakerLabel) {
+                    originalSpeakerLabel.style.display = 'none';
+                    originalSpeakerLabel.classList.add('hidden-by-split');
+                    console.log('[Render] Hidden speaker label for', chunkEl.dataset.chunkId);
+                }
+
+                // Also hide the split button
+                const splitBtn = chunkEl.querySelector(':scope > .split-speaker-btn');
+                if (splitBtn) {
+                    splitBtn.style.display = 'none';
+                }
+
+                // Add a class to indicate this paragraph has been split
+                chunkEl.classList.add('has-split-annotation');
+                console.log('[Render] Added has-split-annotation class to', chunkEl.dataset.chunkId);
+
+                // Create segment wrappers for saved splits
+                segments.forEach((seg, segIdx) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'segment-wrapper saved';
+                    wrapper.dataset.annotationId = annotation.id;
+                    wrapper.style.cssText = `
+                        display: block;
+                        background: ${speakerSplitManager.getSegmentColor(segIdx)};
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                        border-left: 4px solid ${speakerSplitManager.getSegmentBorderColor(segIdx)};
+                        position: relative;
+                    `;
+
+                    // Add speaker label (not editable for saved splits - shows read-only)
+                    const chip = document.createElement('span');
+                    chip.className = 'segment-speaker-chip saved';
+                    const displayName = speakerNames[seg.speaker] || seg.speaker;
+                    chip.textContent = displayName;
+                    chip.style.cssText = `
+                        display: inline-block;
+                        background: white;
+                        border: 1px solid var(--gray-400);
+                        border-radius: 12px;
+                        padding: 4px 12px;
+                        font-size: 12px;
+                        margin-bottom: 6px;
+                        margin-right: 8px;
+                        font-weight: 600;
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                    `;
+
+                    // Add delete button on first segment only (deletes the whole split)
+                    if (segIdx === 0) {
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'delete-split-btn';
+                        deleteBtn.innerHTML = '×';
+                        deleteBtn.title = 'Remove this split annotation';
+                        deleteBtn.onclick = async (e) => {
+                            console.log('[Delete] Button clicked, annotation:', annotation.id);
+                            e.stopPropagation();
+                            e.preventDefault();
+                            console.log('[Delete] Showing confirm dialog...');
+                            const confirmed = confirm('Remove this speaker split?');
+                            console.log('[Delete] Confirmed:', confirmed);
+                            if (confirmed) {
+                                console.log('[Delete] Calling deleteAnnotation...');
+                                const result = await layerManager.deleteAnnotation(annotation.id);
+                                console.log('[Delete] Result:', result);
+                            }
+                        };
+                        wrapper.appendChild(deleteBtn);
+                    }
+
+                    // Collect words for this segment
+                    const segmentWords = [];
+                    for (let i = seg.startWord; i <= seg.endWord && i < words.length; i++) {
+                        segmentWords.push(words[i]);
+                    }
+
+                    // Move words into wrapper
+                    if (segmentWords.length > 0) {
+                        const firstWord = segmentWords[0];
+                        firstWord.parentNode.insertBefore(wrapper, firstWord);
+                        wrapper.appendChild(chip);
+                        segmentWords.forEach(w => wrapper.appendChild(w));
+                    }
+                });
+            }
+        };
+
+        // Speaker Split/Reassign Manager - Video Editor Style (Blade Tool)
+        // Split first, then assign speakers to resulting segments
+        const speakerSplitManager = {
+            activeChunkId: null,
+            activeChunkEl: null,
+            splits: [],           // Array of word indices where splits occur
+            segments: [],         // Resulting segments with speaker assignments
+            originalSpeaker: null,
+
+            startSplit(chunkId) {
+                console.log('[Split] startSplit called with chunkId:', chunkId);
+
+                // Cancel any existing split
+                if (this.activeChunkId) this.cancelSplit();
+
+                this.activeChunkId = chunkId;
+                this.splits = [];
+                this.segments = [];
+
+                const chunkEl = document.querySelector(`[data-chunk-id="${chunkId}"]`);
+                console.log('[Split] Found element:', chunkEl);
+                if (!chunkEl) {
+                    console.error('[Split] Could not find element with data-chunk-id:', chunkId);
+                    // Debug: list all elements with data-chunk-id
+                    const allChunks = document.querySelectorAll('[data-chunk-id]');
+                    console.log('[Split] Available chunk IDs:', Array.from(allChunks).map(el => el.dataset.chunkId));
+                    return;
+                }
+
+                this.activeChunkEl = chunkEl;
+                this.originalSpeaker = chunkEl.querySelector('.speaker-label')?.textContent || 'Unknown';
+
+                // Enter split mode
+                chunkEl.classList.add('split-mode');
+
+                // Add blade cursor and click handlers between words
+                const textEl = chunkEl.querySelector('.paragraph-text');
+                if (textEl) {
+                    this.setupBladeTool(textEl);
+                }
+
+                // Show toolbar
+                const toolbar = document.getElementById('split-toolbar');
+                if (toolbar) {
+                    toolbar.style.display = 'flex';
+                    this.updateToolbarStatus();
+                }
+
+                showToast('🔪 Blade mode: DOUBLE-CLICK between words to cut');
+            },
+
+            setupBladeTool(textEl) {
+                const words = textEl.querySelectorAll('.word-highlight');
+                console.log('[Blade] Setting up blade tool, found', words.length, 'words');
+
+                words.forEach((word, idx) => {
+                    // Create a clickable gap before each word (except first)
+                    if (idx > 0) {
+                        const blade = document.createElement('span');
+                        blade.className = 'blade-target';
+                        blade.dataset.splitIndex = idx;
+                        blade.innerHTML = '|'; // Simple pipe character
+                        blade.style.cssText = `
+                            cursor: crosshair;
+                            color: #ff6b6b;
+                            padding: 2px 4px;
+                            margin: 0 2px;
+                            background: rgba(255, 107, 107, 0.1);
+                            border-radius: 2px;
+                            font-weight: bold;
+                            display: inline-block;
+                            user-select: none;
+                        `;
+                        blade.title = 'Double-click to cut here';
+                        blade.onmouseenter = () => {
+                            blade.style.background = 'rgba(255, 107, 107, 0.3)';
+                            blade.style.color = '#ff0000';
+                        };
+                        blade.onmouseleave = () => {
+                            if (!blade.classList.contains('cut')) {
+                                blade.style.background = 'rgba(255, 107, 107, 0.1)';
+                                blade.style.color = '#ff6b6b';
+                            }
+                        };
+                        // Use double-click for intentional cutting (like video editors)
+                        blade.ondblclick = (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            console.log('[Blade] Double-click cut at word index:', idx);
+                            this.cutAt(idx, blade);
+                        };
+                        // Single click just prevents propagation
+                        blade.onclick = (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            console.log('[Blade] Single click at index:', idx, '(double-click to cut)');
+                        };
+                        word.parentNode.insertBefore(blade, word);
+                    }
+                });
+                console.log('[Blade] Created', words.length - 1, 'blade targets');
+            },
+
+            cutAt(wordIndex, bladeEl) {
+                // Check if already cut here
+                if (this.splits.includes(wordIndex)) {
+                    // Remove the cut
+                    this.splits = this.splits.filter(s => s !== wordIndex);
+                    bladeEl.classList.remove('cut');
+                    bladeEl.style.color = 'transparent';
+                    bladeEl.innerHTML = '│';
+                } else {
+                    // Add new cut
+                    this.splits.push(wordIndex);
+                    this.splits.sort((a, b) => a - b);
+                    bladeEl.classList.add('cut');
+                    bladeEl.style.color = 'var(--danger)';
+                    bladeEl.innerHTML = '✂️';
+                }
+
+                this.updateSegmentDisplay();
+                this.updateToolbarStatus();
+            },
+
+            updateSegmentDisplay() {
+                if (!this.activeChunkEl) return;
+
+                const textEl = this.activeChunkEl.querySelector('.paragraph-text');
+                const words = textEl.querySelectorAll('.word-highlight');
+
+                // Remove existing segment wrappers
+                textEl.querySelectorAll('.segment-wrapper').forEach(w => {
+                    // Move children back out
+                    while (w.firstChild) {
+                        w.parentNode.insertBefore(w.firstChild, w);
+                    }
+                    w.remove();
+                });
+
+                if (this.splits.length === 0) {
+                    this.segments = [];
+                    return;
+                }
+
+                // Build segments based on splits
+                const splitPoints = [0, ...this.splits, words.length];
+                this.segments = [];
+
+                for (let i = 0; i < splitPoints.length - 1; i++) {
+                    const start = splitPoints[i];
+                    const end = splitPoints[i + 1];
+                    // First segment keeps original speaker, others get undefined_speaker_XX
+                    const speaker = i === 0
+                        ? this.originalSpeaker
+                        : `undefined_speaker_${String(i).padStart(2, '0')}`;
+                    this.segments.push({
+                        startWord: start,
+                        endWord: end - 1,
+                        speaker: speaker
+                    });
+                }
+
+                // Visually wrap each segment
+                this.segments.forEach((seg, segIdx) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'segment-wrapper';
+                    wrapper.dataset.segmentIndex = segIdx;
+                    wrapper.style.cssText = `
+                        display: block;
+                        background: ${this.getSegmentColor(segIdx)};
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                        border-left: 4px solid ${this.getSegmentBorderColor(segIdx)};
+                        position: relative;
+                    `;
+
+                    // Add speaker selector chip
+                    const chip = document.createElement('span');
+                    chip.className = 'segment-speaker-chip';
+                    chip.style.cssText = `
+                        display: inline-block;
+                        background: white;
+                        border: 1px solid var(--gray-400);
+                        border-radius: 12px;
+                        padding: 4px 12px;
+                        font-size: 12px;
+                        margin-bottom: 6px;
+                        margin-right: 8px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                    `;
+                    // Use display name if available
+                    const displayName = speakerNames[seg.speaker] || seg.speaker || '👤 Assign...'
+                    chip.textContent = displayName + ' ▼';
+                    chip.onclick = (e) => {
+                        e.stopPropagation();
+                        this.showSpeakerPicker(chip, segIdx);
+                    };
+
+                    // Get the word elements for this segment
+                    const segmentWords = [];
+                    let node = textEl.firstChild;
+                    let wordCount = 0;
+                    while (node) {
+                        const next = node.nextSibling;
+                        // FIX: words have class 'word-highlight', not 'word'
+                        if (node.classList?.contains('word-highlight')) {
+                            if (wordCount >= seg.startWord && wordCount <= seg.endWord) {
+                                segmentWords.push(node);
+                            }
+                            wordCount++;
+                        } else if (node.classList?.contains('blade-target')) {
+                            const bladeIdx = parseInt(node.dataset.splitIndex);
+                            if (bladeIdx > seg.startWord && bladeIdx <= seg.endWord) {
+                                segmentWords.push(node);
+                            }
+                        }
+                        node = next;
+                    }
+
+                    // Move words into wrapper
+                    if (segmentWords.length > 0) {
+                        const firstWord = segmentWords[0];
+                        firstWord.parentNode.insertBefore(wrapper, firstWord);
+                        wrapper.appendChild(chip);
+                        segmentWords.forEach(w => wrapper.appendChild(w));
+                    }
+                });
+            },
+
+            getSegmentColor(index) {
+                const colors = [
+                    'rgba(59, 130, 246, 0.15)',   // blue
+                    'rgba(16, 185, 129, 0.15)',   // green
+                    'rgba(245, 158, 11, 0.15)',   // amber
+                    'rgba(139, 92, 246, 0.15)',   // purple
+                    'rgba(236, 72, 153, 0.15)',   // pink
+                    'rgba(6, 182, 212, 0.15)',    // cyan
+                ];
+                return colors[index % colors.length];
+            },
+
+            getSegmentBorderColor(index) {
+                const colors = [
+                    'rgb(59, 130, 246)',   // blue
+                    'rgb(16, 185, 129)',   // green
+                    'rgb(245, 158, 11)',   // amber
+                    'rgb(139, 92, 246)',   // purple
+                    'rgb(236, 72, 153)',   // pink
+                    'rgb(6, 182, 212)',    // cyan
+                ];
+                return colors[index % colors.length];
+            },
+
+            showSpeakerPicker(chip, segmentIndex) {
+                // Remove existing pickers
+                document.querySelectorAll('.speaker-picker').forEach(p => p.remove());
+
+                const picker = document.createElement('div');
+                picker.className = 'speaker-picker';
+                picker.style.cssText = `
+                    position: absolute;
+                    background: white;
+                    border: 1px solid var(--gray-300);
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 1001;
+                    padding: 8px;
+                    min-width: 160px;
+                `;
+
+                // Get available speakers from transcript data
+                const speakerList = processedData?.speakers || [];
+                const speakers = speakerList.length > 0
+                    ? speakerList.map(id => [id, speakerNames[id] || id])
+                    : [['SPEAKER_00', 'Speaker 1'], ['SPEAKER_01', 'Speaker 2']];
+
+                console.log('[SpeakerPicker] Available speakers:', speakers);
+
+                speakers.forEach(([id, name]) => {
+                    const btn = document.createElement('button');
+                    btn.textContent = name;
+                    btn.style.cssText = `
+                        display: block;
+                        width: 100%;
+                        padding: 8px 12px;
+                        border: none;
+                        background: white;
+                        text-align: left;
+                        cursor: pointer;
+                        border-radius: 4px;
+                        font-size: 13px;
+                    `;
+                    btn.onmouseenter = () => btn.style.background = 'var(--gray-100)';
+                    btn.onmouseleave = () => btn.style.background = 'white';
+                    btn.onclick = () => {
+                        this.segments[segmentIndex].speaker = id;  // Store the ID
+                        chip.textContent = name + ' ▼';  // Display name with dropdown arrow
+                        picker.remove();
+                        this.updateToolbarStatus();
+                    };
+                    picker.appendChild(btn);
+                });
+
+                // Add new speaker option
+                const newBtn = document.createElement('button');
+                newBtn.textContent = '+ New Speaker';
+                newBtn.style.cssText = `
+                    display: block;
+                    width: 100%;
+                    padding: 8px 12px;
+                    border: none;
+                    border-top: 1px solid var(--gray-200);
+                    background: white;
+                    text-align: left;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    font-size: 13px;
+                    color: var(--primary);
+                    margin-top: 4px;
+                `;
+                newBtn.onclick = () => {
+                    const name = prompt('Enter speaker name:');
+                    if (name) {
+                        this.segments[segmentIndex].speaker = name;
+                        chip.textContent = name;
+                        this.updateToolbarStatus();
+                    }
+                    picker.remove();
+                };
+                picker.appendChild(newBtn);
+
+                // Position picker
+                const rect = chip.getBoundingClientRect();
+                picker.style.left = `${rect.left}px`;
+                picker.style.top = `${rect.bottom + 4}px`;
+                picker.style.position = 'fixed';
+
+                document.body.appendChild(picker);
+
+                // Close on outside click
+                setTimeout(() => {
+                    const close = (e) => {
+                        if (!picker.contains(e.target)) {
+                            picker.remove();
+                            document.removeEventListener('click', close);
+                        }
+                    };
+                    document.addEventListener('click', close);
+                }, 0);
+            },
+
+            updateToolbarStatus() {
+                const countEl = document.getElementById('split-count');
+                if (!countEl) return;
+
+                if (this.splits.length === 0) {
+                    countEl.textContent = 'Click between words to cut';
+                } else {
+                    const assigned = this.segments.filter(s => s.speaker).length;
+                    const total = this.segments.length;
+                    countEl.textContent = `${this.splits.length} cut${this.splits.length !== 1 ? 's' : ''} • ${assigned}/${total} speakers assigned`;
+                }
+            },
+
+            async saveSplits() {
+                if (!this.activeChunkId || this.splits.length === 0) {
+                    showToast('No cuts to save', 'error');
+                    return;
+                }
+
+                // Check all segments have speakers
+                const unassigned = this.segments.filter(s => !s.speaker);
+                if (unassigned.length > 0) {
+                    showToast(`Please assign speakers to all ${unassigned.length} segment(s)`, 'error');
+                    return;
+                }
+
+                // Create chunk-split annotation
+                const annotation = await layerManager.createAnnotation('chunk-split', {
+                    chunkId: this.activeChunkId,
+                    originalText: this.activeChunkEl?.querySelector('.paragraph-text')?.textContent
+                }, {
+                    splits: this.splits,
+                    segments: this.segments
+                });
+
+                if (annotation) {
+                    showToast(`✅ Split saved: ${this.segments.length} segments`);
+                    // Cancel edit mode first, then re-render to show saved split
+                    this.cancelSplit();
+                    // Re-render annotations to show the saved split permanently
+                    layerManager.renderAnnotations();
+                } else {
+                    this.cancelSplit();
+                }
+            },
+
+            cancelSplit() {
+                if (this.activeChunkEl) {
+                    this.activeChunkEl.classList.remove('split-mode');
+
+                    // Remove blade targets and segment wrappers
+                    this.activeChunkEl.querySelectorAll('.blade-target').forEach(b => b.remove());
+                    this.activeChunkEl.querySelectorAll('.segment-wrapper').forEach(w => {
+                        while (w.firstChild) {
+                            w.parentNode.insertBefore(w.firstChild, w);
+                        }
+                        w.remove();
+                    });
+                    this.activeChunkEl.querySelectorAll('.segment-speaker-chip').forEach(c => c.remove());
+                }
+
+                this.activeChunkId = null;
+                this.activeChunkEl = null;
+                this.splits = [];
+                this.segments = [];
+
+                // Hide toolbar
+                const toolbar = document.getElementById('split-toolbar');
+                if (toolbar) {
+                    toolbar.style.display = 'none';
+                }
+            }
         };
 
         // Auth functions
@@ -1958,6 +3063,13 @@
             });
 
             if (!response.ok) {
+                // Handle auth errors - redirect to login instead of spinning
+                if (response.status === 401 || response.status === 403) {
+                    console.error('Session expired or unauthorized - redirecting to login');
+                    localStorage.clear();
+                    window.location.href = 'index.html';
+                    return; // Stop execution
+                }
                 throw new Error(`API call failed: ${response.statusText}`);
             }
 
@@ -2282,63 +3394,85 @@
                 const sessionPath = `users/${userId}/audio/sessions/${sessionFolder}`;
                 console.log('Full session path:', sessionPath);
 
-                // FAST PATH: Try to load diarized first, then topic-segmented, then processed
-                console.log('Checking for diarized, topic-segmented, or pre-processed transcript...');
+                // FAST PATH: Try to load user-edited file first, then diarized, then topic-segmented
+                console.log('Checking for processed, diarized, or topic-segmented transcript...');
 
-                // Priority order: diarized (speaker labels) > topic-segmented > processed
+                // Priority order: processed (user edits) > diarized (speaker labels) > topic-segmented
+                const processedKey = `${sessionPath}/transcription-processed.json`;
                 const diarizedKey = `${sessionPath}/transcription-diarized.json`;
                 const topicSegmentedKey = `${sessionPath}/transcription-topic-segmented.json`;
-                const processedKey = `${sessionPath}/transcription-processed.json`;
 
                 let loadedFrom = null;
 
-                // Try diarized first (has speaker labels)
+                // Try processed first (has user edits like speaker names)
                 try {
-                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKey)}`);
+                    const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
                     const response = await fetch(downloadData.downloadUrl);
                     if (response.ok) {
-                        const diarizedData = await response.json();
-                        // Convert diarized format (segments) to editor format (paragraphs)
-                        if (diarizedData.segments && !diarizedData.paragraphs) {
-                            const paragraphs = diarizedData.segments.map((seg, idx) => ({
-                                text: seg.text,
-                                startTime: seg.start,
-                                endTime: seg.end,
-                                start: seg.start,
-                                end: seg.end,
-                                speaker: seg.speaker,
-                                words: seg.words || [],
-                                chunkIds: ['chunk-001'],
-                                originalText: seg.text
-                            }));
-
-                            // Compute stats from paragraphs
-                            const totalWords = paragraphs.reduce((sum, p) => sum + (p.text || '').split(/\s+/).filter(w => w).length, 0);
-                            const totalDuration = paragraphs.length > 0 ?
-                                Math.max(...paragraphs.map(p => p.endTime || 0)) - Math.min(...paragraphs.map(p => p.startTime || 0)) : 0;
-
-                            processedData = {
-                                paragraphs: paragraphs,
-                                speakers: diarizedData.speakers,
-                                diarization_metadata: diarizedData.diarization_metadata,
-                                stats: {
-                                    paragraphCount: paragraphs.length,
-                                    totalWords: totalWords,
-                                    totalDuration: totalDuration,
-                                    wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
-                                }
-                            };
+                        const savedData = await response.json();
+                        // Only use processed file if it has proper speaker data (paragraphs with speakers)
+                        const hasSpeakers = savedData.paragraphs?.some(p => p.speaker) || savedData.speakers?.length > 0;
+                        if (hasSpeakers) {
+                            processedData = savedData;
+                            loadedFrom = 'processed';
+                            console.log('✅ Found processed transcript with speaker data - loading with user edits!');
                         } else {
-                            processedData = diarizedData;
+                            console.log('⚠️ Processed file exists but has no speaker data, will try diarized instead...');
                         }
-                        loadedFrom = 'diarized';
-                        console.log('✅ Found diarized transcript - loading with speaker labels!');
                     }
                 } catch (e) {
-                    console.log('No diarized file, trying topic-segmented...');
+                    console.log('No processed file, trying diarized...');
                 }
 
-                // Try topic-segmented next (has topic breaks marked)
+                // Try diarized next (has speaker labels from diarization)
+                if (!loadedFrom) {
+                    try {
+                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKey)}`);
+                        const response = await fetch(downloadData.downloadUrl);
+                        if (response.ok) {
+                            const diarizedData = await response.json();
+                            // Convert diarized format (segments) to editor format (paragraphs)
+                            if (diarizedData.segments && !diarizedData.paragraphs) {
+                                const paragraphs = diarizedData.segments.map((seg, idx) => ({
+                                    text: seg.text,
+                                    startTime: seg.start,
+                                    endTime: seg.end,
+                                    start: seg.start,
+                                    end: seg.end,
+                                    speaker: seg.speaker,
+                                    words: seg.words || [],
+                                    chunkIds: ['chunk-001'],
+                                    originalText: seg.text
+                                }));
+
+                                // Compute stats from paragraphs
+                                const totalWords = paragraphs.reduce((sum, p) => sum + (p.text || '').split(/\s+/).filter(w => w).length, 0);
+                                const totalDuration = paragraphs.length > 0 ?
+                                    Math.max(...paragraphs.map(p => p.endTime || 0)) - Math.min(...paragraphs.map(p => p.startTime || 0)) : 0;
+
+                                processedData = {
+                                    paragraphs: paragraphs,
+                                    speakers: diarizedData.speakers,
+                                    diarization_metadata: diarizedData.diarization_metadata,
+                                    stats: {
+                                        paragraphCount: paragraphs.length,
+                                        totalWords: totalWords,
+                                        totalDuration: totalDuration,
+                                        wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
+                                    }
+                                };
+                            } else {
+                                processedData = diarizedData;
+                            }
+                            loadedFrom = 'diarized';
+                            console.log('✅ Found diarized transcript - loading with speaker labels!');
+                        }
+                    } catch (e) {
+                        console.log('No diarized file, trying topic-segmented...');
+                    }
+                }
+
+                // Fall back to topic-segmented
                 if (!loadedFrom) {
                     try {
                         const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
@@ -2349,22 +3483,7 @@
                             console.log('✅ Found topic-segmented transcript - loading with topic breaks!');
                         }
                     } catch (e) {
-                        console.log('No topic-segmented file, trying pre-processed...');
-                    }
-                }
-
-                // Fall back to processed if topic-segmented not found
-                if (!loadedFrom) {
-                    try {
-                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
-                        const response = await fetch(downloadData.downloadUrl);
-                        if (response.ok) {
-                            processedData = await response.json();
-                            loadedFrom = 'pre-processed';
-                            console.log('✅ Found pre-processed transcript - loading instantly!');
-                        }
-                    } catch (e) {
-                        console.log('No pre-processed file either');
+                        console.log('No topic-segmented file either');
                     }
                 }
 
@@ -2377,6 +3496,12 @@
 
                     // Try to load AI analysis
                     await loadAIAnalysis();
+
+                    // Load annotations for this session (if any)
+                    if (currentSession?.folder) {
+                        await layerManager.loadLayersForSession(encodeURIComponent(currentSession.folder));
+                        layerManager.renderAnnotations();
+                    }
 
                     // Hide loading, show content
                     document.getElementById('loading').style.display = 'none';
@@ -2459,6 +3584,12 @@
 
                 // Try to load AI analysis
                 await loadAIAnalysis();
+
+                // Load annotations for this session (if any)
+                if (currentSession?.folder) {
+                    await layerManager.loadLayersForSession(encodeURIComponent(currentSession.folder));
+                    layerManager.renderAnnotations();
+                }
 
                 // Hide loading, show content
                 document.getElementById('loading').style.display = 'none';
@@ -2692,6 +3823,9 @@
                 speakerIndexMap[speaker] = index;
             });
 
+            // Populate speaker legend in sidebar
+            populateSpeakerList(speakerList);
+
             // Track previous speaker to detect changes
             let previousSpeaker = null;
 
@@ -2711,7 +3845,14 @@
                 number.className = 'paragraph-number';
                 number.textContent = index + 1;
                 number.title = 'Click to play from here';
-                number.onclick = (e) => onParagraphClick(index, e);
+                number.onclick = (e) => {
+                    // Skip if in split mode
+                    if (speakerSplitManager.activeChunkId) {
+                        console.log('[Number Click] Skipped - split mode active');
+                        return;
+                    }
+                    onParagraphClick(index, e);
+                };
 
                 // Add speaker label if diarization data is available
                 const speaker = para.speaker;
@@ -2720,7 +3861,8 @@
                     speakerLabel.className = 'speaker-label';
                     const speakerIndex = speakerIndexMap[speaker] !== undefined ? speakerIndexMap[speaker] : 0;
                     speakerLabel.classList.add(`speaker-${speakerIndex % 6}`);
-                    speakerLabel.textContent = speaker;
+                    // Use custom name if available
+                    speakerLabel.textContent = speakerNames[speaker] || speaker;
                     paraDiv.appendChild(speakerLabel);
 
                     // Mark speaker change
@@ -2728,6 +3870,28 @@
                         paraDiv.classList.add('speaker-change');
                     }
                     previousSpeaker = speaker;
+
+                    // Add split speaker button
+                    const splitBtn = document.createElement('button');
+                    splitBtn.className = 'split-speaker-btn';
+                    splitBtn.innerHTML = '✂️ Split';
+                    splitBtn.title = 'Split this chunk into multiple speakers';
+                    // Always use unique para-${index} ID for split targeting
+                    const uniqueParaId = `para-${index}`;
+                    splitBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        console.log('[Split Button] Clicked! paraId:', uniqueParaId);
+                        speakerSplitManager.startSplit(uniqueParaId);
+                    };
+                    paraDiv.appendChild(splitBtn);
+                }
+
+                // Add data-chunk-id for annotation targeting - use unique para-${index}
+                paraDiv.dataset.chunkId = `para-${index}`;
+                // Also store original chunk IDs for reference
+                if (para.chunkIds?.length) {
+                    paraDiv.dataset.originalChunkIds = para.chunkIds.join(',');
                 }
 
                 const text = document.createElement('div');
@@ -2743,6 +3907,11 @@
                 // Make entire paragraph clickable for seek
                 paraDiv.classList.add('clickable-seek');
                 paraDiv.onclick = (e) => {
+                    // Skip if in split mode - let blade tool handle clicks
+                    if (speakerSplitManager.activeChunkId) {
+                        console.log('[Para Click] Skipped - split mode active');
+                        return;
+                    }
                     // Only trigger if not clicking on interactive elements
                     if (!e.target.closest('.chunk-badge') &&
                         !e.target.closest('.original-text-toggle') &&
@@ -3893,9 +5062,48 @@
         }
 
         /**
+         * Skip forward by specified seconds
+         */
+        function skipForward(seconds) {
+            const newTime = Math.min(
+                globalPlaybackState.absoluteTime + seconds,
+                globalPlaybackState.totalDuration
+            );
+            console.log('[Global Playback] Skip forward', seconds, 'seconds to', formatTime(newTime));
+            seekToAbsoluteTime(newTime);
+
+            // Continue playing if was playing
+            if (globalPlaybackState.isPlaying) {
+                playGlobal();
+            }
+        }
+
+        /**
+         * Skip backward by specified seconds
+         */
+        function skipBackward(seconds) {
+            const newTime = Math.max(
+                globalPlaybackState.absoluteTime - seconds,
+                0
+            );
+            console.log('[Global Playback] Skip backward', seconds, 'seconds to', formatTime(newTime));
+            seekToAbsoluteTime(newTime);
+
+            // Continue playing if was playing
+            if (globalPlaybackState.isPlaying) {
+                playGlobal();
+            }
+        }
+
+        /**
          * Handle click on a paragraph to seek to its start time
          */
         function onParagraphClick(paraIndex, event) {
+            // Don't seek if in split mode
+            if (speakerSplitManager.activeChunkId) {
+                console.log('[onParagraphClick] Blocked - split mode active');
+                return;
+            }
             // Don't seek if clicking on editable text or links
             if (event.target.isContentEditable || event.target.tagName === 'A') {
                 return;
@@ -4139,6 +5347,148 @@
             return text;
         }
 
+        // Speaker Legend Functions
+        const SPEAKER_COLORS = ['#dbeafe', '#dcfce7', '#fef3c7', '#f3e8ff', '#ffe4e6', '#e0f2fe'];
+
+        function populateSpeakerList(speakers) {
+            const section = document.getElementById('speakers-section');
+            const list = document.getElementById('speaker-list');
+
+            if (!speakers || speakers.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            list.innerHTML = '';
+
+            // Load saved names from processedData
+            speakerNames = processedData.speaker_names || {};
+
+            speakers.forEach((speaker, index) => {
+                const colorIndex = index % 6;
+
+                const row = document.createElement('div');
+                row.className = 'speaker-row';
+                row.dataset.speaker = speaker;
+
+                // Build merge options
+                const otherSpeakers = speakers.filter(s => s !== speaker);
+                const mergeOptions = otherSpeakers.map(s =>
+                    `<option value="${s}">${speakerNames[s] || s}</option>`
+                ).join('');
+
+                row.innerHTML = `
+                    <div class="speaker-color-dot" style="background: ${SPEAKER_COLORS[colorIndex]};"></div>
+                    <input type="text" class="speaker-name-input"
+                           value="${speakerNames[speaker] || speaker}"
+                           data-speaker="${speaker}"
+                           placeholder="${speaker}"
+                           oninput="onSpeakerNameChange(this)">
+                    <select class="speaker-merge-select" data-speaker="${speaker}"
+                            onchange="onMergeSpeaker(this)" title="Merge into another speaker">
+                        <option value="">Merge</option>
+                        ${mergeOptions}
+                    </select>
+                `;
+
+                list.appendChild(row);
+            });
+        }
+
+        function onSpeakerNameChange(input) {
+            const speaker = input.dataset.speaker;
+            const name = input.value.trim();
+            speakerNames[speaker] = name || speaker;
+
+            // Update speaker labels in transcript view
+            updateSpeakerLabelsInTranscript();
+        }
+
+        function updateSpeakerLabelsInTranscript() {
+            if (!processedData || !processedData.paragraphs) return;
+
+            processedData.paragraphs.forEach((para, index) => {
+                const speaker = para.speaker;
+                if (!speaker) return;
+
+                const paraDiv = document.getElementById(`para-${index}`);
+                if (!paraDiv) return;
+
+                const label = paraDiv.querySelector('.speaker-label');
+                if (label) {
+                    label.textContent = speakerNames[speaker] || speaker;
+                }
+            });
+        }
+
+        async function saveSpeakerNames() {
+            // Store speaker names in processedData
+            processedData.speaker_names = speakerNames;
+
+            // Save via existing saveTranscript mechanism
+            await saveTranscript();
+
+            showToast('Speaker names saved!');
+        }
+
+        async function onMergeSpeaker(select) {
+            const sourceSpk = select.dataset.speaker;
+            const targetSpk = select.value;
+
+            if (!targetSpk) return;
+
+            const sourceName = speakerNames[sourceSpk] || sourceSpk;
+            const targetName = speakerNames[targetSpk] || targetSpk;
+
+            if (!confirm(`Merge "${sourceName}" into "${targetName}"?\n\nAll segments from ${sourceName} will be reassigned to ${targetName}.`)) {
+                select.value = '';
+                return;
+            }
+
+            // Update all paragraphs
+            processedData.paragraphs.forEach(para => {
+                if (para.speaker === sourceSpk) {
+                    para.speaker = targetSpk;
+                }
+            });
+
+            // Update segments if present
+            if (processedData.segments) {
+                processedData.segments.forEach(seg => {
+                    if (seg.speaker === sourceSpk) {
+                        seg.speaker = targetSpk;
+                    }
+                });
+            }
+
+            // Remove merged speaker from list
+            const idx = processedData.speakers.indexOf(sourceSpk);
+            if (idx > -1) {
+                processedData.speakers.splice(idx, 1);
+            }
+
+            // Copy name if target doesn't have one
+            if (!speakerNames[targetSpk] && speakerNames[sourceSpk]) {
+                speakerNames[targetSpk] = speakerNames[sourceSpk];
+            }
+            delete speakerNames[sourceSpk];
+
+            // Store updated speaker_names
+            processedData.speaker_names = speakerNames;
+
+            // Refresh the speaker list (removes merged speaker)
+            populateSpeakerList(processedData.speakers);
+
+            // Update all speaker labels in the transcript to use the target speaker's name
+            updateSpeakerLabelsInTranscript();
+
+            // Auto-save after merge so it persists
+            await saveTranscript();
+
+            showToast(`Merged ${sourceName} into ${targetName} (saved)`);
+        }
+
         // Save transcript
         async function saveTranscript() {
             try {
@@ -4151,7 +5501,7 @@
                 const uploadData = await apiCall('/api/s3/upload', {
                     method: 'POST',
                     body: JSON.stringify({
-                        fileName: `audio/sessions/${sessionFolder}/transcript-processed.json`,
+                        fileName: `audio/sessions/${sessionFolder}/transcription-processed.json`,
                         contentType: 'application/json',
                         fileSize: blob.size
                     })

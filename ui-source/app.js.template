@@ -621,11 +621,14 @@ async function listS3Files() {
                 fileItem.addEventListener('click', (e) => {
                     // Don't trigger if clicking on menu button or dropdown
                     if (e.target.closest('.file-list-actions')) return;
-                    
+
                     if (isFolder) {
                         navigateToFolder(fullKey);
+                    } else if (isImageFile(displayName)) {
+                        // For images, show in viewer
+                        viewImage(fullKey, displayName);
                     } else {
-                        // For files, show a preview or download on click
+                        // For other files, download
                         downloadFile(fullKey, displayName, index);
                     }
                 });
@@ -711,6 +714,195 @@ async function downloadFile(fullKey, displayName, index) {
         console.error('Error downloading file:', error);
         alert(`Download failed: ${error.message}`);
     }
+}
+
+// Check if file is an image
+function isImageFile(filename) {
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp'];
+    const lowerName = filename.toLowerCase();
+    return imageExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+// View image in browser
+async function viewImage(fullKey, displayName) {
+    const idToken = localStorage.getItem('id_token');
+
+    if (!idToken) {
+        alert('You must be logged in to view files.');
+        return;
+    }
+
+    try {
+        console.log(`Getting image URL for: ${fullKey}`);
+
+        const encodedKey = encodeURIComponent(fullKey);
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/download/${encodedKey}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get image URL: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Show image viewer
+        showImageViewer(data.downloadUrl, displayName);
+
+    } catch (error) {
+        console.error('Error viewing image:', error);
+        alert(`Failed to view image: ${error.message}`);
+    }
+}
+
+// Show image viewer modal
+function showImageViewer(imageUrl, imageName) {
+    // Remove existing viewer if any
+    const existingViewer = document.getElementById('image-viewer-modal');
+    if (existingViewer) existingViewer.remove();
+
+    // Create viewer modal
+    const viewer = document.createElement('div');
+    viewer.id = 'image-viewer-modal';
+    viewer.innerHTML = `
+        <div class="image-viewer-backdrop"></div>
+        <div class="image-viewer-container">
+            <div class="image-viewer-header">
+                <button class="image-viewer-back" onclick="closeImageViewer()">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Files
+                </button>
+                <span class="image-viewer-title">${imageName}</span>
+                <button class="image-viewer-download" onclick="window.open('${imageUrl}', '_blank')">
+                    <i class="fas fa-download"></i>
+                    Download
+                </button>
+            </div>
+            <div class="image-viewer-content">
+                <img src="${imageUrl}" alt="${imageName}" />
+            </div>
+        </div>
+    `;
+
+    // Add styles
+    viewer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 10000;
+    `;
+
+    const backdrop = viewer.querySelector('.image-viewer-backdrop');
+    backdrop.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+    `;
+    backdrop.onclick = closeImageViewer;
+
+    const container = viewer.querySelector('.image-viewer-container');
+    container.style.cssText = `
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        z-index: 1;
+    `;
+
+    const header = viewer.querySelector('.image-viewer-header');
+    header.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+    `;
+
+    const backBtn = viewer.querySelector('.image-viewer-back');
+    backBtn.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+    `;
+
+    const title = viewer.querySelector('.image-viewer-title');
+    title.style.cssText = `
+        font-size: 16px;
+        font-weight: 500;
+        max-width: 50%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    `;
+
+    const downloadBtn = viewer.querySelector('.image-viewer-download');
+    downloadBtn.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #10b981;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+    `;
+
+    const content = viewer.querySelector('.image-viewer-content');
+    content.style.cssText = `
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 24px;
+        overflow: auto;
+    `;
+
+    const img = viewer.querySelector('img');
+    img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    `;
+
+    document.body.appendChild(viewer);
+
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            closeImageViewer();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+// Close image viewer
+function closeImageViewer() {
+    const viewer = document.getElementById('image-viewer-modal');
+    if (viewer) viewer.remove();
 }
 
 // Helper functions
@@ -2086,10 +2278,212 @@ function showMobileActionSheet(fileKey, fileName, isFolder, index) {
     });
 }
 
+// Initialize direct drag-and-drop upload to file manager
+function initializeDirectDropUpload() {
+    // Use the entire file manager section as drop zone
+    const fileManager = document.getElementById('authenticated-section');
+    if (!fileManager) return;
+
+    // Prevent browser from opening dropped files anywhere on the page
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+    });
+
+    // Create drop overlay for entire file manager
+    const dropOverlay = document.createElement('div');
+    dropOverlay.id = 'drop-overlay';
+    dropOverlay.innerHTML = `
+        <div class="drop-overlay-content">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Drop files to upload to current folder</p>
+        </div>
+    `;
+    dropOverlay.style.cssText = `
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(37, 99, 235, 0.9);
+        border: 3px dashed white;
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 1.2rem;
+        pointer-events: none;
+    `;
+    dropOverlay.querySelector('.drop-overlay-content').style.cssText = `
+        text-align: center;
+    `;
+    dropOverlay.querySelector('i').style.cssText = `
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        display: block;
+    `;
+
+    document.body.appendChild(dropOverlay);
+
+    let dragCounter = 0;
+
+    // Drag enter - show overlay when file manager is visible
+    document.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        // Only show overlay if file manager is visible and dragging files
+        if (fileManager.style.display !== 'none' && e.dataTransfer.types.includes('Files')) {
+            dropOverlay.style.display = 'flex';
+        }
+    });
+
+    // Drag over - keep overlay visible
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    // Drag leave - hide overlay when truly leaving
+    document.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+            dropOverlay.style.display = 'none';
+        }
+    });
+
+    // Drop - handle files
+    document.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        dropOverlay.style.display = 'none';
+
+        // Only handle if file manager is visible
+        if (fileManager.style.display === 'none') return;
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        console.log(`[Drop Upload] Dropping ${files.length} file(s) to folder: "${currentPath || 'root'}"`);
+
+        // Check authentication
+        const idToken = localStorage.getItem('id_token');
+        if (!idToken) {
+            alert('You must be logged in to upload files.');
+            return;
+        }
+
+        // Show upload toast
+        showUploadToast(`Uploading ${files.length} file(s)...`);
+
+        // Upload each file directly (no modal)
+        let successCount = 0;
+        for (const file of files) {
+            try {
+                const result = await uploadFileDirect(file, currentPath);
+                if (result) successCount++;
+            } catch (err) {
+                console.error(`Failed to upload ${file.name}:`, err);
+            }
+        }
+
+        // Show completion toast
+        showUploadToast(`Uploaded ${successCount} of ${files.length} file(s) - refreshing...`);
+
+        // Refresh file list after S3 consistency delay
+        setTimeout(() => {
+            listS3Files();
+            showUploadToast(`Upload complete!`);
+        }, 1500);
+    });
+}
+
+// Upload file directly without modal
+async function uploadFileDirect(file, folderPath) {
+    const idToken = localStorage.getItem('id_token');
+
+    try {
+        // Get presigned URL
+        const response = await fetch(`${config.s3ApiUrl}/api/s3/upload`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fileName: folderPath + file.name,
+                contentType: file.type || 'application/octet-stream',
+                fileSize: file.size
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get upload URL: ${response.status}`);
+        }
+
+        const uploadData = await response.json();
+
+        // Upload file to S3
+        const uploadResponse = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': file.type || 'application/octet-stream'
+            },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            throw new Error(`Upload failed: ${uploadResponse.status}`);
+        }
+
+        console.log(`[Drop Upload] Successfully uploaded: ${file.name}`);
+        return true;
+
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        alert(`Failed to upload ${file.name}: ${error.message}`);
+        return false;
+    }
+}
+
+// Show upload toast notification
+function showUploadToast(message) {
+    // Remove existing toast
+    const existingToast = document.getElementById('upload-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'upload-toast';
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #1f2937;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 // Initialize upload and folder creation when document is ready
 document.addEventListener('DOMContentLoaded', () => {
     initializeUpload();
     initializeFolderCreation();
+    initializeDirectDropUpload();
 });
 
 // Dashboard and File Manager Navigation

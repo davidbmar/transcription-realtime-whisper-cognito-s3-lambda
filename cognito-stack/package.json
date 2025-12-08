@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "aws-sdk": "^2.1423.0",
-    "googleapis": "^128.0.0"
+    "googleapis": "^128.0.0",
+    "uuid": "^9.0.0"
   }
 }

@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "domains": [
+    {
+      "id": "legal",
+      "name": "Legal & Depositions",
+      "description": "Tags for legal proceedings, depositions, hearings, and contracts",
+      "file": "legal.json"
+    },
+    {
+      "id": "medical",
+      "name": "Medical & Clinical",
+      "description": "Tags for patient consultations, clinical notes, and medical dictation",
+      "file": "medical.json"
+    },
+    {
+      "id": "general",
+      "name": "General Purpose",
+      "description": "Universal tags for meetings, interviews, and general transcription",
+      "file": "general.json"
+    }
+  ],
+  "defaultDomain": "general"
+}
