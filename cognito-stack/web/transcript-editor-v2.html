@@ -116,24 +116,25 @@
             margin: 0 auto;
             padding: 24px;
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 280px 1fr;
             gap: 24px;
-            min-height: calc(100vh - 80px);
+            height: calc(100vh - 80px);
+            overflow: hidden;
         }
 
         /* Sidebar */
         .sidebar {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            height: fit-content;
-            position: sticky;
-            top: 100px;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .sidebar-section {
-            margin-bottom: 24px;
+            margin-bottom: 12px;
         }
 
         .sidebar-title {
@@ -145,62 +146,120 @@
             letter-spacing: 0.5px;
         }
 
+        /* Actions/Export Panel - matches Speakers/Layers style */
+        .actions-panel {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .actions-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--gray-700);
+        }
+
         .plugin-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 0;
         }
 
         .plugin-btn {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 12px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 0;
+            border-bottom: 1px solid var(--gray-100);
             background: white;
             color: var(--gray-700);
             cursor: pointer;
-            transition: all 0.2s;
-            font-size: 14px;
+            transition: all 0.15s;
+            font-size: 13px;
             text-align: left;
+        }
+
+        .plugin-btn:last-child {
+            border-bottom: none;
         }
 
         .plugin-btn:hover {
             background: var(--gray-50);
-            border-color: var(--primary);
             color: var(--primary);
         }
 
         .plugin-btn.active {
-            background: var(--primary-light);
-            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
             color: var(--primary);
+        }
+
+        /* Statistics Panel - matches Speakers/Layers style */
+        .statistics-panel {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .statistics-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--gray-700);
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 0;
         }
 
         .stat-card {
-            background: var(--gray-50);
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid var(--gray-200);
+            background: white;
+            padding: 8px 12px;
+            border-radius: 0;
+            border: none;
+            border-bottom: 1px solid var(--gray-100);
+            border-right: 1px solid var(--gray-100);
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .stat-card:nth-child(2n) {
+            border-right: none;
+        }
+
+        .stat-card:nth-last-child(-n+2) {
+            border-bottom: none;
         }
 
         .stat-value {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 700;
             color: var(--primary);
         }
 
         .stat-label {
-            font-size: 12px;
-            color: var(--gray-600);
-            margin-top: 4px;
+            font-size: 11px;
+            color: var(--gray-500);
+            margin-top: 0;
         }
 
         /* Editor Panel */
@@ -209,16 +268,24 @@
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             overflow: hidden;
+            min-width: 0; /* Allow flex/grid shrinking */
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
 
         .editor-toolbar {
             background: var(--gray-50);
             border-bottom: 1px solid var(--gray-200);
-            padding: 12px 20px;
+            padding: 12px 16px;
             display: flex;
-            gap: 12px;
+            gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+            min-width: 0;
+            max-width: 100%;
+            overflow-x: auto;
         }
 
         .toolbar-group {
@@ -227,10 +294,12 @@
             align-items: center;
             padding-right: 12px;
             border-right: 1px solid var(--gray-300);
+            flex-shrink: 0;
         }
 
         .toolbar-group:last-child {
             border-right: none;
+            padding-right: 0;
         }
 
         .toolbar-btn {
@@ -260,8 +329,8 @@
 
         .search-box {
             flex: 1;
-            min-width: 250px;
-            max-width: 400px;
+            min-width: 150px;
+            max-width: 300px;
         }
 
         .search-input {
@@ -329,10 +398,14 @@
 
         /* Editor Content */
         .editor-content {
-            padding: 32px;
+            padding: 24px;
             padding-bottom: 100px; /* Space for fixed bottom playback bar */
-            max-width: 900px;
+            max-width: 100%;
             margin: 0 auto;
+            box-sizing: border-box;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .paragraph-container {
@@ -979,29 +1052,37 @@
             background: var(--primary-dark);
         }
 
-        /* AI Timeline Navigation Styles */
+        /* AI Timeline Navigation Styles - Panel style matching sidebar */
         .ai-nav-container {
-            position: sticky;
-            top: 64px; /* Below header */
-            z-index: 90;
             background: white;
-            border-radius: 0 0 12px 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            margin-bottom: 24px;
-            margin-top: -64px; /* Pull up under header */
-            padding-top: 64px; /* Space for header */
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 16px;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            flex-shrink: 0;
         }
 
-        /* Add slight padding when scrolled */
-        .ai-nav-container.scrolled {
-            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        .ai-nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--gray-700);
         }
 
         /* Main content wrapper for scroll context */
         .main-content-wrapper {
             flex: 1;
             min-height: 0;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         /* Editor panel needs to allow scrolling */
@@ -1009,37 +1090,42 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            overflow: visible;
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         .ai-nav-tabs {
             display: flex;
-            gap: 8px;
-            padding: 16px;
-            background: var(--gray-50);
-            border-bottom: 1px solid var(--gray-200);
+            gap: 6px;
+            padding: 10px 12px;
+            background: white;
+            border-bottom: 1px solid var(--gray-100);
             overflow-x: auto;
+            flex-wrap: wrap;
         }
 
         .ai-nav-tab {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border: 2px solid transparent;
-            border-radius: 8px;
+            gap: 4px;
+            padding: 6px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
             background: white;
             color: var(--gray-700);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: all 0.15s;
             white-space: nowrap;
         }
 
         .ai-nav-tab:hover {
             border-color: var(--gray-300);
-            background: var(--gray-100);
+            background: var(--gray-50);
         }
 
         .ai-nav-tab.active {
@@ -1069,8 +1155,11 @@
         }
 
         .timeline-container {
-            padding: 24px;
+            padding: 12px;
             background: white;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         .timeline-header {
@@ -1093,9 +1182,9 @@
 
         .timeline-track-wrapper {
             position: relative;
-            height: 60px;
+            height: 40px;
             background: var(--gray-100);
-            border-radius: 8px;
+            border-radius: 6px;
             overflow: visible;
         }
 
@@ -1295,24 +1384,29 @@
         }
 
         /* ========================================
-           SPEAKERS SECTION - Clean Compact UI
+           SPEAKERS SECTION - Photoshop-Style Panel (matches Layers)
            ======================================== */
 
         #speakers-section {
-            background: var(--gray-50);
+            background: white;
             border-radius: 8px;
-            padding: 12px;
+            border: 1px solid var(--gray-200);
+            padding: 0;
             margin-bottom: 12px;
+            overflow: hidden;
         }
 
         #speakers-section .sidebar-title {
             font-size: 13px;
             font-weight: 600;
             color: var(--gray-700);
-            margin-bottom: 10px;
+            margin-bottom: 0;
             display: flex;
             align-items: center;
             gap: 6px;
+            padding: 10px 12px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
         }
 
         .speaker-count-badge {
@@ -1345,22 +1439,29 @@
         .speaker-legend {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 0;
+            max-height: 280px;
+            overflow-y: auto;
         }
 
         .speaker-row {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 8px;
-            padding: 8px 10px;
+            padding: 8px 12px;
             background: white;
-            border-radius: 6px;
-            border: 1px solid var(--gray-200);
-            transition: border-color 0.15s ease;
+            border-radius: 0;
+            border: none;
+            border-bottom: 1px solid var(--gray-100);
+            transition: background 0.15s ease;
+        }
+
+        .speaker-row:last-child {
+            border-bottom: none;
         }
 
         .speaker-row:hover {
-            border-color: var(--gray-300);
+            background: var(--gray-50);
         }
 
         .speaker-row:hover .speaker-merge-btn {
@@ -1368,8 +1469,8 @@
         }
 
         .speaker-color-picker {
-            width: 28px;
-            height: 28px;
+            width: 20px;
+            height: 20px;
             padding: 0;
             border: 2px solid white;
             border-radius: 50%;
@@ -1402,7 +1503,7 @@
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         }
 
         .speaker-info-row {
@@ -1414,7 +1515,7 @@
 
         .speaker-name-input {
             width: 100%;
-            padding: 5px 8px;
+            padding: 3px 6px;
             border: 1px solid var(--gray-200);
             border-radius: 4px;
             font-size: 12px;
@@ -1436,7 +1537,7 @@
         .speaker-stats {
             font-size: 10px;
             color: var(--gray-400);
-            margin-top: 3px;
+            margin-top: 0;
             display: flex;
             gap: 8px;
         }
@@ -1520,23 +1621,65 @@
             color: var(--gray-500);
         }
 
-        /* Responsive */
+        /* Responsive - Medium screens */
+        @media (max-width: 1280px) {
+            .main-container {
+                grid-template-columns: 260px 1fr;
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .editor-content {
+                padding: 20px 16px;
+            }
+
+            .search-box {
+                min-width: 120px;
+                max-width: 200px;
+            }
+        }
+
+        /* Responsive - Small screens */
         @media (max-width: 1024px) {
             .main-container {
                 grid-template-columns: 1fr;
+                padding: 12px;
+                height: auto;
+                overflow: visible;
             }
 
             .sidebar {
-                position: relative;
-                top: 0;
+                height: auto;
+                max-height: 400px;
+                overflow-y: auto;
             }
 
             .ai-nav-tabs {
-                overflow-x: scroll;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
             .timeline-track-wrapper {
-                height: 80px;
+                height: 50px;
+            }
+
+            .editor-toolbar {
+                padding: 10px 12px;
+                gap: 6px;
+            }
+
+            .search-box {
+                min-width: 100px;
+                max-width: 180px;
+                order: 10; /* Move search to end on small screens */
+            }
+
+            .editor-panel {
+                height: auto;
+            }
+
+            .editor-content {
+                max-height: 60vh;
             }
         }
 
@@ -1893,8 +2036,8 @@
             </div>
 
             <!-- Stats -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Statistics</div>
+            <div class="statistics-panel">
+                <div class="statistics-panel-header">Statistics</div>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-value" id="stat-paragraphs">0</div>
@@ -2069,8 +2212,8 @@
             </style>
 
             <!-- Actions -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Actions</div>
+            <div class="actions-panel">
+                <div class="actions-panel-header">Actions</div>
                 <div class="plugin-list">
                     <button class="plugin-btn" onclick="pluginManager.showSearchDialog()">
                         🔍 Search
@@ -2091,8 +2234,8 @@
             </div>
 
             <!-- Export -->
-            <div class="sidebar-section">
-                <div class="sidebar-title">Export</div>
+            <div class="actions-panel">
+                <div class="actions-panel-header">Export</div>
                 <div class="plugin-list">
                     <button class="plugin-btn" onclick="pluginManager.export('plain')">
                         📄 Plain Text
@@ -2212,9 +2355,13 @@
         </div>
 
         <!-- Main Content Column -->
-        <div class="main-content-wrapper" style="display: flex; flex-direction: column; position: relative; overflow: visible;">
-            <!-- AI Timeline Navigation (Sticky) -->
+        <div class="main-content-wrapper">
+            <!-- AI Timeline Navigation Panel -->
             <div id="ai-nav-container" class="ai-nav-container" style="display: none;">
+                <div class="ai-nav-header">
+                    <span>AI Analysis</span>
+                    <span id="timeline-duration" style="font-weight: normal; color: var(--gray-500);">0:00</span>
+                </div>
                 <!-- Navigation Tabs -->
                 <div class="ai-nav-tabs">
                     <button class="ai-nav-tab all active" onclick="aiNavigator.filterByType('all')" data-type="all">
@@ -2242,17 +2389,13 @@
                         <span class="ai-count-badge" id="count-keyThemes">0</span>
                     </button>
                     <button class="ai-nav-tab topicChanges" onclick="aiNavigator.filterByType('topicChanges')" data-type="topicChanges">
-                        🔀 Topic Changes
+                        🔀 Topics
                         <span class="ai-count-badge" id="count-topicChanges">0</span>
                     </button>
                 </div>
 
                 <!-- Timeline Track -->
                 <div class="timeline-container">
-                    <div class="timeline-header">
-                        <div class="timeline-title">Interactive Timeline</div>
-                        <div class="timeline-duration" id="timeline-duration">0:00</div>
-                    </div>
                     <div class="timeline-track-wrapper">
                         <div class="timeline-track" id="timeline-track">
                             <!-- Markers added dynamically -->
@@ -6456,6 +6599,75 @@
             return text;
         }
 
+        // Generate SRT subtitle format - respects layer visibility
+        function generateSRT() {
+            // Check which layers are visible
+            const showSpeakers = layerManager?.layers[1]?.visible !== false;
+
+            // Get chunk-split annotations for each paragraph
+            const chunkSplitAnnotations = {};
+            if (showSpeakers && layerManager?.layers[1]?.annotations) {
+                layerManager.layers[1].annotations
+                    .filter(a => a.type === 'chunk-split')
+                    .forEach(a => {
+                        const chunkId = a.target?.chunkId || a.data?.chunkId;
+                        const segments = a.data?.segments || [];
+                        if (chunkId) {
+                            chunkSplitAnnotations[chunkId] = segments;
+                        }
+                    });
+            }
+
+            let srt = '';
+            let subtitleIndex = 1;
+
+            processedData.paragraphs.forEach((para, index) => {
+                const chunkId = `para-${index}`;
+                const segments = chunkSplitAnnotations[chunkId];
+
+                if (showSpeakers && segments && segments.length > 0) {
+                    // Use chunk-split segments
+                    segments.forEach(seg => {
+                        const speakerName = speakerNames[seg.speaker] || seg.speaker;
+                        const segText = getSegmentText(para, seg);
+                        const startTime = formatSRTTime(para.start);
+                        const endTime = formatSRTTime(para.end);
+
+                        srt += `${subtitleIndex}\n`;
+                        srt += `${startTime} --> ${endTime}\n`;
+                        srt += `[${speakerName}] ${segText}\n\n`;
+                        subtitleIndex++;
+                    });
+                } else {
+                    // Use original paragraph
+                    const startTime = formatSRTTime(para.start);
+                    const endTime = formatSRTTime(para.end);
+
+                    srt += `${subtitleIndex}\n`;
+                    srt += `${startTime} --> ${endTime}\n`;
+                    if (showSpeakers && para.speaker) {
+                        const speakerName = speakerNames[para.speaker] || para.speaker;
+                        srt += `[${speakerName}] ${para.text}\n\n`;
+                    } else {
+                        srt += `${para.text}\n\n`;
+                    }
+                    subtitleIndex++;
+                }
+            });
+
+            return srt;
+        }
+
+        // Format time for SRT (00:00:00,000)
+        function formatSRTTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+        }
+
         // Speaker Legend Functions
         function populateSpeakerList(speakers) {
             const section = document.getElementById('speakers-section');
@@ -6950,20 +7162,70 @@
             }
 
             async export(format) {
-                const results = await this.execute('export', {
-                    paragraphs: processedData.paragraphs,
-                    format
-                });
+                // Use the visibility-aware export functions instead of plugin
+                let content, mimeType, extension;
+                const sessionName = formatSessionName(currentSession.folder, selectedTimezone)
+                    .replace(/[^a-zA-Z0-9-]/g, '-')
+                    .toLowerCase();
 
-                const blob = new Blob([results.content], { type: 'text/plain' });
+                switch (format) {
+                    case 'markdown':
+                        content = generateMarkdown();
+                        mimeType = 'text/markdown';
+                        extension = 'md';
+                        break;
+
+                    case 'plain':
+                        content = generatePlainText();
+                        mimeType = 'text/plain';
+                        extension = 'txt';
+                        break;
+
+                    case 'srt':
+                        content = generateSRT();
+                        mimeType = 'text/plain';
+                        extension = 'srt';
+                        break;
+
+                    case 'json':
+                        // Respect layer visibility in JSON export
+                        const showSpeakersInJson = layerManager?.layers[1]?.visible !== false;
+                        let exportData = { ...processedData };
+
+                        if (!showSpeakersInJson) {
+                            // Strip speaker info if layer is hidden
+                            exportData = {
+                                ...exportData,
+                                speakers: undefined,
+                                speaker_names: undefined,
+                                speaker_colors: undefined,
+                                paragraphs: exportData.paragraphs?.map(p => ({
+                                    ...p,
+                                    speaker: undefined
+                                }))
+                            };
+                        }
+
+                        content = JSON.stringify(exportData, null, 2);
+                        mimeType = 'application/json';
+                        extension = 'json';
+                        break;
+
+                    default:
+                        content = generatePlainText();
+                        mimeType = 'text/plain';
+                        extension = 'txt';
+                }
+
+                const blob = new Blob([content], { type: mimeType });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `transcript-${currentSession.folder}.${format === 'plain' ? 'txt' : format}`;
+                a.download = `${sessionName}.${extension}`;
                 a.click();
                 URL.revokeObjectURL(url);
 
-                showToast(`Exported as ${format.toUpperCase()}`);
+                showToast(`Exported as ${extension.toUpperCase()}`);
             }
         }
 
