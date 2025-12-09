@@ -39,6 +39,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 # Load environment and common functions
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
+source "$PROJECT_ROOT/scripts/lib/layer-functions.sh"
 
 echo "============================================"
 echo "512: Scan S3 for Missing Transcription Chunks"
@@ -149,12 +150,27 @@ for SESSION_PATH in $SESSIONS; do
     fi
 
     # Get all transcription chunks for this session
-    TRANSCRIPTION_CHUNKS=$(aws s3 ls "s3://$S3_BUCKET/$SESSION_PATH/" 2>/dev/null | \
-        grep -E 'transcription-chunk-[0-9]+\.json$' | \
+    # NEW LAYER ARCHITECTURE: Check both old and new locations for backwards compatibility
+    # Old location: session_path/transcription-chunk-001.json
+    # New location: session_path/layers/layer-0-raw-transcription/chunk-001.json
+
+    # Check new layer structure first
+    TRANSCRIPTION_CHUNKS=$(aws s3 ls "s3://$S3_BUCKET/${SESSION_PATH}/layers/$LAYER_0_RAW/" 2>/dev/null | \
+        grep -E 'chunk-[0-9]+\.json$' | \
         awk '{print $4}' | \
-        sed 's/transcription-chunk-//' | \
+        sed 's/chunk-//' | \
         sed 's/\.json$//' | \
         sort -n)
+
+    # If empty, fall back to old location
+    if [ -z "$TRANSCRIPTION_CHUNKS" ]; then
+        TRANSCRIPTION_CHUNKS=$(aws s3 ls "s3://$S3_BUCKET/$SESSION_PATH/" 2>/dev/null | \
+            grep -E 'transcription-chunk-[0-9]+\.json$' | \
+            awk '{print $4}' | \
+            sed 's/transcription-chunk-//' | \
+            sed 's/\.json$//' | \
+            sort -n)
+    fi
 
     # Find missing transcriptions (audio chunks without corresponding transcription)
     MISSING_CHUNKS=""

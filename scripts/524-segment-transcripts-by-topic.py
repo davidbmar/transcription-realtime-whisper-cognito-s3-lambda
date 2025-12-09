@@ -983,28 +983,42 @@ def download_from_s3(session_folder: str, filename: str = 'transcription-process
 
 
 def upload_to_s3(session_folder: str, data: Dict[str, Any], filename: str = 'transcription-topic-segmented.json') -> str:
-    """Upload JSON data to S3."""
+    """Upload JSON data to S3.
+
+    NEW LAYER ARCHITECTURE: Also writes to layers/layer-3-topic-segments/data.json
+    """
     client = get_s3_client()
-
-    key = f"{session_folder}/{filename}"
-    print(f"  Uploading to s3://{S3_BUCKET}/{key}")
-
     content = json.dumps(data, indent=2)
+    metadata = {
+        'topic-count': str(data.get('topicStats', {}).get('topicCount', 0)),
+        'topic-threshold': str(data.get('topicStats', {}).get('threshold', TOPIC_THRESHOLD)),
+        'generated-by': 'script-524-topic-segmentation',
+        'generated-at': datetime.now(timezone.utc).isoformat()
+    }
 
+    # NEW LAYER ARCHITECTURE: Upload to layers/layer-3-topic-segments/data.json
+    layer_key = f"{session_folder}/layers/layer-3-topic-segments/data.json"
+    print(f"  Uploading to s3://{S3_BUCKET}/{layer_key}")
     client.put_object(
         Bucket=S3_BUCKET,
-        Key=key,
+        Key=layer_key,
         Body=content.encode('utf-8'),
         ContentType='application/json',
-        Metadata={
-            'topic-count': str(data.get('topicStats', {}).get('topicCount', 0)),
-            'topic-threshold': str(data.get('topicStats', {}).get('threshold', TOPIC_THRESHOLD)),
-            'generated-by': 'script-524-topic-segmentation',
-            'generated-at': datetime.now(timezone.utc).isoformat()
-        }
+        Metadata=metadata
     )
 
-    return f"s3://{S3_BUCKET}/{key}"
+    # BACKWARDS COMPATIBILITY: Also upload to old location
+    old_key = f"{session_folder}/{filename}"
+    print(f"  Also uploading to s3://{S3_BUCKET}/{old_key} (backwards compat)")
+    client.put_object(
+        Bucket=S3_BUCKET,
+        Key=old_key,
+        Body=content.encode('utf-8'),
+        ContentType='application/json',
+        Metadata=metadata
+    )
+
+    return f"s3://{S3_BUCKET}/{layer_key}"
 
 
 # ============================================================================

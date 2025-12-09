@@ -365,6 +365,9 @@ module.exports.deleteAnnotation = async (event) => {
 /**
  * GET /api/sessions/{sessionId}/layers
  * Get all layer data for a session
+ *
+ * NEW LAYER ARCHITECTURE: Checks for manifest.json in layers/ folder first,
+ * then falls back to old flat structure for backwards compatibility.
  */
 module.exports.getLayers = async (event) => {
   const headers = getSecurityHeaders(event.headers?.origin);
@@ -380,51 +383,118 @@ module.exports.getLayers = async (event) => {
 
     const bucketName = process.env.S3_BUCKET_NAME;
     const basePath = `users/${userId}/audio/sessions/${sessionId}`;
+    const layersPath = `${basePath}/layers`;
 
+    let manifest = null;
     const layers = {};
 
-    // Layer 1: Speaker Chunks (new location for chunk-split annotations)
+    // NEW LAYER ARCHITECTURE: Try to read manifest.json first
     try {
-      const data = await s3.getObject({
+      const manifestData = await s3.getObject({
         Bucket: bucketName,
-        Key: `${basePath}/layer-1-annotations/annotations.json`
+        Key: `${layersPath}/manifest.json`
       }).promise();
-      layers['1'] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
+      manifest = JSON.parse(manifestData.Body.toString());
+      console.log(`[Layers] Found manifest.json for ${sessionId}:`, Object.keys(manifest.layers || {}));
     } catch (err) {
-      if (err.code !== 'NoSuchKey') console.error('Layer 1 error:', err);
-      layers['1'] = { status: 'pending' };
+      if (err.code !== 'NoSuchKey') console.error('Manifest error:', err);
+      // No manifest - fall back to old structure
     }
 
-    // Layer 2: Speaker chunks (legacy - for backward compatibility)
-    try {
-      const data = await s3.getObject({
-        Bucket: bucketName,
-        Key: `${basePath}/layer-2-speaker-chunks/speaker-chunks.json`
-      }).promise();
-      layers['2'] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
-    } catch (err) {
-      if (err.code !== 'NoSuchKey') console.error('Layer 2 error:', err);
-      layers['2'] = { status: 'pending' };
-    }
+    if (manifest) {
+      // NEW LAYER ARCHITECTURE: Read from layers/ folder based on manifest
+      for (const [layerId, layerInfo] of Object.entries(manifest.layers || {})) {
+        try {
+          const folderName = layerInfo.folder || `layer-${layerId}`;
+          const data = await s3.getObject({
+            Bucket: bucketName,
+            Key: `${layersPath}/${folderName}/data.json`
+          }).promise();
+          layers[layerId] = {
+            status: 'complete',
+            data: JSON.parse(data.Body.toString()),
+            name: layerInfo.name,
+            type: layerInfo.type,
+            locked: layerInfo.locked
+          };
+        } catch (err) {
+          if (err.code !== 'NoSuchKey') console.error(`Layer ${layerId} error:`, err);
+          layers[layerId] = {
+            status: 'pending',
+            name: layerInfo.name,
+            type: layerInfo.type,
+            locked: layerInfo.locked
+          };
+        }
+      }
 
-    // Layer 5-7: Annotations
-    for (const layer of [5, 6, 7]) {
+      // Also check for user annotation layers (layer-10-human-edits)
+      try {
+        const humanEditsData = await s3.getObject({
+          Bucket: bucketName,
+          Key: `${layersPath}/layer-10-human-edits/data.json`
+        }).promise();
+        layers['10'] = {
+          status: 'complete',
+          data: JSON.parse(humanEditsData.Body.toString()),
+          name: 'Human Edits',
+          type: 'user',
+          locked: false
+        };
+      } catch (err) {
+        if (err.code !== 'NoSuchKey') console.error('Human edits layer error:', err);
+        // Layer 10 not found - that's okay
+      }
+    } else {
+      // BACKWARDS COMPATIBILITY: Old flat file structure
+
+      // Layer 1: Speaker Chunks (old location)
       try {
         const data = await s3.getObject({
           Bucket: bucketName,
-          Key: `${basePath}/layer-${layer}-annotations/annotations.json`
+          Key: `${basePath}/layer-1-annotations/annotations.json`
         }).promise();
-        layers[layer.toString()] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
+        layers['1'] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
       } catch (err) {
-        if (err.code !== 'NoSuchKey') console.error(`Layer ${layer} error:`, err);
-        layers[layer.toString()] = { status: 'pending' };
+        if (err.code !== 'NoSuchKey') console.error('Layer 1 error:', err);
+        layers['1'] = { status: 'pending' };
+      }
+
+      // Layer 2: Speaker chunks (legacy)
+      try {
+        const data = await s3.getObject({
+          Bucket: bucketName,
+          Key: `${basePath}/layer-2-speaker-chunks/speaker-chunks.json`
+        }).promise();
+        layers['2'] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
+      } catch (err) {
+        if (err.code !== 'NoSuchKey') console.error('Layer 2 error:', err);
+        layers['2'] = { status: 'pending' };
+      }
+
+      // Layer 5-7: Annotations (old structure)
+      for (const layer of [5, 6, 7]) {
+        try {
+          const data = await s3.getObject({
+            Bucket: bucketName,
+            Key: `${basePath}/layer-${layer}-annotations/annotations.json`
+          }).promise();
+          layers[layer.toString()] = { status: 'complete', data: JSON.parse(data.Body.toString()) };
+        } catch (err) {
+          if (err.code !== 'NoSuchKey') console.error(`Layer ${layer} error:`, err);
+          layers[layer.toString()] = { status: 'pending' };
+        }
       }
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ sessionId, layers })
+      body: JSON.stringify({
+        sessionId,
+        layers,
+        manifest: manifest ? { version: manifest.version, nextLayerId: manifest.nextLayerId } : null
+      })
     };
 
   } catch (error) {

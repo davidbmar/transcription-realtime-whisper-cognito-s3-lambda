@@ -49,6 +49,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 # Load environment
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
+source "$PROJECT_ROOT/scripts/lib/layer-functions.sh"
 
 # Parse command line arguments
 FORCE_REGENERATE=false
@@ -124,9 +125,18 @@ has_processed_file() {
 }
 
 # Count transcription chunks in session
+# NEW LAYER ARCHITECTURE: Check both old and new locations
 count_chunks() {
     local session_folder="$1"
-    local count=$(aws s3 ls "s3://$BUCKET/${session_folder}/" 2>/dev/null | grep -c "transcription-chunk-.*\.json" || echo "0")
+
+    # Check new layer structure first
+    local count=$(aws s3 ls "s3://$BUCKET/${session_folder}/layers/$LAYER_0_RAW/" 2>/dev/null | grep -c "chunk-.*\.json" || echo "0")
+
+    # If empty, fall back to old location
+    if [ "$count" -eq 0 ]; then
+        count=$(aws s3 ls "s3://$BUCKET/${session_folder}/" 2>/dev/null | grep -c "transcription-chunk-.*\.json" || echo "0")
+    fi
+
     echo "$count" | tr -d '\n'
 }
 

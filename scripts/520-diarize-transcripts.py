@@ -67,11 +67,13 @@ def list_sessions_needing_diarization(bucket, backfill=False):
     """
     Find sessions with transcription but no diarization.
 
+    NEW LAYER ARCHITECTURE: Checks both old and new paths for diarization.
+
     Returns list of session paths (e.g., users/abc123/audio/sessions/2025-12-01-session1)
     """
     print("[INFO] Scanning S3 for sessions needing diarization...")
 
-    # List all transcription-processed.json files
+    # List all files recursively
     result = subprocess.run(
         ['aws', 's3', 'ls', f's3://{bucket}/users/', '--recursive'],
         capture_output=True, text=True
@@ -92,11 +94,23 @@ def list_sessions_needing_diarization(bucket, backfill=False):
         parts = line.split()
         if len(parts) >= 4:
             key = parts[3]
+
+            # Check for transcription (old or new layer structure)
             if 'transcription-processed.json' in key:
                 session = '/'.join(key.split('/')[:-1])
                 sessions_with_transcription.add(session)
-            elif 'transcription-diarized.json' in key:
+            elif '/layers/layer-0-raw-transcription/' in key and 'chunk-' in key:
+                # New layer structure - extract session path (before /layers/)
+                session = key.split('/layers/')[0]
+                sessions_with_transcription.add(session)
+
+            # Check for diarization (old or new layer structure)
+            if 'transcription-diarized.json' in key:
                 session = '/'.join(key.split('/')[:-1])
+                sessions_with_diarization.add(session)
+            elif '/layers/layer-1-diarization/data.json' in key:
+                # New layer structure
+                session = key.split('/layers/')[0]
                 sessions_with_diarization.add(session)
 
     if backfill:
@@ -194,8 +208,10 @@ def download_transcription(bucket, session_path, work_dir):
     """
     Download transcription for the session.
 
-    Prefers raw chunk files (transcription-chunk-*.json) which have proper
-    per-utterance segments. Falls back to transcription-processed.json.
+    NEW LAYER ARCHITECTURE: Checks in this order:
+    1. layers/layer-0-raw-transcription/chunk-*.json (new structure)
+    2. transcription-chunk-*.json (old structure)
+    3. transcription-processed.json (fallback)
 
     Returns list of segments, or None on failure.
     """
@@ -203,51 +219,71 @@ def download_transcription(bucket, session_path, work_dir):
 
     work_path = Path(work_dir)
 
-    # First, try to find and download transcription-chunk-*.json files
+    # NEW LAYER ARCHITECTURE: First check new layer structure
+    layer_path = f"{session_path}/layers/layer-0-raw-transcription/"
     list_result = subprocess.run(
-        ['aws', 's3', 'ls', f's3://{bucket}/{session_path}/'],
+        ['aws', 's3', 'ls', f's3://{bucket}/{layer_path}'],
         capture_output=True, text=True
     )
 
-    if list_result.returncode == 0:
-        chunk_files = []
+    chunk_files = []
+    chunk_base_path = ""
+
+    if list_result.returncode == 0 and 'chunk-' in list_result.stdout:
+        # New layer structure found
+        chunk_base_path = layer_path
         for line in list_result.stdout.strip().split('\n'):
-            if 'transcription-chunk-' in line and '.json' in line:
-                # Extract filename from "2025-12-01 12:00:00  12345 filename.json"
+            if 'chunk-' in line and '.json' in line:
                 parts = line.split()
                 if len(parts) >= 4:
                     chunk_files.append(parts[3])
+        print(f"[INFO] Using new layer structure: {layer_path}")
+    else:
+        # Fall back to old structure
+        list_result = subprocess.run(
+            ['aws', 's3', 'ls', f's3://{bucket}/{session_path}/'],
+            capture_output=True, text=True
+        )
 
-        if chunk_files:
-            # Sort chunk files to ensure correct order
-            chunk_files.sort()
-            print(f"[INFO] Found {len(chunk_files)} chunk file(s): {chunk_files}")
+        if list_result.returncode == 0:
+            for line in list_result.stdout.strip().split('\n'):
+                if 'transcription-chunk-' in line and '.json' in line:
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        chunk_files.append(parts[3])
+            chunk_base_path = f"{session_path}/"
 
-            all_segments = []
-            for chunk_file in chunk_files:
-                chunk_path = work_path / chunk_file
-                dl_result = subprocess.run(
-                    ['aws', 's3', 'cp',
-                     f's3://{bucket}/{session_path}/{chunk_file}',
-                     str(chunk_path)],
-                    capture_output=True, text=True
-                )
+    if chunk_files:
+        # Sort chunk files to ensure correct order
+        chunk_files.sort()
+        print(f"[INFO] Found {len(chunk_files)} chunk file(s): {chunk_files}")
 
-                if dl_result.returncode == 0:
-                    with open(chunk_path) as f:
-                        data = json.load(f)
+        all_segments = []
+        for chunk_file in chunk_files:
+            local_chunk_path = work_path / chunk_file
+            # Use chunk_base_path which handles both old and new layer structures
+            dl_result = subprocess.run(
+                ['aws', 's3', 'cp',
+                 f's3://{bucket}/{chunk_base_path}{chunk_file}',
+                 str(local_chunk_path)],
+                capture_output=True, text=True
+            )
 
-                    # Handle both array format and object with segments
-                    if isinstance(data, list):
-                        all_segments.extend(data)
-                    elif 'segments' in data:
-                        all_segments.extend(data['segments'])
-                    else:
-                        all_segments.extend(data.get('segments', [data]))
+            if dl_result.returncode == 0:
+                with open(local_chunk_path) as f:
+                    data = json.load(f)
 
-            if all_segments:
-                print(f"[INFO] Loaded {len(all_segments)} segments from chunk files")
-                return all_segments
+                # Handle both array format and object with segments
+                if isinstance(data, list):
+                    all_segments.extend(data)
+                elif 'segments' in data:
+                    all_segments.extend(data['segments'])
+                else:
+                    all_segments.extend(data.get('segments', [data]))
+
+        if all_segments:
+            print(f"[INFO] Loaded {len(all_segments)} segments from chunk files")
+            return all_segments
 
     # Fallback: try transcription-processed.json
     print("[INFO] No chunk files found, trying transcription-processed.json...")
@@ -309,7 +345,11 @@ def check_skip_diarization(bucket, session_path):
 
 
 def upload_diarized_transcript(bucket, session_path, result):
-    """Upload diarization result to S3."""
+    """Upload diarization result to S3.
+
+    NEW LAYER ARCHITECTURE: Writes to layers/layer-1-diarization/data.json
+    Also writes to old location for backwards compatibility.
+    """
     print(f"[INFO] Uploading diarized transcript to {session_path}...")
 
     # Save to temp file
@@ -318,18 +358,29 @@ def upload_diarized_transcript(bucket, session_path, result):
         temp_file = f.name
 
     try:
+        # NEW LAYER ARCHITECTURE: Upload to layers/layer-1-diarization/data.json
+        new_path = f's3://{bucket}/{session_path}/layers/layer-1-diarization/data.json'
         upload_result = subprocess.run(
-            ['aws', 's3', 'cp', temp_file,
-             f's3://{bucket}/{session_path}/transcription-diarized.json',
+            ['aws', 's3', 'cp', temp_file, new_path,
              '--content-type', 'application/json'],
             capture_output=True, text=True
         )
 
         if upload_result.returncode != 0:
-            print(f"[ERROR] Failed to upload: {upload_result.stderr}", file=sys.stderr)
+            print(f"[ERROR] Failed to upload to new layer path: {upload_result.stderr}", file=sys.stderr)
             return False
 
-        print(f"[INFO] Uploaded transcription-diarized.json")
+        print(f"[INFO] Uploaded to layers/layer-1-diarization/data.json")
+
+        # BACKWARDS COMPATIBILITY: Also upload to old location
+        old_path = f's3://{bucket}/{session_path}/transcription-diarized.json'
+        subprocess.run(
+            ['aws', 's3', 'cp', temp_file, old_path,
+             '--content-type', 'application/json'],
+            capture_output=True, text=True
+        )
+        print(f"[INFO] Also uploaded to transcription-diarized.json (backwards compat)")
+
         return True
 
     finally:

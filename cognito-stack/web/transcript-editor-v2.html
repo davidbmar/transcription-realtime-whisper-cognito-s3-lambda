@@ -1207,47 +1207,48 @@
             background: #fdf2f8;
         }
 
-        /* Speaker labels for diarization */
+        /* Speaker labels for diarization - white bubble style with colored border */
         .speaker-label {
+            /* Common styles - display is here so CSS !important can override it */
             display: inline-block;
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 4px;
+            background: white;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 12px;
+            margin-bottom: 6px;
             margin-right: 8px;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-weight: 600;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: filter 0.15s ease, transform 0.1s ease;
+            /* Border color is applied inline for speaker-specific colors */
         }
 
-        .speaker-label.speaker-0 {
-            background: #dbeafe;
-            color: #1e40af;
+        .speaker-label:hover {
+            filter: brightness(0.95);
+            transform: translateY(-1px);
         }
 
-        .speaker-label.speaker-1 {
-            background: #dcfce7;
-            color: #166534;
+        /* Segment speaker chips in split annotations */
+        .segment-speaker-chip {
+            /* Common styles - display is here so CSS !important can override it */
+            display: inline-block;
+            background: white;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 12px;
+            margin-bottom: 6px;
+            margin-right: 8px;
+            font-weight: 600;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: filter 0.15s ease, transform 0.1s ease;
+            /* Border color is applied inline for speaker-specific colors */
         }
 
-        .speaker-label.speaker-2 {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .speaker-label.speaker-3 {
-            background: #f3e8ff;
-            color: #6b21a8;
-        }
-
-        .speaker-label.speaker-4 {
-            background: #ffe4e6;
-            color: #be123c;
-        }
-
-        .speaker-label.speaker-5 {
-            background: #e0f2fe;
-            color: #0369a1;
+        .segment-speaker-chip:hover {
+            filter: brightness(0.95);
+            transform: translateY(-1px);
         }
 
         /* Hide speaker label when paragraph has split annotation */
@@ -1293,28 +1294,138 @@
             gap: 6px;
         }
 
-        .speaker-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 0;
+        /* ========================================
+           SPEAKERS SECTION - Clean Compact UI
+           ======================================== */
+
+        #speakers-section {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
         }
 
-        .speaker-color-dot {
-            width: 12px;
-            height: 12px;
+        #speakers-section .sidebar-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .speaker-count-badge {
+            background: var(--gray-400);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 10px;
+            min-width: 16px;
+            text-align: center;
+        }
+
+        #save-speakers-btn {
+            font-size: 11px !important;
+            padding: 4px 10px !important;
+            background: var(--primary) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-weight: 500 !important;
+            transition: all 0.15s ease !important;
+        }
+
+        #save-speakers-btn:hover {
+            background: #4f46e5 !important;
+        }
+
+        .speaker-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .speaker-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            transition: border-color 0.15s ease;
+        }
+
+        .speaker-row:hover {
+            border-color: var(--gray-300);
+        }
+
+        .speaker-row:hover .speaker-merge-btn {
+            opacity: 1;
+        }
+
+        .speaker-color-picker {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: 2px solid white;
             border-radius: 50%;
+            cursor: pointer;
             flex-shrink: 0;
-            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: transform 0.15s ease;
+        }
+
+        .speaker-color-picker:hover {
+            transform: scale(1.1);
+        }
+
+        .speaker-color-picker::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .speaker-color-picker::-webkit-color-swatch {
+            border-radius: 50%;
+            border: none;
+        }
+
+        .speaker-color-picker::-moz-color-swatch {
+            border-radius: 50%;
+            border: none;
+        }
+
+        .speaker-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .speaker-info-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
         }
 
         .speaker-name-input {
-            flex: 1;
-            padding: 4px 8px;
-            border: 1px solid var(--gray-300);
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid var(--gray-200);
             border-radius: 4px;
             font-size: 12px;
-            min-width: 0;
+            font-weight: 600;
+            transition: border-color 0.15s ease;
+            background: white;
+            color: #1f2937;
+        }
+
+        .speaker-name-input:hover {
+            border-color: var(--gray-300);
         }
 
         .speaker-name-input:focus {
@@ -1322,18 +1433,69 @@
             border-color: var(--primary);
         }
 
-        .speaker-merge-select {
-            font-size: 11px;
-            padding: 2px 4px;
-            border: 1px solid var(--gray-300);
-            border-radius: 4px;
-            max-width: 80px;
-            background: white;
-            cursor: pointer;
+        .speaker-stats {
+            font-size: 10px;
+            color: var(--gray-400);
+            margin-top: 3px;
+            display: flex;
+            gap: 8px;
         }
 
-        .speaker-merge-select:hover {
-            border-color: var(--gray-400);
+        .speaker-merge-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--gray-400);
+            font-size: 11px;
+            opacity: 0.6;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .speaker-merge-btn:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+            opacity: 1;
+        }
+
+        .speaker-merge-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .merge-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 100;
+            padding: 4px;
+            margin-top: 4px;
+        }
+
+        .merge-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 6px 10px;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--gray-700);
+        }
+
+        .merge-dropdown button:hover {
+            background: var(--gray-100);
         }
 
         /* Speaker change indicator */
@@ -1764,10 +1926,11 @@
             <!-- Speakers (only shown if diarization data exists) -->
             <div class="sidebar-section" id="speakers-section" style="display: none;">
                 <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Speakers</span>
-                    <button id="save-speakers-btn" onclick="saveSpeakerNames()"
-                            style="font-size: 11px; padding: 2px 8px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;"
-                            title="Save speaker names">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span>Speakers</span>
+                        <span class="speaker-count-badge" id="speaker-count-badge">0</span>
+                    </div>
+                    <button id="save-speakers-btn" onclick="saveSpeakerNames()" title="Save speaker names and colors">
                         Save
                     </button>
                 </div>
@@ -2338,6 +2501,8 @@
         let pluginManager = null;
         let audioCache = new Map();
         let speakerNames = {}; // Maps SPEAKER_XX -> display name
+        let speakerIndexMap = {}; // Maps SPEAKER_XX -> color index
+        let speakerColors = {}; // Maps SPEAKER_XX -> custom hex color (optional)
 
         // Audio playback state (legacy - being replaced by global playback)
         let currentAudio = null;
@@ -2368,6 +2533,50 @@
             seekFloorTime: 0,          // Minimum highlight time after seek (prevents jumping before clicked word)
             currentCompensation: 0.5   // Current delay compensation (calculated per seek based on position)
         };
+
+        // ========================================
+        // Speaker Color Helper Functions
+        // ========================================
+        // Default color palette
+        const DEFAULT_SPEAKER_COLORS = [
+            '#3b82f6',  // blue
+            '#10b981',  // green
+            '#f59e0b',  // amber
+            '#8b5cf6',  // purple
+            '#ec4899',  // pink
+            '#06b6d4',  // cyan
+        ];
+
+        // Get consistent color for a speaker (checks custom colors first)
+        function getSpeakerColor(speakerIndexOrId) {
+            // If passed a speaker ID string, check for custom color
+            if (typeof speakerIndexOrId === 'string' && speakerColors[speakerIndexOrId]) {
+                return speakerColors[speakerIndexOrId];
+            }
+            // Otherwise use index-based default
+            const index = typeof speakerIndexOrId === 'number' ? speakerIndexOrId : 0;
+            return DEFAULT_SPEAKER_COLORS[index % DEFAULT_SPEAKER_COLORS.length];
+        }
+
+        // Get light background color for a speaker
+        function getSpeakerBgColor(speakerIndexOrId) {
+            const color = getSpeakerColor(speakerIndexOrId);
+            // Convert hex to rgba with 15% opacity
+            const hex = color.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            return `rgba(${r}, ${g}, ${b}, 0.15)`;
+        }
+
+        // Get color for speaker by ID (resolves to index if no custom color)
+        function getSpeakerColorById(speakerId) {
+            if (speakerColors[speakerId]) {
+                return speakerColors[speakerId];
+            }
+            const index = speakerIndexMap[speakerId] !== undefined ? speakerIndexMap[speakerId] : 0;
+            return DEFAULT_SPEAKER_COLORS[index % DEFAULT_SPEAKER_COLORS.length];
+        }
 
         // ========================================
         // Layer Management for Annotation Pipeline
@@ -2433,14 +2642,14 @@
 
             // Apply visibility CSS classes based on layer state
             applyLayerVisibility() {
-                const transcriptContent = document.getElementById('transcript-content');
-                if (!transcriptContent) return;
+                const editorContent = document.getElementById('editor-content');
+                if (!editorContent) return;
 
-                // Layer 1: Speaker Chunks - toggle speaker labels and split wrappers
+                // Layer 1: Speaker Chunks - toggle ALL speaker labels (raw diarization + splits)
                 if (this.layers[1]?.visible) {
-                    transcriptContent.classList.remove('hide-speaker-chunks');
+                    editorContent.classList.remove('hide-speaker-chunks');
                 } else {
-                    transcriptContent.classList.add('hide-speaker-chunks');
+                    editorContent.classList.add('hide-speaker-chunks');
                 }
 
                 // Layer 0: Raw Transcription - always visible (base text)
@@ -2508,6 +2717,14 @@
                             if (lid === 1) {
                                 this.layers[1].annotations = layerData.data?.annotations || [];
                                 console.log(`[Layers] Loaded ${this.layers[1].annotations.length} annotations into Speaker Chunks (layer 1)`);
+                            }
+                            // Layer 10 (Human Edits) - chunk-split annotations go to Speaker Chunks layer
+                            else if (lid === 10 && layerData.data?.annotations) {
+                                // Filter chunk-split annotations and add to Speaker Chunks layer
+                                const chunkSplits = layerData.data.annotations.filter(a => a.type === 'chunk-split');
+                                const existing = this.layers[1].annotations || [];
+                                this.layers[1].annotations = [...existing, ...chunkSplits];
+                                console.log(`[Layers] Loaded ${chunkSplits.length} chunk-split annotations from layer 10 into Speaker Chunks`);
                             }
                             // Layer 2 (legacy speaker chunks) - also goes to layer 1 for backward compat
                             else if (layerId === '2' && layerData.data?.annotations) {
@@ -2782,9 +2999,16 @@
                 // Restore hidden speaker labels and remove split class
                 document.querySelectorAll('.has-split-annotation').forEach(el => {
                     el.classList.remove('has-split-annotation');
-                    const speakerLabel = el.querySelector('.speaker-label');
+                    // Find speaker label (may be in raw-diarization wrapper)
+                    const speakerLabel = el.querySelector('.speaker-label.hidden-by-split');
                     if (speakerLabel) {
                         speakerLabel.style.display = '';
+                        speakerLabel.classList.remove('hidden-by-split');
+                    }
+                    // Also restore split button
+                    const splitBtn = el.querySelector('.split-speaker-btn');
+                    if (splitBtn) {
+                        splitBtn.style.display = '';
                     }
                 });
 
@@ -2848,18 +3072,33 @@
                 console.log('[Render] Applying chunk-split to', chunkEl.dataset.chunkId, 'with', segments.length, 'segments');
 
                 // Hide the original paragraph speaker label since we're showing segment-level speakers
-                const originalSpeakerLabel = chunkEl.querySelector(':scope > .speaker-label');
-                console.log('[Render] Found speaker label:', originalSpeakerLabel, 'in chunk', chunkEl.dataset.chunkId);
-                if (originalSpeakerLabel) {
-                    originalSpeakerLabel.style.display = 'none';
-                    originalSpeakerLabel.classList.add('hidden-by-split');
-                    console.log('[Render] Hidden speaker label for', chunkEl.dataset.chunkId);
-                }
+                // The speaker label is inside .paragraph-text > .segment-wrapper.raw-diarization
+                const rawDiarizationWrapper = textEl.querySelector('.segment-wrapper.raw-diarization');
+                if (rawDiarizationWrapper) {
+                    const originalSpeakerLabel = rawDiarizationWrapper.querySelector('.speaker-label');
+                    console.log('[Render] Found speaker label in raw-diarization:', originalSpeakerLabel);
+                    if (originalSpeakerLabel) {
+                        originalSpeakerLabel.style.display = 'none';
+                        originalSpeakerLabel.classList.add('hidden-by-split');
+                        console.log('[Render] Hidden speaker label for', chunkEl.dataset.chunkId);
+                    }
 
-                // Also hide the split button
-                const splitBtn = chunkEl.querySelector(':scope > .split-speaker-btn');
-                if (splitBtn) {
-                    splitBtn.style.display = 'none';
+                    // Also hide the split button
+                    const splitBtn = rawDiarizationWrapper.querySelector('.split-speaker-btn');
+                    if (splitBtn) {
+                        splitBtn.style.display = 'none';
+                    }
+                } else {
+                    // Fallback for older structure - check direct children
+                    const originalSpeakerLabel = chunkEl.querySelector(':scope > .speaker-label');
+                    if (originalSpeakerLabel) {
+                        originalSpeakerLabel.style.display = 'none';
+                        originalSpeakerLabel.classList.add('hidden-by-split');
+                    }
+                    const splitBtn = chunkEl.querySelector(':scope > .split-speaker-btn');
+                    if (splitBtn) {
+                        splitBtn.style.display = 'none';
+                    }
                 }
 
                 // Add a class to indicate this paragraph has been split
@@ -2887,34 +3126,30 @@
                     const wrapper = document.createElement('div');
                     wrapper.className = 'segment-wrapper saved';
                     wrapper.dataset.annotationId = annotation.id;
+
+                    // Use speaker-based colors for consistency (check custom colors first)
+                    const speakerColor = getSpeakerColorById(seg.speaker);
+                    const speakerBgColor = getSpeakerBgColor(seg.speaker);
+
                     wrapper.style.cssText = `
                         display: block;
-                        background: ${speakerSplitManager.getSegmentColor(segIdx)};
+                        background: ${speakerBgColor};
                         border-radius: 6px;
                         padding: 8px 12px;
                         margin: 8px 0;
-                        border-left: 4px solid ${speakerSplitManager.getSegmentBorderColor(segIdx)};
+                        border-left: 4px solid ${speakerColor};
                         position: relative;
                     `;
 
                     // Add speaker label - clickable to change speaker
                     const chip = document.createElement('span');
                     chip.className = 'segment-speaker-chip saved';
-                    const displayName = speakerNames[seg.speaker] || seg.speaker;
+                    const displayName = (speakerNames[seg.speaker] || seg.speaker).replace(/ ▼$/, '');
                     chip.textContent = displayName + ' ▼';
-                    chip.style.cssText = `
-                        display: inline-block;
-                        background: white;
-                        border: 1px solid var(--gray-400);
-                        border-radius: 12px;
-                        padding: 4px 12px;
-                        font-size: 12px;
-                        margin-bottom: 6px;
-                        margin-right: 8px;
-                        font-weight: 600;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                        cursor: pointer;
-                    `;
+                    // Only set color-specific styles inline - common styles are in CSS
+                    chip.style.border = `2px solid ${speakerColor}`;
+                    const segSpeakerIndex = (processedData?.speakers || []).indexOf(seg.speaker);
+                    chip.dataset.speakerIndex = segSpeakerIndex;
                     chip.onclick = (e) => {
                         e.stopPropagation();
                         this.showSavedSpeakerPicker(chip, annotation, segIdx);
@@ -3002,7 +3237,7 @@
                     btn.onclick = async () => {
                         // Update the annotation segment
                         annotation.data.segments[segmentIndex].speaker = id;
-                        chip.textContent = name + ' ▼';
+                        chip.textContent = name.replace(/ ▼$/, '') + ' ▼';
                         picker.remove();
 
                         // Save the updated annotation
@@ -3313,34 +3548,29 @@
                     const wrapper = document.createElement('div');
                     wrapper.className = 'segment-wrapper';
                     wrapper.dataset.segmentIndex = segIdx;
+
+                    // Use speaker-based colors for consistency (check custom colors first)
+                    const speakerColor = seg.speaker ? getSpeakerColorById(seg.speaker) : getSpeakerColor(segIdx);
+                    const speakerBgColor = seg.speaker ? getSpeakerBgColor(seg.speaker) : getSpeakerBgColor(segIdx);
+
                     wrapper.style.cssText = `
                         display: block;
-                        background: ${this.getSegmentColor(segIdx)};
+                        background: ${speakerBgColor};
                         border-radius: 6px;
                         padding: 8px 12px;
                         margin: 8px 0;
-                        border-left: 4px solid ${this.getSegmentBorderColor(segIdx)};
+                        border-left: 4px solid ${speakerColor};
                         position: relative;
                     `;
 
                     // Add speaker selector chip
                     const chip = document.createElement('span');
                     chip.className = 'segment-speaker-chip';
-                    chip.style.cssText = `
-                        display: inline-block;
-                        background: white;
-                        border: 1px solid var(--gray-400);
-                        border-radius: 12px;
-                        padding: 4px 12px;
-                        font-size: 12px;
-                        margin-bottom: 6px;
-                        margin-right: 8px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                    `;
-                    // Use display name if available
-                    const displayName = speakerNames[seg.speaker] || seg.speaker || '👤 Assign...'
+                    // Only set color-specific styles inline - common styles are in CSS
+                    chip.style.border = `2px solid ${speakerColor}`;
+                    // Use display name if available - strip any existing ▼ to avoid doubles
+                    const rawName = speakerNames[seg.speaker] || seg.speaker || '👤 Assign...';
+                    const displayName = rawName.replace(/ ▼$/, '');
                     chip.textContent = displayName + ' ▼';
                     chip.onclick = (e) => {
                         e.stopPropagation();
@@ -3431,7 +3661,7 @@
                     btn.onmouseleave = () => btn.style.background = 'white';
                     btn.onclick = () => {
                         this.segments[segmentIndex].speaker = id;  // Store the ID
-                        chip.textContent = name + ' ▼';  // Display name with dropdown arrow
+                        chip.textContent = name.replace(/ ▼$/, '') + ' ▼';  // Display name with dropdown arrow
                         picker.remove();
                         this.updateToolbarStatus();
                     };
@@ -3513,9 +3743,13 @@
                 }
 
                 // Create chunk-split annotation
+                // Only capture word text, excluding speaker labels and buttons
+                const words = this.activeChunkEl?.querySelectorAll('.word-highlight') || [];
+                const originalText = Array.from(words).map(w => w.textContent).join(' ');
+
                 const annotation = await layerManager.createAnnotation('chunk-split', {
                     chunkId: this.activeChunkId,
-                    originalText: this.activeChunkEl?.querySelector('.paragraph-text')?.textContent
+                    originalText: originalText
                 }, {
                     splits: this.splits,
                     segments: this.segments
@@ -3946,9 +4180,27 @@
                 // FAST PATH: Try to load user-edited file first, then diarized, then topic-segmented
                 console.log('Checking for processed, diarized, or topic-segmented transcript...');
 
+                // NEW LAYER ARCHITECTURE: Check new paths first, then fall back to old paths
                 // Priority order: processed (user edits) > diarized (speaker labels) > topic-segmented
+                //
+                // New layer paths:
+                //   layers/layer-1-diarization/data.json
+                //   layers/layer-3-topic-segments/data.json
+                //   layers/layer-0-raw-transcription/chunk-*.json
+                //
+                // Old paths (backwards compatibility):
+                //   transcription-processed.json
+                //   transcription-diarized.json
+                //   transcription-topic-segmented.json
+
                 const processedKey = `${sessionPath}/transcription-processed.json`;
+
+                // Diarization: new layer path first, then old
+                const diarizedKeyNew = `${sessionPath}/layers/layer-1-diarization/data.json`;
                 const diarizedKey = `${sessionPath}/transcription-diarized.json`;
+
+                // Topic segments: new layer path first, then old
+                const topicSegmentedKeyNew = `${sessionPath}/layers/layer-3-topic-segments/data.json`;
                 const topicSegmentedKey = `${sessionPath}/transcription-topic-segmented.json`;
 
                 let loadedFrom = null;
@@ -3974,65 +4226,104 @@
                 }
 
                 // Try diarized next (has speaker labels from diarization)
+                // NEW LAYER ARCHITECTURE: Try new path first, then fall back to old
                 if (!loadedFrom) {
+                    let diarizedData = null;
+
+                    // Try new layer path first
                     try {
-                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKey)}`);
+                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKeyNew)}`);
                         const response = await fetch(downloadData.downloadUrl);
                         if (response.ok) {
-                            const diarizedData = await response.json();
-                            // Convert diarized format (segments) to editor format (paragraphs)
-                            if (diarizedData.segments && !diarizedData.paragraphs) {
-                                const paragraphs = diarizedData.segments.map((seg, idx) => ({
-                                    text: seg.text,
-                                    startTime: seg.start,
-                                    endTime: seg.end,
-                                    start: seg.start,
-                                    end: seg.end,
-                                    speaker: seg.speaker,
-                                    words: seg.words || [],
-                                    chunkIds: ['chunk-001'],
-                                    originalText: seg.text
-                                }));
-
-                                // Compute stats from paragraphs
-                                const totalWords = paragraphs.reduce((sum, p) => sum + (p.text || '').split(/\s+/).filter(w => w).length, 0);
-                                const totalDuration = paragraphs.length > 0 ?
-                                    Math.max(...paragraphs.map(p => p.endTime || 0)) - Math.min(...paragraphs.map(p => p.startTime || 0)) : 0;
-
-                                processedData = {
-                                    paragraphs: paragraphs,
-                                    speakers: diarizedData.speakers,
-                                    diarization_metadata: diarizedData.diarization_metadata,
-                                    stats: {
-                                        paragraphCount: paragraphs.length,
-                                        totalWords: totalWords,
-                                        totalDuration: totalDuration,
-                                        wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
-                                    }
-                                };
-                            } else {
-                                processedData = diarizedData;
-                            }
-                            loadedFrom = 'diarized';
-                            console.log('✅ Found diarized transcript - loading with speaker labels!');
+                            diarizedData = await response.json();
+                            console.log('✅ Found diarized transcript in new layer structure!');
                         }
                     } catch (e) {
-                        console.log('No diarized file, trying topic-segmented...');
+                        console.log('No diarized file in new layer structure, trying old path...');
+                    }
+
+                    // Fall back to old path
+                    if (!diarizedData) {
+                        try {
+                            const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(diarizedKey)}`);
+                            const response = await fetch(downloadData.downloadUrl);
+                            if (response.ok) {
+                                diarizedData = await response.json();
+                                console.log('✅ Found diarized transcript in old location!');
+                            }
+                        } catch (e) {
+                            console.log('No diarized file in old location either');
+                        }
+                    }
+
+                    if (diarizedData) {
+                        // Convert diarized format (segments) to editor format (paragraphs)
+                        if (diarizedData.segments && !diarizedData.paragraphs) {
+                            const paragraphs = diarizedData.segments.map((seg, idx) => ({
+                                text: seg.text,
+                                startTime: seg.start,
+                                endTime: seg.end,
+                                start: seg.start,
+                                end: seg.end,
+                                speaker: seg.speaker,
+                                words: seg.words || [],
+                                chunkIds: ['chunk-001'],
+                                originalText: seg.text
+                            }));
+
+                            // Compute stats from paragraphs
+                            const totalWords = paragraphs.reduce((sum, p) => sum + (p.text || '').split(/\s+/).filter(w => w).length, 0);
+                            const totalDuration = paragraphs.length > 0 ?
+                                Math.max(...paragraphs.map(p => p.endTime || 0)) - Math.min(...paragraphs.map(p => p.startTime || 0)) : 0;
+
+                            processedData = {
+                                paragraphs: paragraphs,
+                                speakers: diarizedData.speakers,
+                                diarization_metadata: diarizedData.diarization_metadata,
+                                stats: {
+                                    paragraphCount: paragraphs.length,
+                                    totalWords: totalWords,
+                                    totalDuration: totalDuration,
+                                    wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
+                                }
+                            };
+                        } else {
+                            processedData = diarizedData;
+                        }
+                        loadedFrom = 'diarized';
+                        console.log('✅ Found diarized transcript - loading with speaker labels!');
                     }
                 }
 
                 // Fall back to topic-segmented
+                // NEW LAYER ARCHITECTURE: Try new path first, then fall back to old
                 if (!loadedFrom) {
+                    // Try new layer path first
                     try {
-                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
+                        const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKeyNew)}`);
                         const response = await fetch(downloadData.downloadUrl);
                         if (response.ok) {
                             processedData = await response.json();
                             loadedFrom = 'topic-segmented';
-                            console.log('✅ Found topic-segmented transcript - loading with topic breaks!');
+                            console.log('✅ Found topic-segmented transcript in new layer structure!');
                         }
                     } catch (e) {
-                        console.log('No topic-segmented file either');
+                        console.log('No topic-segmented file in new layer structure, trying old path...');
+                    }
+
+                    // Fall back to old path
+                    if (!loadedFrom) {
+                        try {
+                            const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(topicSegmentedKey)}`);
+                            const response = await fetch(downloadData.downloadUrl);
+                            if (response.ok) {
+                                processedData = await response.json();
+                                loadedFrom = 'topic-segmented';
+                                console.log('✅ Found topic-segmented transcript in old location!');
+                            }
+                        } catch (e) {
+                            console.log('No topic-segmented file in old location either');
+                        }
                     }
                 }
 
@@ -4064,16 +4355,36 @@
                 }
 
                 // FALLBACK PATH: Load individual chunks (slower, but works for in-progress transcriptions)
+                // NEW LAYER ARCHITECTURE: Check new path first, then fall back to old
                 console.log('Listing transcription chunk files...');
-                const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
 
-                const chunkFiles = listResponse.files
-                    .filter(f => f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json'))
+                // Try new layer structure first
+                let chunkFiles = [];
+                let listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/layers/layer-0-raw-transcription/&userScope=true`);
+
+                chunkFiles = listResponse.files
+                    .filter(f => f.displayKey.includes('chunk-') && f.displayKey.endsWith('.json'))
                     .sort((a, b) => {
                         const aNum = parseInt(a.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
                         const bNum = parseInt(b.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
                         return aNum - bNum;
                     });
+
+                if (chunkFiles.length > 0) {
+                    console.log('Found chunk files in new layer structure:', chunkFiles.length);
+                } else {
+                    // Fall back to old path
+                    console.log('No chunks in new layer structure, trying old path...');
+                    listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${sessionFolder}/&userScope=true`);
+
+                    chunkFiles = listResponse.files
+                        .filter(f => f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json'))
+                        .sort((a, b) => {
+                            const aNum = parseInt(a.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                            const bNum = parseInt(b.displayKey.match(/chunk-(\d+)\.json/)?.[1] || '0');
+                            return aNum - bNum;
+                        });
+                }
 
                 console.log('Found chunk files:', chunkFiles.length);
                 console.log('Chunk files:', chunkFiles.map(f => f.displayKey).join(', '));
@@ -4365,9 +4676,9 @@
                 document.getElementById('stat-speakers-card').style.display = 'block';
             }
 
-            // Build speaker index map for consistent colors
+            // Build speaker index map for consistent colors (populate global)
             const speakerList = processedData.speakers || [];
-            const speakerIndexMap = {};
+            speakerIndexMap = {}; // Reset global
             speakerList.forEach((speaker, index) => {
                 speakerIndexMap[speaker] = index;
             });
@@ -4403,39 +4714,6 @@
                     onParagraphClick(index, e);
                 };
 
-                // Add speaker label if diarization data is available
-                const speaker = para.speaker;
-                if (speaker && speaker !== 'UNKNOWN') {
-                    const speakerLabel = document.createElement('span');
-                    speakerLabel.className = 'speaker-label';
-                    const speakerIndex = speakerIndexMap[speaker] !== undefined ? speakerIndexMap[speaker] : 0;
-                    speakerLabel.classList.add(`speaker-${speakerIndex % 6}`);
-                    // Use custom name if available
-                    speakerLabel.textContent = speakerNames[speaker] || speaker;
-                    paraDiv.appendChild(speakerLabel);
-
-                    // Mark speaker change
-                    if (previousSpeaker && previousSpeaker !== speaker) {
-                        paraDiv.classList.add('speaker-change');
-                    }
-                    previousSpeaker = speaker;
-
-                    // Add split speaker button
-                    const splitBtn = document.createElement('button');
-                    splitBtn.className = 'split-speaker-btn';
-                    splitBtn.innerHTML = '✂️ Split';
-                    splitBtn.title = 'Split this chunk into multiple speakers';
-                    // Always use unique para-${index} ID for split targeting
-                    const uniqueParaId = `para-${index}`;
-                    splitBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        console.log('[Split Button] Clicked! paraId:', uniqueParaId);
-                        speakerSplitManager.startSplit(uniqueParaId);
-                    };
-                    paraDiv.appendChild(splitBtn);
-                }
-
                 // Add data-chunk-id for annotation targeting - use unique para-${index}
                 paraDiv.dataset.chunkId = `para-${index}`;
                 // Also store original chunk IDs for reference
@@ -4448,6 +4726,66 @@
                 text.contentEditable = false;  // Start in read-only mode for text selection
                 text.dataset.paraIndex = index;
                 text.addEventListener('input', () => markEdited(index));
+
+                // Add speaker wrapper if diarization data is available
+                const speaker = para.speaker;
+                const speakerIndex = speakerList.indexOf(speaker);
+                let speakerWrapper = null;
+                if (speaker && speaker !== 'UNKNOWN') {
+                    // Use speaker-based colors (check custom colors first)
+                    const speakerColor = getSpeakerColorById(speaker);
+                    const speakerBgColor = getSpeakerBgColor(speaker);
+
+                    // Create wrapper matching annotation style
+                    speakerWrapper = document.createElement('div');
+                    speakerWrapper.className = 'segment-wrapper raw-diarization';
+                    speakerWrapper.style.cssText = `
+                        display: block;
+                        background: ${speakerBgColor};
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                        border-left: 4px solid ${speakerColor};
+                        position: relative;
+                    `;
+
+                    // Create speaker label chip
+                    const speakerLabel = document.createElement('span');
+                    speakerLabel.className = 'speaker-label';
+                    // Only set color-specific styles inline - common styles are in CSS
+                    speakerLabel.style.border = `2px solid ${speakerColor}`;
+                    const speakerDisplayName = (speakerNames[speaker] || speaker).replace(/ ▼$/, '');
+                    speakerLabel.textContent = speakerDisplayName + ' ▼';
+                    speakerLabel.title = 'Click to change speaker';
+                    speakerLabel.dataset.paraIndex = index;
+                    speakerLabel.dataset.speaker = speaker;
+                    speakerLabel.dataset.speakerIndex = speakerIndex;
+                    speakerLabel.onclick = (e) => {
+                        e.stopPropagation();
+                        showSpeakerPickerForLabel(speakerLabel, para, index);
+                    };
+                    speakerWrapper.appendChild(speakerLabel);
+
+                    // Add split speaker button
+                    const splitBtn = document.createElement('button');
+                    splitBtn.className = 'split-speaker-btn';
+                    splitBtn.innerHTML = '✂️ Split';
+                    splitBtn.title = 'Split this chunk into multiple speakers';
+                    const uniqueParaId = `para-${index}`;
+                    splitBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        console.log('[Split Button] Clicked! paraId:', uniqueParaId);
+                        speakerSplitManager.startSplit(uniqueParaId);
+                    };
+                    speakerWrapper.appendChild(splitBtn);
+
+                    // Mark speaker change
+                    if (previousSpeaker && previousSpeaker !== speaker) {
+                        paraDiv.classList.add('speaker-change');
+                    }
+                    previousSpeaker = speaker;
+                }
 
                 // Apply word wrapping with timestamps on initial render
                 // This enables word-level highlighting during global playback
@@ -4506,6 +4844,16 @@
                 originalContent.textContent = para.segments ? para.segments.map(s => s.text).join(' ') : (para.originalText || para.text || '');
 
                 paraDiv.appendChild(number);
+
+                // If speaker wrapper exists, put text inside it for consistent styling
+                if (speakerWrapper) {
+                    // Move the word spans from text into the wrapper
+                    while (text.firstChild) {
+                        speakerWrapper.appendChild(text.firstChild);
+                    }
+                    text.appendChild(speakerWrapper);
+                }
+
                 paraDiv.appendChild(text);
                 paraDiv.appendChild(meta);
                 paraDiv.appendChild(originalContent);
@@ -4711,6 +5059,91 @@
                 stopAudio();
                 button.textContent = '▶ Play';
             }
+        }
+
+        // Show speaker picker for raw diarization labels (not yet annotated)
+        // Creates a new chunk-split annotation when speaker is selected
+        function showSpeakerPickerForLabel(labelEl, para, paraIndex) {
+            // Remove existing pickers
+            document.querySelectorAll('.speaker-picker').forEach(p => p.remove());
+
+            const picker = document.createElement('div');
+            picker.className = 'speaker-picker';
+            picker.style.cssText = `
+                position: fixed;
+                background: white;
+                border: 1px solid var(--gray-300);
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 1001;
+                padding: 8px;
+                min-width: 160px;
+            `;
+
+            // Get available speakers from transcript data
+            const speakerList = processedData?.speakers || [];
+            const speakers = speakerList.length > 0
+                ? speakerList.map(id => [id, speakerNames[id] || id])
+                : [['SPEAKER_00', 'Speaker 1'], ['SPEAKER_01', 'Speaker 2']];
+
+            speakers.forEach(([id, name]) => {
+                const btn = document.createElement('button');
+                btn.textContent = name;
+                btn.style.cssText = `
+                    display: block;
+                    width: 100%;
+                    padding: 8px 12px;
+                    border: none;
+                    background: white;
+                    text-align: left;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    font-size: 13px;
+                `;
+                btn.onmouseenter = () => btn.style.background = 'var(--gray-100)';
+                btn.onmouseleave = () => btn.style.background = 'white';
+                btn.onclick = async () => {
+                    picker.remove();
+
+                    // Count words in the paragraph
+                    const wordCount = para.words?.length ||
+                        (para.segments?.reduce((sum, seg) => sum + seg.text.trim().split(/\s+/).length, 0) || 0);
+
+                    // Create chunk-split annotation with single segment (whole paragraph)
+                    const annotation = {
+                        type: 'chunk-split',
+                        target: { chunkId: `para-${paraIndex}` },
+                        data: {
+                            segments: [{
+                                startWord: 0,
+                                endWord: Math.max(0, wordCount - 1),
+                                speaker: id
+                            }]
+                        }
+                    };
+
+                    // Add annotation to Layer 1 (Speaker Chunks)
+                    layerManager.addAnnotation(annotation);
+                    showToast(`Speaker set to ${name}`);
+                };
+                picker.appendChild(btn);
+            });
+
+            // Position picker below the label
+            const rect = labelEl.getBoundingClientRect();
+            picker.style.left = `${rect.left}px`;
+            picker.style.top = `${rect.bottom + 4}px`;
+
+            document.body.appendChild(picker);
+
+            // Close picker when clicking outside
+            const closeHandler = (e) => {
+                if (!picker.contains(e.target) && e.target !== labelEl) {
+                    picker.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 0);
         }
 
         // Wrap words in spans with timing data
@@ -5832,7 +6265,25 @@
                     break;
 
                 case 'json':
-                    content = JSON.stringify(processedData, null, 2);
+                    // Respect layer visibility in JSON export
+                    const showSpeakersInJson = layerManager?.layers[1]?.visible !== false;
+                    let exportData = { ...processedData };
+
+                    if (!showSpeakersInJson) {
+                        // Strip speaker info if layer is hidden
+                        exportData = {
+                            ...exportData,
+                            speakers: undefined,
+                            speaker_names: undefined,
+                            speaker_colors: undefined,
+                            paragraphs: exportData.paragraphs?.map(p => ({
+                                ...p,
+                                speaker: undefined
+                            }))
+                        };
+                    }
+
+                    content = JSON.stringify(exportData, null, 2);
                     mimeType = 'application/json';
                     extension = 'json';
                     break;
@@ -5852,20 +6303,66 @@
             showToast(`✅ Downloaded as ${extension.toUpperCase()}`, 'success');
         }
 
-        // Generate markdown format
+        // Generate markdown format - respects layer visibility and annotations
         function generateMarkdown() {
             const sessionDate = formatSessionName(currentSession.folder, selectedTimezone);
             const stats = processedData.stats;
+
+            // Check which layers are visible
+            const showSpeakers = layerManager?.layers[1]?.visible !== false;
+
+            // Get chunk-split annotations for each paragraph
+            const chunkSplitAnnotations = {};
+            console.log('[Export] Layer 1 annotations:', layerManager?.layers[1]?.annotations);
+            if (showSpeakers && layerManager?.layers[1]?.annotations) {
+                layerManager.layers[1].annotations
+                    .filter(a => a.type === 'chunk-split')
+                    .forEach(a => {
+                        // chunkId can be in target.chunkId or data.chunkId
+                        const chunkId = a.target?.chunkId || a.data?.chunkId;
+                        const segments = a.data?.segments || [];
+                        console.log('[Export] Found chunk-split:', chunkId, segments);
+                        if (chunkId) {
+                            chunkSplitAnnotations[chunkId] = segments;
+                        }
+                    });
+            }
+            console.log('[Export] chunkSplitAnnotations:', chunkSplitAnnotations);
 
             let markdown = `# Transcript: ${sessionDate}\n\n`;
             markdown += `**Duration:** ${formatDuration(stats.totalDuration)} | `;
             markdown += `**Words:** ${stats.totalWords} | `;
             markdown += `**WPM:** ${Math.round(stats.wordsPerMinute)}\n\n`;
+
+            // Show visible layers info
+            if (showSpeakers && processedData.speakers?.length > 0) {
+                markdown += `**Speakers:** ${processedData.speakers.map(s => speakerNames[s] || s).join(', ')}\n\n`;
+            }
+
             markdown += `---\n\n`;
 
             processedData.paragraphs.forEach((para, index) => {
-                markdown += `## [${formatTime(para.start)}]\n\n`;
-                markdown += `${para.text}\n\n`;
+                const chunkId = `para-${index}`;
+                const segments = chunkSplitAnnotations[chunkId];
+
+                if (showSpeakers && segments && segments.length > 0) {
+                    // Use chunk-split segments
+                    segments.forEach(seg => {
+                        const speakerName = speakerNames[seg.speaker] || seg.speaker;
+                        const segText = getSegmentText(para, seg);
+                        markdown += `**${speakerName}:** ${segText}\n\n`;
+                    });
+                } else {
+                    // Use original paragraph
+                    const timestamp = `[${formatTime(para.start)}]`;
+                    if (showSpeakers && para.speaker) {
+                        const speakerName = speakerNames[para.speaker] || para.speaker;
+                        markdown += `### ${speakerName} ${timestamp}\n\n`;
+                    } else {
+                        markdown += `### ${timestamp}\n\n`;
+                    }
+                    markdown += `${para.text}\n\n`;
+                }
             });
 
             markdown += `---\n\n`;
@@ -5874,20 +6371,83 @@
             return markdown;
         }
 
-        // Generate plain text format
+        // Helper to extract text for a segment from paragraph
+        function getSegmentText(para, segment) {
+            if (!para.words) {
+                return segment.text || '';
+            }
+
+            // Handle both formats: wordIndices array or startWord/endWord range
+            let words = [];
+            if (segment.wordIndices) {
+                words = segment.wordIndices.map(i => para.words[i]?.word || '').filter(Boolean);
+            } else if (segment.startWord !== undefined && segment.endWord !== undefined) {
+                for (let i = segment.startWord; i <= segment.endWord && i < para.words.length; i++) {
+                    if (para.words[i]?.word) {
+                        words.push(para.words[i].word);
+                    }
+                }
+            }
+
+            return words.join(' ') || segment.text || '';
+        }
+
+        // Generate plain text format - respects layer visibility and annotations
         function generatePlainText() {
             const sessionDate = formatSessionName(currentSession.folder, selectedTimezone);
             const stats = processedData.stats;
+
+            // Check which layers are visible
+            const showSpeakers = layerManager?.layers[1]?.visible !== false;
+
+            // Get chunk-split annotations for each paragraph
+            const chunkSplitAnnotations = {};
+            if (showSpeakers && layerManager?.layers[1]?.annotations) {
+                layerManager.layers[1].annotations
+                    .filter(a => a.type === 'chunk-split')
+                    .forEach(a => {
+                        // chunkId can be in target.chunkId or data.chunkId
+                        const chunkId = a.target?.chunkId || a.data?.chunkId;
+                        const segments = a.data?.segments || [];
+                        if (chunkId) {
+                            chunkSplitAnnotations[chunkId] = segments;
+                        }
+                    });
+            }
 
             let text = `Transcript: ${sessionDate}\n`;
             text += `Duration: ${formatDuration(stats.totalDuration)} | `;
             text += `Words: ${stats.totalWords} | `;
             text += `WPM: ${Math.round(stats.wordsPerMinute)}\n`;
+
+            if (showSpeakers && processedData.speakers?.length > 0) {
+                text += `Speakers: ${processedData.speakers.map(s => speakerNames[s] || s).join(', ')}\n`;
+            }
+
             text += `${'='.repeat(60)}\n\n`;
 
             processedData.paragraphs.forEach((para, index) => {
-                text += `[${formatTime(para.start)}]\n`;
-                text += `${para.text}\n\n`;
+                const chunkId = `para-${index}`;
+                const segments = chunkSplitAnnotations[chunkId];
+
+                if (showSpeakers && segments && segments.length > 0) {
+                    // Use chunk-split segments
+                    segments.forEach(seg => {
+                        const speakerName = speakerNames[seg.speaker] || seg.speaker;
+                        const segText = getSegmentText(para, seg);
+                        text += `${speakerName}: ${segText}\n\n`;
+                    });
+                } else {
+                    // Use original paragraph
+                    const timestamp = `[${formatTime(para.start)}]`;
+                    if (showSpeakers && para.speaker) {
+                        const speakerName = speakerNames[para.speaker] || para.speaker;
+                        text += `${speakerName} ${timestamp}\n`;
+                    } else {
+                        text += `${timestamp}\n`;
+                    }
+                    text += `${para.text}\n\n`;
+                }
             });
 
             text += `${'='.repeat(60)}\n`;
@@ -5897,11 +6457,10 @@
         }
 
         // Speaker Legend Functions
-        const SPEAKER_COLORS = ['#dbeafe', '#dcfce7', '#fef3c7', '#f3e8ff', '#ffe4e6', '#e0f2fe'];
-
         function populateSpeakerList(speakers) {
             const section = document.getElementById('speakers-section');
             const list = document.getElementById('speaker-list');
+            const countBadge = document.getElementById('speaker-count-badge');
 
             if (!speakers || speakers.length === 0) {
                 section.style.display = 'none';
@@ -5911,11 +6470,49 @@
             section.style.display = 'block';
             list.innerHTML = '';
 
-            // Load saved names from processedData
+            // Update speaker count badge
+            if (countBadge) {
+                countBadge.textContent = speakers.length;
+            }
+
+            // Load saved names and colors from processedData
             speakerNames = processedData.speaker_names || {};
+            speakerColors = processedData.speaker_colors || {};
+
+            // Generate default friendly names for speakers without custom names
+            console.log('[Speaker Panel] Before default names:', JSON.stringify(speakerNames));
+            speakers.forEach((speaker, index) => {
+                // Check for missing, empty, or raw ID names (SPEAKER_XX, undefined_speaker_XX)
+                const currentName = speakerNames[speaker];
+                const isRawId = !currentName ||
+                                currentName.trim() === '' ||
+                                /^(SPEAKER_\d+|undefined_speaker_\d+)$/i.test(currentName);
+                console.log(`[Speaker Panel] ${speaker}: currentName="${currentName}", isRawId=${isRawId}`);
+                if (isRawId) {
+                    // Create friendly default name like "Speaker 1", "Speaker 2", etc.
+                    speakerNames[speaker] = `Speaker ${index + 1}`;
+                    console.log(`[Speaker Panel] Set ${speaker} to "Speaker ${index + 1}"`);
+                }
+            });
+            console.log('[Speaker Panel] After default names:', JSON.stringify(speakerNames));
+
+            // Calculate paragraph counts per speaker
+            const speakerParagraphCounts = {};
+            const speakerWordCounts = {};
+            if (processedData?.paragraphs) {
+                processedData.paragraphs.forEach(para => {
+                    if (para.speaker) {
+                        speakerParagraphCounts[para.speaker] = (speakerParagraphCounts[para.speaker] || 0) + 1;
+                        const wordCount = para.text ? para.text.split(/\s+/).filter(w => w).length : 0;
+                        speakerWordCounts[para.speaker] = (speakerWordCounts[para.speaker] || 0) + wordCount;
+                    }
+                });
+            }
 
             speakers.forEach((speaker, index) => {
-                const colorIndex = index % 6;
+                const currentColor = getSpeakerColorById(speaker);
+                const paraCount = speakerParagraphCounts[speaker] || 0;
+                const wordCount = speakerWordCounts[speaker] || 0;
 
                 const row = document.createElement('div');
                 row.className = 'speaker-row';
@@ -5923,26 +6520,71 @@
 
                 // Build merge options
                 const otherSpeakers = speakers.filter(s => s !== speaker);
-                const mergeOptions = otherSpeakers.map(s =>
-                    `<option value="${s}">${speakerNames[s] || s}</option>`
-                ).join('');
+                const mergeOptions = otherSpeakers.length > 0
+                    ? otherSpeakers.map(s =>
+                        `<option value="${s}">${speakerNames[s] || s}</option>`
+                    ).join('')
+                    : '';
 
+                const displayName = speakerNames[speaker] || speaker;
+                const hasMergeTargets = otherSpeakers.length > 0;
+                console.log(`[Speaker Panel] Creating row for ${speaker}: displayName="${displayName}"`);
+
+                // Cleaner layout: color dot, name input, then stats + merge below
                 row.innerHTML = `
-                    <div class="speaker-color-dot" style="background: ${SPEAKER_COLORS[colorIndex]};"></div>
-                    <input type="text" class="speaker-name-input"
-                           value="${speakerNames[speaker] || speaker}"
+                    <input type="color" class="speaker-color-picker"
+                           value="${currentColor}"
                            data-speaker="${speaker}"
-                           placeholder="${speaker}"
-                           oninput="onSpeakerNameChange(this)">
-                    <select class="speaker-merge-select" data-speaker="${speaker}"
-                            onchange="onMergeSpeaker(this)" title="Merge into another speaker">
-                        <option value="">Merge</option>
-                        ${mergeOptions}
-                    </select>
+                           title="Change color"
+                           onchange="onSpeakerColorChange(this)">
+                    <div class="speaker-info">
+                        <input type="text" class="speaker-name-input"
+                               data-speaker="${speaker}"
+                               placeholder="${speaker}"
+                               oninput="onSpeakerNameChange(this)">
+                        <div class="speaker-info-row">
+                            <span class="speaker-stats">${paraCount} segs · ${wordCount.toLocaleString()} words</span>
+                            ${hasMergeTargets ? `
+                                <button class="speaker-merge-btn" data-speaker="${speaker}" title="Merge into another speaker">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 5v14M5 12l7 7 7-7"/>
+                                    </svg>
+                                    Merge
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
                 `;
+
+                // Set value programmatically to avoid HTML escaping issues
+                const nameInput = row.querySelector('.speaker-name-input');
+                if (nameInput) {
+                    nameInput.value = displayName;
+                }
+
+                // Add merge button click handler
+                const mergeBtn = row.querySelector('.speaker-merge-btn');
+                if (mergeBtn) {
+                    mergeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        showMergeDropdown(mergeBtn, speaker, otherSpeakers);
+                    };
+                }
 
                 list.appendChild(row);
             });
+        }
+
+        function onSpeakerColorChange(input) {
+            const speaker = input.dataset.speaker;
+            const color = input.value;
+            speakerColors[speaker] = color;
+
+            // Re-render transcript to apply new colors
+            renderEditor();
+
+            // Re-render annotations with new colors
+            layerManager.renderAnnotations();
         }
 
         function onSpeakerNameChange(input) {
@@ -5966,21 +6608,107 @@
 
                 const label = paraDiv.querySelector('.speaker-label');
                 if (label) {
-                    label.textContent = speakerNames[speaker] || speaker;
+                    label.textContent = (speakerNames[speaker] || speaker).replace(/ ▼$/, '') + ' ▼';
                 }
             });
         }
 
         async function saveSpeakerNames() {
-            // Store speaker names in processedData
+            // Store speaker names and colors in processedData
             processedData.speaker_names = speakerNames;
+            processedData.speaker_colors = speakerColors;
 
             // Save via existing saveTranscript mechanism
             await saveTranscript();
 
-            showToast('Speaker names saved!');
+            showToast('Speaker settings saved!');
         }
 
+        function showMergeDropdown(btn, sourceSpeaker, otherSpeakers) {
+            // Remove any existing dropdown
+            document.querySelectorAll('.merge-dropdown').forEach(d => d.remove());
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'merge-dropdown';
+
+            otherSpeakers.forEach(targetSpeaker => {
+                const targetName = speakerNames[targetSpeaker] || targetSpeaker;
+                const option = document.createElement('button');
+                option.textContent = targetName;
+                option.onclick = () => {
+                    dropdown.remove();
+                    performMerge(sourceSpeaker, targetSpeaker);
+                };
+                dropdown.appendChild(option);
+            });
+
+            // Position dropdown relative to button's parent row
+            const row = btn.closest('.speaker-row');
+            row.style.position = 'relative';
+            row.appendChild(dropdown);
+
+            // Close on outside click
+            const closeHandler = (e) => {
+                if (!dropdown.contains(e.target) && e.target !== btn) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 10);
+        }
+
+        async function performMerge(sourceSpk, targetSpk) {
+            const sourceName = speakerNames[sourceSpk] || sourceSpk;
+            const targetName = speakerNames[targetSpk] || targetSpk;
+
+            if (!confirm(`Merge "${sourceName}" into "${targetName}"?\n\nAll segments from ${sourceName} will be reassigned to ${targetName}.`)) {
+                return;
+            }
+
+            // Update all paragraphs
+            processedData.paragraphs.forEach(para => {
+                if (para.speaker === sourceSpk) {
+                    para.speaker = targetSpk;
+                }
+            });
+
+            // Update segments if present
+            if (processedData.segments) {
+                processedData.segments.forEach(seg => {
+                    if (seg.speaker === sourceSpk) {
+                        seg.speaker = targetSpk;
+                    }
+                });
+            }
+
+            // Remove merged speaker from list
+            const idx = processedData.speakers.indexOf(sourceSpk);
+            if (idx > -1) {
+                processedData.speakers.splice(idx, 1);
+            }
+
+            // Copy name if target doesn't have one
+            if (!speakerNames[targetSpk] && speakerNames[sourceSpk]) {
+                speakerNames[targetSpk] = speakerNames[sourceSpk];
+            }
+            delete speakerNames[sourceSpk];
+
+            // Store updated speaker_names
+            processedData.speaker_names = speakerNames;
+
+            // Refresh the speaker list
+            populateSpeakerList(processedData.speakers);
+
+            // Update all speaker labels in the transcript
+            updateSpeakerLabelsInTranscript();
+
+            // Auto-save after merge
+            await saveTranscript();
+
+            showToast(`Merged ${sourceName} into ${targetName}`);
+        }
+
+        // Legacy function for old select-based merge (kept for compatibility)
         async function onMergeSpeaker(select) {
             const sourceSpk = select.dataset.speaker;
             const targetSpk = select.value;

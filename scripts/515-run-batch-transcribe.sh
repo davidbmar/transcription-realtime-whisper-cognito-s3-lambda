@@ -45,6 +45,7 @@ PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 source "$PROJECT_ROOT/.env"
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 source "$PROJECT_ROOT/scripts/lib/gpu-cost-functions.sh"
+source "$PROJECT_ROOT/scripts/lib/layer-functions.sh"
 source "$PROJECT_ROOT/scripts/common-library.sh"
 
 echo "============================================"
@@ -497,7 +498,8 @@ transcribe_chunk() {
     local audio_ext=$(get_audio_extension "$session_path" "$chunk_num")
 
     local audio_s3="s3://$S3_BUCKET/$session_path/chunk-${chunk_num}.${audio_ext}"
-    local trans_s3="s3://$S3_BUCKET/$session_path/transcription-chunk-${chunk_num}.json"
+    # NEW LAYER ARCHITECTURE: Write to layers/layer-0-raw-transcription/
+    local trans_s3="s3://$S3_BUCKET/$(get_raw_transcription_path "$session_path" "$chunk_num")"
     local audio_edge="/tmp/batch-chunk-${chunk_num}.${audio_ext}"
     local trans_edge="/tmp/batch-transcription-${chunk_num}.json"
     local audio_gpu="/tmp/batch-chunk-${chunk_num}.${audio_ext}"
@@ -850,7 +852,8 @@ transcribe_chunk_batch() {
     for chunk_info in "${chunks[@]}"; do
         local session_path="${chunk_info%:*}"
         local chunk_num="${chunk_info#*:}"
-        local trans_s3="s3://$S3_BUCKET/$session_path/transcription-chunk-${chunk_num}.json"
+        # NEW LAYER ARCHITECTURE: Write to layers/layer-0-raw-transcription/
+        local trans_s3="s3://$S3_BUCKET/$(get_raw_transcription_path "$session_path" "$chunk_num")"
         local trans_file="$batch_dir_edge/transcription-chunk-${session_path//\//-}-${chunk_num}.json"
 
         if [ ! -f "$trans_file" ]; then
@@ -904,7 +907,8 @@ transcribe_chunk_batch() {
     for session_path in "${!session_chunks[@]}"; do
         # Check if this session has any remaining missing chunks
         local audio_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'chunk-[0-9]+\.(webm|aac|m4a|mp3|wav|ogg|flac)$' | wc -l)
-        local trans_count=$(aws s3 ls "s3://$S3_BUCKET/$session_path/" 2>/dev/null | grep -E 'transcription-chunk-[0-9]+\.json$' | wc -l)
+        # NEW LAYER ARCHITECTURE: Check in layers/layer-0-raw-transcription/
+        local trans_count=$(aws s3 ls "s3://$S3_BUCKET/${session_path}layers/$LAYER_0_RAW/" 2>/dev/null | grep -E 'chunk-[0-9]+\.json$' | wc -l)
 
         if [ "$audio_count" -eq "$trans_count" ] && [ "$audio_count" -gt 0 ]; then
             # Session is complete! Create marker
