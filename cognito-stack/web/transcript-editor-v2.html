@@ -2728,7 +2728,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.26.8';
+        const TRANSCRIPT_EDITOR_VERSION = '2.27.0';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -2887,6 +2887,29 @@
                             console.log(`[Layer Toggle] Blocked: Cannot show ${layer.name} while ${belowLayerName} is hidden`);
                             return;
                         }
+                    }
+                }
+
+                // Capture any pending edits from DOM before rebuild (so they survive toggle)
+                if (typeof pendingEdits !== 'undefined' && pendingEdits.size > 0) {
+                    console.log(`[Layer Toggle] Capturing ${pendingEdits.size} pending edits before rebuild`);
+                    for (const index of pendingEdits) {
+                        const textDiv = document.querySelector(`[data-para-index="${index}"]`);
+                        if (!textDiv) continue;
+
+                        // Get text content from word elements
+                        let editedText = '';
+                        const wordElements = textDiv.querySelectorAll('.word, .word-highlight');
+                        if (wordElements.length > 0) {
+                            editedText = Array.from(wordElements)
+                                .filter(w => w.style.display !== 'none')
+                                .map(w => w.textContent).join(' ');
+                        } else {
+                            editedText = textDiv.textContent;
+                        }
+
+                        // Store in active layer's textEdits
+                        this.setTextEdit(index, editedText);
                     }
                 }
 
@@ -3106,35 +3129,83 @@
                 const layer = this.layers[layerId];
                 if (!layer?.textEdits) return;
 
+                console.log(`[ApplyTextEdits] Applying ${Object.keys(layer.textEdits).length} edits from layer ${layerId}`);
+
                 for (const [paraKey, editedText] of Object.entries(layer.textEdits)) {
                     const paraIndex = parseInt(paraKey.replace('para-', ''));
                     const textEl = document.querySelector(`[data-para-index="${paraIndex}"]`);
 
-                    if (!textEl) continue;
-
-                    // Skip split paragraphs for now (complex structure)
-                    const paraContainer = textEl.closest('.paragraph-container');
-                    if (paraContainer?.classList.contains('has-split-annotation')) {
-                        console.log(`[Apply] Skipping para-${paraIndex} (has split)`);
+                    if (!textEl) {
+                        console.log(`[ApplyTextEdits] Could not find element for para-${paraIndex}`);
                         continue;
                     }
 
-                    // Update the text content
-                    const wordElements = textEl.querySelectorAll('.word-highlight');
-                    if (wordElements.length > 0) {
-                        // Replace word content - split edited text by spaces
-                        const words = editedText.split(/\s+/);
-                        wordElements.forEach((wordEl, i) => {
-                            if (i < words.length) {
-                                wordEl.textContent = words[i];
-                            }
-                        });
+                    const paraContainer = textEl.closest('.paragraph-container');
+                    const hasSplit = paraContainer?.classList.contains('has-split-annotation');
+
+                    if (hasSplit) {
+                        // For split paragraphs, apply edited text across segment wrappers
+                        const segments = textEl.querySelectorAll('.segment-wrapper.saved');
+                        if (segments.length > 0) {
+                            // Split the edited text and distribute across segments
+                            const editedWords = editedText.split(/\s+/).filter(w => w.length > 0);
+                            let wordIdx = 0;
+
+                            segments.forEach(seg => {
+                                const wordElements = seg.querySelectorAll('.word-highlight');
+                                wordElements.forEach(wordEl => {
+                                    if (wordIdx < editedWords.length) {
+                                        wordEl.textContent = editedWords[wordIdx];
+                                        wordEl.style.display = '';
+                                        wordIdx++;
+                                    } else {
+                                        wordEl.style.display = 'none';
+                                    }
+                                });
+                            });
+                            console.log(`[ApplyTextEdits] Applied edit to split para-${paraIndex} (${segments.length} segments)`);
+                        }
                     } else {
-                        textEl.textContent = editedText;
+                        // Regular paragraph - find the wrapper and word elements
+                        const wrapper = textEl.querySelector('.segment-wrapper.raw-diarization');
+                        const wordElements = textEl.querySelectorAll('.word-highlight');
+
+                        if (wordElements.length > 0) {
+                            // Split edited text by whitespace to get individual words
+                            const editedWords = editedText.split(/\s+/).filter(w => w.length > 0);
+
+                            // Update existing word elements
+                            wordElements.forEach((wordEl, i) => {
+                                if (i < editedWords.length) {
+                                    wordEl.textContent = editedWords[i];
+                                    wordEl.style.display = ''; // Make sure it's visible
+                                } else {
+                                    // Hide extra original words if edit is shorter
+                                    wordEl.style.display = 'none';
+                                }
+                            });
+
+                            // If edit has more words than original, append them
+                            if (editedWords.length > wordElements.length) {
+                                const lastWord = wordElements[wordElements.length - 1];
+                                const container = wrapper || textEl;
+                                for (let i = wordElements.length; i < editedWords.length; i++) {
+                                    const newWord = document.createElement('span');
+                                    newWord.className = 'word-highlight';
+                                    newWord.textContent = editedWords[i];
+                                    newWord.dataset.start = lastWord?.dataset.start || '0';
+                                    newWord.dataset.end = lastWord?.dataset.end || '0';
+                                    container.appendChild(newWord);
+                                }
+                            }
+                            console.log(`[ApplyTextEdits] Applied edit to para-${paraIndex}: "${editedText.substring(0, 50)}..."`);
+                        } else {
+                            textEl.textContent = editedText;
+                            console.log(`[ApplyTextEdits] Applied edit (no words) to para-${paraIndex}`);
+                        }
                     }
 
                     textEl.classList.add('has-layer-edit');
-                    console.log(`[Apply] Applied edit to para-${paraIndex}`);
                 }
             },
 
