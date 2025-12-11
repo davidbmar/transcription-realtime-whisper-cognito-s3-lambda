@@ -2728,7 +2728,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.26.6';
+        const TRANSCRIPT_EDITOR_VERSION = '2.26.8';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -4083,7 +4083,9 @@
                 }
 
                 this.activeChunkEl = chunkEl;
-                this.originalSpeaker = chunkEl.querySelector('.speaker-label')?.textContent || 'Unknown';
+                // Get speaker ID from processedData (not display name from DOM)
+                const paraIndex = parseInt(chunkId.replace('para-', ''));
+                this.originalSpeaker = processedData?.paragraphs?.[paraIndex]?.speaker || 'Unknown';
 
                 // Enter split mode
                 chunkEl.classList.add('split-mode');
@@ -4522,6 +4524,7 @@
 
             cancelSplit(skipRebuild = false) {
                 const wasActive = !!this.activeChunkEl;
+                const previousChunkEl = this.activeChunkEl;
 
                 if (this.activeChunkEl) {
                     this.activeChunkEl.classList.remove('split-mode');
@@ -4549,10 +4552,85 @@
                 }
 
                 // Rebuild layers to restore raw-diarization wrapper that was removed in startSplit
-                // Skip rebuild if we're transitioning to a new split (called from startSplit)
-                if (wasActive && !skipRebuild && typeof layerManager !== 'undefined') {
-                    layerManager.rebuildFromVisibleLayers();
+                if (wasActive && typeof layerManager !== 'undefined') {
+                    if (skipRebuild && previousChunkEl) {
+                        // When switching splits, just restore the previous paragraph's raw diarization
+                        this.restoreSingleParagraphDiarization(previousChunkEl);
+                    } else {
+                        // Full rebuild for normal cancel
+                        layerManager.rebuildFromVisibleLayers();
+                    }
                 }
+            },
+
+            // Restore raw diarization for a single paragraph (used when switching splits)
+            restoreSingleParagraphDiarization(chunkEl) {
+                if (!chunkEl || !processedData?.paragraphs) return;
+
+                const paraIndex = parseInt(chunkEl.id?.replace('para-', '') || chunkEl.dataset.chunkId?.replace('para-', ''));
+                if (isNaN(paraIndex)) return;
+
+                const para = processedData.paragraphs[paraIndex];
+                if (!para) return;
+
+                const speaker = para.speaker;
+                if (!speaker || speaker === 'UNKNOWN') return;
+
+                const textEl = chunkEl.querySelector('.paragraph-text');
+                if (!textEl) return;
+
+                // Get speaker color
+                const speakerColor = getSpeakerColorById(speaker);
+                const speakerBgColor = getSpeakerBgColor(speaker);
+
+                // Create wrapper
+                const speakerWrapper = document.createElement('div');
+                speakerWrapper.className = 'segment-wrapper raw-diarization';
+                speakerWrapper.style.cssText = `
+                    display: block;
+                    background: ${speakerBgColor};
+                    border-radius: 6px;
+                    padding: 8px 12px;
+                    margin: 8px 0;
+                    border-left: 4px solid ${speakerColor};
+                    position: relative;
+                `;
+
+                // Create speaker label
+                const displayName = speakerNames[speaker] || speaker;
+                const speakerLabel = document.createElement('span');
+                speakerLabel.className = 'speaker-label';
+                speakerLabel.textContent = displayName;
+                speakerLabel.style.cssText = `
+                    border: 2px solid ${speakerColor};
+                    margin-right: 8px;
+                    cursor: pointer;
+                `;
+                speakerLabel.onclick = (e) => {
+                    e.stopPropagation();
+                    showSpeakerPicker(speakerLabel, speaker);
+                };
+                speakerWrapper.appendChild(speakerLabel);
+
+                // Create split button
+                const splitBtn = document.createElement('button');
+                splitBtn.className = 'split-speaker-btn';
+                splitBtn.innerHTML = '✂️';
+                splitBtn.title = 'Split this paragraph by speaker';
+                splitBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    speakerSplitManager.startSplit(`para-${paraIndex}`);
+                };
+                speakerWrapper.appendChild(splitBtn);
+
+                // Move words into wrapper
+                const words = Array.from(textEl.querySelectorAll('.word-highlight'));
+                words.forEach(word => speakerWrapper.appendChild(word));
+
+                // Add wrapper to textEl
+                textEl.appendChild(speakerWrapper);
+
+                console.log(`[RestoreSingle] Restored raw diarization for para-${paraIndex}`);
             }
         };
 
