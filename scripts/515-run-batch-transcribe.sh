@@ -1153,11 +1153,14 @@ if [ "${SKIP_DIARIZATION:-false}" != "true" ]; then
     fi
 
     # Run diarization on GPU via SSH (520 handles skip logic internally)
+    # Uses ~/diarization/ directory with cached pyannote models
     if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -i "$SSH_KEY" \
         ${SSH_USER}@${GPU_IP} \
-        "cd /home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4 && \
-         source .env && \
-         python3 scripts/520-diarize-transcripts.py $DIARIZE_FLAGS" 2>&1 | sed 's/^/    /'; then
+        "cd ~/diarization && \
+         export PATH=\$HOME/.local/bin:\$PATH && \
+         export HF_HUB_OFFLINE=1 && \
+         export COGNITO_S3_BUCKET='${S3_BUCKET}' && \
+         python3 520-diarize-transcripts.py $DIARIZE_FLAGS" 2>&1 | sed 's/^/    /'; then
         log_success "Diarization complete"
     else
         log_warn "Diarization failed (will retry on next batch run)"

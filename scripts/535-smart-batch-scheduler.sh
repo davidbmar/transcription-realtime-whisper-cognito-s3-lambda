@@ -331,8 +331,13 @@ if "$PROJECT_ROOT/scripts/515-run-batch-transcribe.sh"; then
 else
     exit_code=$?
     log_error "Batch transcription failed with exit code $exit_code"
-    exit $exit_code
+    # Continue to diarization even if transcription had some failures
 fi
+
+# ============================================================================
+# NOTE: Diarization, Topic Segmentation, and AI Analysis are all handled by
+# 515-run-batch-transcribe.sh in Phases 3-5. No separate step needed here.
+# ============================================================================
 
 echo ""
 log_info "====================================================================="
@@ -342,7 +347,7 @@ log_info ""
 log_info "Summary:"
 log_info "  - Chunks found:  $MISSING_CHUNKS"
 log_info "  - Threshold:     $BATCH_THRESHOLD"
-log_info "  - Action:        Batch transcription executed"
+log_info "  - Actions:       Transcription + Diarization + AI (via 515)"
 log_info ""
 log_info "Next scheduled run in $CHECK_HOURS hours"
 log_info ""
