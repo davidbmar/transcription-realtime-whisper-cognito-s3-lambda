@@ -614,6 +614,186 @@ module.exports.listDomains = async (event) => {
 };
 
 /**
+ * GET /api/sessions/{sessionId}/layers/{layerId}/edits
+ * Get all text edits for a specific layer
+ */
+module.exports.getLayerEdits = async (event) => {
+  const headers = getSecurityHeaders(event.headers?.origin);
+
+  try {
+    const claims = event.requestContext?.authorizer?.claims || {};
+    const userId = claims.sub || 'unknown';
+    const { sessionId, layerId } = event.pathParameters || {};
+
+    if (!sessionId || !layerId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'sessionId and layerId required' }) };
+    }
+
+    const bucketName = process.env.S3_BUCKET_NAME;
+    const key = `users/${userId}/audio/sessions/${sessionId}/layers/layer-${layerId}-edits.json`;
+
+    try {
+      const data = await s3.getObject({ Bucket: bucketName, Key: key }).promise();
+      const editsData = JSON.parse(data.Body.toString());
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(editsData)
+      };
+    } catch (err) {
+      if (err.code === 'NoSuchKey') {
+        // No edits file yet - return empty
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            layerId: parseInt(layerId),
+            edits: {},
+            version: '1.0'
+          })
+        };
+      }
+      throw err;
+    }
+
+  } catch (error) {
+    console.error('getLayerEdits error:', error);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+  }
+};
+
+/**
+ * PUT /api/sessions/{sessionId}/layers/{layerId}/edits
+ * Save all text edits for a specific layer (replaces entire file)
+ */
+module.exports.saveLayerEdits = async (event) => {
+  const headers = getSecurityHeaders(event.headers?.origin);
+
+  try {
+    const claims = event.requestContext?.authorizer?.claims || {};
+    const userId = claims.sub || 'unknown';
+    const email = claims.email || 'unknown';
+    const groups = claims['cognito:groups'] ? claims['cognito:groups'].split(',') : [];
+    const { sessionId, layerId: layerIdStr } = event.pathParameters || {};
+    const layerId = parseInt(layerIdStr);
+
+    if (!sessionId || isNaN(layerId)) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'sessionId and layerId required' }) };
+    }
+
+    // Check layer access (only user layers 5+ can have text edits)
+    if (layerId < 5) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Text edits only allowed on layers 5+' }) };
+    }
+
+    const accessibleLayers = getUserLayerAccess(groups);
+    if (!accessibleLayers.includes(layerId)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: `No write access to layer ${layerId}` }) };
+    }
+
+    const body = JSON.parse(event.body || '{}');
+    const { edits } = body;
+
+    if (!edits || typeof edits !== 'object') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'edits object required' }) };
+    }
+
+    const bucketName = process.env.S3_BUCKET_NAME;
+    const key = `users/${userId}/audio/sessions/${sessionId}/layers/layer-${layerId}-edits.json`;
+
+    const editsData = {
+      layerId,
+      version: '1.0',
+      edits,  // { "para-0": "edited text", "para-3": "another edit", ... }
+      updatedAt: new Date().toISOString(),
+      updatedBy: userId,
+      updatedByEmail: email
+    };
+
+    await s3.putObject({
+      Bucket: bucketName,
+      Key: key,
+      Body: JSON.stringify(editsData, null, 2),
+      ContentType: 'application/json'
+    }).promise();
+
+    console.log(`Saved ${Object.keys(edits).length} text edits to layer ${layerId} for session ${sessionId}`);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        saved: true,
+        layerId,
+        editCount: Object.keys(edits).length
+      })
+    };
+
+  } catch (error) {
+    console.error('saveLayerEdits error:', error);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+  }
+};
+
+/**
+ * GET /api/sessions/{sessionId}/all-layer-edits
+ * Get text edits from all layers for a session
+ */
+module.exports.getAllLayerEdits = async (event) => {
+  const headers = getSecurityHeaders(event.headers?.origin);
+
+  try {
+    const claims = event.requestContext?.authorizer?.claims || {};
+    const userId = claims.sub || 'unknown';
+    const sessionId = event.pathParameters?.sessionId;
+
+    if (!sessionId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'sessionId required' }) };
+    }
+
+    const bucketName = process.env.S3_BUCKET_NAME;
+    const basePath = `users/${userId}/audio/sessions/${sessionId}/layers`;
+
+    // List all layer edit files
+    const listResult = await s3.listObjectsV2({
+      Bucket: bucketName,
+      Prefix: `${basePath}/layer-`,
+      MaxKeys: 100
+    }).promise();
+
+    const allEdits = {};
+
+    for (const obj of listResult.Contents || []) {
+      // Match layer-N-edits.json files
+      const match = obj.Key.match(/layer-(\d+)-edits\.json$/);
+      if (match) {
+        const layerId = match[1];
+        try {
+          const data = await s3.getObject({ Bucket: bucketName, Key: obj.Key }).promise();
+          const editsData = JSON.parse(data.Body.toString());
+          allEdits[layerId] = editsData;
+        } catch (err) {
+          console.error(`Error reading ${obj.Key}:`, err);
+        }
+      }
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        sessionId,
+        layers: allEdits
+      })
+    };
+
+  } catch (error) {
+    console.error('getAllLayerEdits error:', error);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+  }
+};
+
+/**
  * POST /api/sessions/{sessionId}/export/training
  * Export annotations as training data
  */

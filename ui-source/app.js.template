@@ -290,6 +290,9 @@ function getFileIcon(fileName, isFolder = false) {
 // Simple folder detection and navigation
 let currentPath = '';
 
+// Multi-select state
+let selectedFiles = new Set();
+
 function isFolder(fileName) {
     return fileName.endsWith('/');
 }
@@ -444,11 +447,36 @@ async function listS3Files() {
         if (data.files && data.files.length > 0) {
             // Extract folders and files for current directory
             const items = extractFolders(data.files);
-            
+
+            // Clear selection when navigating
+            selectedFiles.clear();
+            updateBatchToolbar();
+
+            // Create batch toolbar
+            const batchToolbar = document.createElement('div');
+            batchToolbar.className = 'batch-toolbar';
+            batchToolbar.id = 'batch-toolbar';
+            batchToolbar.innerHTML = `
+                <div class="batch-toolbar-left">
+                    <span class="batch-toolbar-count" id="batch-count">0 selected</span>
+                    <button class="batch-btn batch-clear-btn" onclick="clearSelection()">
+                        <i class="fas fa-times"></i>
+                        Clear
+                    </button>
+                </div>
+                <div class="batch-toolbar-actions">
+                    <button class="batch-btn danger" onclick="batchDelete()">
+                        <i class="fas fa-trash"></i>
+                        Delete Selected
+                    </button>
+                </div>
+            `;
+            fileContainer.appendChild(batchToolbar);
+
             // Create file list
             const fileList = document.createElement('div');
             fileList.className = 'file-list';
-            
+
             items.forEach((item, index) => {
                 const fullKey = item.key || item;
                 // Calculate clean relative name - remove current path prefix and show just the filename/foldername
@@ -462,18 +490,29 @@ async function listS3Files() {
                 const fileSize = isFolder ? '' : formatFileSize(item.size);
                 const fileDate = new Date(item.lastModified).toLocaleDateString();
                 const fileTypeInfo = getFileIcon(displayName, isFolder);
-                
+
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-list-item';
+                fileItem.dataset.key = fullKey;
+                fileItem.dataset.name = displayName;
+                fileItem.dataset.isFolder = isFolder;
                 fileItem.innerHTML = `
+                    <div class="file-checkbox-wrapper">
+                        <input type="checkbox" class="file-checkbox" data-key="${fullKey}" data-name="${displayName}" data-folder="${isFolder}">
+                    </div>
                     <div class="file-list-icon">
                         <i class="${fileTypeInfo.icon}" style="color: ${fileTypeInfo.color};"></i>
                     </div>
                     <div class="file-list-info">
-                        <div class="file-list-name" title="${displayName}">${displayName}</div>
+                        <div class="file-list-name-row">
+                            <div class="file-list-name" title="${displayName}">${displayName}</div>
+                            <button class="copy-filename-btn" title="Copy filename" data-filename="${displayName}">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
                         <div class="file-list-meta">
-                            ${isFolder ? 
-                                '<span><i class="fas fa-folder-open"></i> Folder</span>' : 
+                            ${isFolder ?
+                                '<span><i class="fas fa-folder-open"></i> Folder</span>' :
                                 `<span><i class="fas fa-hdd"></i> ${fileSize}</span>`
                             }
                             <span><i class="fas fa-calendar"></i> ${fileDate}</span>
@@ -616,11 +655,31 @@ async function listS3Files() {
                     dropdownMenu.classList.remove('show');
                     navigateToFolder(fullKey);
                 });
-                
+
+                // Add checkbox event listener
+                const checkbox = fileItem.querySelector('.file-checkbox');
+                checkbox?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                checkbox?.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    toggleFileSelection(fullKey, displayName, isFolder, checkbox.checked);
+                    fileItem.classList.toggle('selected', checkbox.checked);
+                });
+
+                // Add copy filename button event listener
+                const copyBtn = fileItem.querySelector('.copy-filename-btn');
+                copyBtn?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyFilename(displayName, copyBtn);
+                });
+
                 // Add click handler for row click (mobile/desktop friendly)
                 fileItem.addEventListener('click', (e) => {
-                    // Don't trigger if clicking on menu button or dropdown
+                    // Don't trigger if clicking on menu button, dropdown, checkbox, or copy button
                     if (e.target.closest('.file-list-actions')) return;
+                    if (e.target.closest('.file-checkbox-wrapper')) return;
+                    if (e.target.closest('.copy-filename-btn')) return;
 
                     if (isFolder) {
                         navigateToFolder(fullKey);
@@ -2446,6 +2505,139 @@ async function uploadFileDirect(file, folderPath) {
         alert(`Failed to upload ${file.name}: ${error.message}`);
         return false;
     }
+}
+
+// ============================================================
+// Copy Filename to Clipboard
+// ============================================================
+function copyFilename(filename, buttonElement) {
+    navigator.clipboard.writeText(filename).then(() => {
+        // Show success feedback
+        const icon = buttonElement.querySelector('i');
+        icon.className = 'fas fa-check';
+        buttonElement.classList.add('copied');
+
+        // Reset after 1.5 seconds
+        setTimeout(() => {
+            icon.className = 'fas fa-copy';
+            buttonElement.classList.remove('copied');
+        }, 1500);
+
+        // Show toast
+        showUploadToast(`Copied: ${filename}`);
+    }).catch(err => {
+        console.error('Failed to copy filename:', err);
+        alert('Failed to copy filename to clipboard');
+    });
+}
+
+// ============================================================
+// Multi-Select File Management
+// ============================================================
+function toggleFileSelection(fileKey, fileName, isFolder, isSelected) {
+    if (isSelected) {
+        selectedFiles.add(JSON.stringify({ key: fileKey, name: fileName, isFolder }));
+    } else {
+        selectedFiles.delete(JSON.stringify({ key: fileKey, name: fileName, isFolder }));
+    }
+    updateBatchToolbar();
+}
+
+function updateBatchToolbar() {
+    const toolbar = document.getElementById('batch-toolbar');
+    const countElement = document.getElementById('batch-count');
+
+    if (!toolbar) return;
+
+    if (selectedFiles.size > 0) {
+        toolbar.classList.add('show');
+        const itemWord = selectedFiles.size === 1 ? 'item' : 'items';
+        countElement.textContent = `${selectedFiles.size} ${itemWord} selected`;
+    } else {
+        toolbar.classList.remove('show');
+    }
+}
+
+function clearSelection() {
+    selectedFiles.clear();
+
+    // Uncheck all checkboxes
+    document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    // Remove selected class from all items
+    document.querySelectorAll('.file-list-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    updateBatchToolbar();
+}
+
+async function batchDelete() {
+    if (selectedFiles.size === 0) {
+        alert('No files selected');
+        return;
+    }
+
+    const fileList = Array.from(selectedFiles).map(f => JSON.parse(f));
+    const fileNames = fileList.map(f => f.name).join('\n• ');
+
+    const confirmMessage = `Are you sure you want to delete ${selectedFiles.size} item(s)?\n\n• ${fileNames}`;
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    const idToken = localStorage.getItem('id_token');
+    if (!idToken) {
+        alert('You must be logged in to delete files');
+        return;
+    }
+
+    // Show progress
+    showUploadToast(`Deleting ${selectedFiles.size} item(s)...`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of fileList) {
+        try {
+            const encodedKey = encodeURIComponent(file.key);
+            const response = await fetch(`${config.s3ApiUrl}/api/s3/delete/${encodedKey}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                successCount++;
+            } else {
+                errorCount++;
+                console.error(`Failed to delete ${file.name}: ${response.status}`);
+            }
+        } catch (error) {
+            errorCount++;
+            console.error(`Error deleting ${file.name}:`, error);
+        }
+    }
+
+    // Clear selection
+    clearSelection();
+
+    // Show result
+    if (errorCount === 0) {
+        showUploadToast(`Successfully deleted ${successCount} item(s)`);
+    } else {
+        showUploadToast(`Deleted ${successCount}, failed ${errorCount}`);
+    }
+
+    // Refresh file list
+    setTimeout(() => {
+        listS3Files();
+    }, 500);
 }
 
 // Show upload toast notification

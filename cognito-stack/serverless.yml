@@ -548,6 +548,52 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # Layer Text Edits API - Simple file-based layer edits
+  getLayerEdits:
+    handler: api/annotations.getLayerEdits
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/layers/{layerId}/edits
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  saveLayerEdits:
+    handler: api/annotations.saveLayerEdits
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/layers/{layerId}/edits
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  getAllLayerEdits:
+    handler: api/annotations.getAllLayerEdits
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${self:custom.cloudfrontUrl}
+    events:
+      - http:
+          path: api/sessions/{sessionId}/all-layer-edits
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
 resources:
   Resources:
     # API Gateway Authorizer

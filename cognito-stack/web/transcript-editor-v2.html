@@ -514,6 +514,74 @@
             border-left: 4px solid var(--success);
         }
 
+        .paragraph-text.pending-edit {
+            border-left: 4px solid #f59e0b;
+            background: rgba(245, 158, 11, 0.05);
+        }
+
+        /* When paragraph is in edit mode (contentEditable) */
+        .paragraph-text[contenteditable="true"] {
+            cursor: text;
+            background: white;
+            border-color: var(--primary);
+        }
+
+        .paragraph-text[contenteditable="true"] .word-highlight {
+            cursor: text;
+            display: inline;  /* Change from inline-block to allow cursor placement */
+            pointer-events: auto;
+        }
+
+        /* Editable segment wrappers in split paragraphs */
+        .segment-wrapper.saved[contenteditable="true"] {
+            cursor: text;
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        .segment-wrapper.saved[contenteditable="true"] .word-highlight {
+            cursor: text;
+            display: inline;
+        }
+
+        .segment-wrapper.saved[contenteditable="true"] .segment-speaker-chip {
+            pointer-events: none;  /* Prevent editing the chip */
+            user-select: none;
+        }
+
+        #save-edits-btn {
+            background: #f59e0b;
+            color: white;
+            font-weight: 500;
+        }
+
+        #save-edits-btn:hover {
+            background: #d97706;
+        }
+
+        #save-edits-btn.has-pending {
+            animation: pulse-save 2s infinite;
+        }
+
+        @keyframes pulse-save {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .paragraph-text.has-layer-edit {
+            border-left: 4px solid var(--primary);
+            position: relative;
+        }
+
+        .paragraph-text.has-layer-edit::after {
+            content: '✏️';
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
         .paragraph-meta {
             display: flex;
             gap: 12px;
@@ -947,7 +1015,7 @@
         }
 
         .split-mode .paragraph-text {
-            cursor: text;
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ctext x='0' y='20' font-size='20'%3E✂️%3C/text%3E%3C/svg%3E") 12 12, crosshair !important;
         }
 
         .split-mode .blade-target {
@@ -2193,20 +2261,23 @@
                     text-align: center;
                 }
 
-                /* Hide speaker chunks when Layer 1 is toggled off */
-                .hide-speaker-chunks .speaker-label {
+                /* Hide speakers when Layer 1 (Speakers) is toggled off */
+                .hide-speakers .speaker-label {
                     display: none !important;
                 }
-                .hide-speaker-chunks .segment-wrapper {
+                .hide-speakers .segment-wrapper,
+                .hide-speakers .segment-wrapper.saved,
+                .hide-speakers .segment-wrapper.raw-diarization {
                     background: transparent !important;
                     border-left: none !important;
                     padding: 0 !important;
                     margin: 0 !important;
+                    border: none !important;
                 }
-                .hide-speaker-chunks .segment-speaker-chip {
+                .hide-speakers .segment-speaker-chip {
                     display: none !important;
                 }
-                .hide-speaker-chunks .split-speaker-btn {
+                .hide-speakers .split-speaker-btn {
                     display: none !important;
                 }
             </style>
@@ -2414,6 +2485,9 @@
                 <div class="toolbar-group">
                     <button class="toolbar-btn" id="edit-mode-btn" title="Toggle Edit Mode" onclick="toggleEditMode()">
                         ✏️ Edit Mode: OFF
+                    </button>
+                    <button class="toolbar-btn" id="save-edits-btn" title="Save all pending edits" onclick="saveAllPendingEdits()" style="display: none;">
+                        💾 Save Edits
                     </button>
                 </div>
 
@@ -2654,7 +2728,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.20.0-update-debug';
+        const TRANSCRIPT_EDITOR_VERSION = '2.26.6';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -2722,14 +2796,17 @@
         }
 
         // ========================================
-        // Layer Management for Annotation Pipeline
+        // Layer Management - File-Based Text Edits
         // ========================================
-        // Photoshop-style Layer Manager
-        // Layer 0: Raw Transcription (system, locked)
-        // Layer 1: Speaker Chunks (system, editable)
-        // Layer 100+: User-created annotation layers
+        // Photoshop-style Layer Manager with simple file-based edits
+        // Each layer stores edits in: layers/layer-N-edits.json
+        // Format: { "para-0": "edited text", "para-3": "another edit", ... }
+        //
+        // Layer 0: Raw Transcription (system, locked, read-only)
+        // Layer 1: Speakers (system, speaker splits only)
+        // Layer 5+: User layers (text edits allowed)
         const layerManager = {
-            // Default layer definitions (will be overwritten by session data)
+            // Default layer definitions
             layers: {
                 0: {
                     id: 0,
@@ -2739,17 +2816,19 @@
                     visible: true,
                     color: '#6b7280',
                     order: 0,
-                    annotations: []
+                    annotations: [],  // For speaker-split annotations
+                    textEdits: {}     // Not used for layer 0
                 },
                 1: {
                     id: 1,
-                    name: 'Speaker Chunks',
+                    name: 'Speakers',
                     type: 'system',
                     locked: false,
                     visible: true,
                     color: '#3b82f6',
                     order: 1,
-                    annotations: []
+                    annotations: [],  // For speaker-split annotations
+                    textEdits: {}     // Not used for layer 1
                 },
                 5: {
                     id: 5,
@@ -2759,12 +2838,14 @@
                     visible: true,
                     color: '#f59e0b',
                     order: 2,
-                    annotations: []
+                    annotations: [],  // For tags, comments, etc.
+                    textEdits: {}     // { "para-0": "edited text", ... }
                 }
             },
             layerOrder: [5, 1, 0], // Top to bottom (highest layer first)
             activeLayer: 5, // Currently selected layer for editing
             nextLayerId: 100, // Next ID for user-created layers
+            _editsModified: false, // Track if edits need saving
 
             // Get layers sorted by order (top to bottom for display)
             getOrderedLayers() {
@@ -2773,30 +2854,390 @@
                     .filter(Boolean);
             },
 
+            // Pyramid stacking: layers must be toggled in order
+            // To hide: must hide layers above first (top to bottom)
+            // To show: must show layers below first (bottom to top)
             toggleVisibility(layerId) {
-                if (this.layers[layerId]) {
-                    this.layers[layerId].visible = !this.layers[layerId].visible;
-                    this.renderLayerPanel();
-                    this.applyLayerVisibility();
-                    this.renderAnnotations();
-                    console.log(`[Layer] ${layerId} visibility: ${this.layers[layerId].visible}`);
+                if (!this.layers[layerId]) return;
+
+                const layer = this.layers[layerId];
+                const wantToHide = layer.visible;
+                const layerIndex = this.layerOrder.indexOf(layerId);
+
+                if (wantToHide) {
+                    // To HIDE this layer: check if any layer ABOVE it is still visible
+                    // layerOrder is [5, 1, 0] (top to bottom), so layers before this index are "above"
+                    for (let i = 0; i < layerIndex; i++) {
+                        const aboveLayerId = this.layerOrder[i];
+                        if (this.layers[aboveLayerId]?.visible) {
+                            const aboveLayerName = this.layers[aboveLayerId].name;
+                            showToast(`Hide "${aboveLayerName}" first (layers stack top-down)`, 'error');
+                            console.log(`[Layer Toggle] Blocked: Cannot hide ${layer.name} while ${aboveLayerName} is visible`);
+                            return;
+                        }
+                    }
+                } else {
+                    // To SHOW this layer: check if any layer BELOW it is hidden
+                    // Layers after this index are "below"
+                    for (let i = layerIndex + 1; i < this.layerOrder.length; i++) {
+                        const belowLayerId = this.layerOrder[i];
+                        if (this.layers[belowLayerId] && !this.layers[belowLayerId].visible) {
+                            const belowLayerName = this.layers[belowLayerId].name;
+                            showToast(`Show "${belowLayerName}" first (layers stack bottom-up)`, 'error');
+                            console.log(`[Layer Toggle] Blocked: Cannot show ${layer.name} while ${belowLayerName} is hidden`);
+                            return;
+                        }
+                    }
+                }
+
+                // Toggle is allowed - proceed
+                layer.visible = !layer.visible;
+                console.log(`[Layer Toggle] Layer ${layerId} (${layer.name}) -> ${layer.visible ? 'VISIBLE' : 'HIDDEN'}`);
+
+                this.renderLayerPanel();
+
+                // Rebuild everything from scratch based on visible layers
+                this.rebuildFromVisibleLayers();
+
+                console.log(`[Layer Toggle] Complete for layer ${layerId}`);
+            },
+
+            // Rebuild display by applying visible layers from bottom to top
+            rebuildFromVisibleLayers() {
+                console.log('[Rebuild] Starting full rebuild from visible layers...');
+
+                // Step 1: Reset to raw transcription state
+                this.resetToRawTranscription();
+
+                // Step 2: Apply layers from bottom to top (reverse of layerOrder)
+                const bottomToTop = [...this.layerOrder].reverse(); // [0, 1, 5]
+
+                for (const layerId of bottomToTop) {
+                    const layer = this.layers[layerId];
+                    if (!layer || !layer.visible) {
+                        console.log(`[Rebuild] Skipping layer ${layerId} (${layer?.name || 'unknown'}) - not visible`);
+                        continue;
+                    }
+
+                    console.log(`[Rebuild] Applying layer ${layerId} (${layer.name})`);
+
+                    if (layerId === 0) {
+                        // Raw Transcription - already the base, nothing to apply
+                        console.log('[Rebuild] Layer 0 is base - no changes needed');
+                    } else if (layerId === 1) {
+                        // Speakers - apply raw diarization + speaker splits
+                        this.applySpeakersLayer();
+                    } else {
+                        // User layers - apply text edits and annotations
+                        this.applyUserLayer(layerId);
+                    }
+                }
+
+                console.log('[Rebuild] Complete');
+            },
+
+            // Reset display to raw transcription (remove all annotations and edits)
+            resetToRawTranscription() {
+                console.log('[Reset] Resetting to raw transcription...');
+
+                // Remove all segment wrappers - both saved (snip tool) AND raw-diarization
+                document.querySelectorAll('.segment-wrapper.saved, .segment-wrapper.raw-diarization').forEach(w => {
+                    const wordsToMove = Array.from(w.querySelectorAll('.word-highlight'));
+                    wordsToMove.forEach(word => {
+                        w.parentNode.insertBefore(word, w);
+                    });
+                    w.remove();
+                });
+
+                // Remove split annotation class
+                document.querySelectorAll('.has-split-annotation').forEach(el => {
+                    el.classList.remove('has-split-annotation');
+                });
+
+                // Remove all speaker labels and chips
+                document.querySelectorAll('.segment-speaker-chip, .speaker-label, .split-speaker-btn').forEach(el => el.remove());
+
+                // Restore original word text from processedData
+                if (processedData?.paragraphs) {
+                    processedData.paragraphs.forEach((para, paraIndex) => {
+                        const textEl = document.querySelector(`[data-para-index="${paraIndex}"]`);
+                        if (!textEl) return;
+
+                        textEl.classList.remove('has-layer-edit', 'pending-edit');
+
+                        // Restore original word content
+                        if (para.words) {
+                            const wordElements = textEl.querySelectorAll('.word-highlight');
+                            wordElements.forEach((wordEl, i) => {
+                                if (para.words[i]) {
+                                    wordEl.textContent = para.words[i].word;
+                                }
+                            });
+                        }
+                    });
+                }
+
+                // Remove visibility classes
+                const editorContent = document.getElementById('editor-content');
+                if (editorContent) {
+                    editorContent.classList.remove('hide-speakers', 'hide-annotations');
+                }
+
+                console.log('[Reset] Done');
+            },
+
+            // Apply Speakers layer (raw diarization + speaker splits)
+            applySpeakersLayer() {
+                console.log('[Apply] Applying Speakers layer...');
+
+                // Get chunk-split annotations (snip tool edits)
+                const splits = this.layers[1]?.annotations?.filter(a => a.type === 'chunk-split') || [];
+                const splitChunkIds = new Set(splits.map(s => s.target?.chunkId).filter(Boolean));
+                console.log(`[Apply] Found ${splits.length} chunk-split annotations for chunks:`, [...splitChunkIds]);
+
+                // Apply raw diarization to paragraphs WITHOUT splits
+                this.applyRawDiarization(splitChunkIds);
+
+                // Apply chunk-split annotations to paragraphs WITH splits
+                for (const annotation of splits) {
+                    if (annotation.target?.chunkId) {
+                        const chunkEl = document.querySelector(`[data-chunk-id="${annotation.target.chunkId}"]`);
+                        if (chunkEl) {
+                            this.renderChunkSplit(chunkEl, annotation);
+                        }
+                    }
                 }
             },
 
-            // Apply visibility CSS classes based on layer state
-            applyLayerVisibility() {
+            // Apply raw diarization styling (speaker colors/labels from original transcript)
+            // skipChunkIds: Set of chunk IDs that have splits (don't apply raw diarization to these)
+            applyRawDiarization(skipChunkIds = new Set()) {
+                if (!processedData?.paragraphs) return;
+                console.log('[Apply] Applying raw diarization, skipping:', [...skipChunkIds]);
+
+                processedData.paragraphs.forEach((para, paraIndex) => {
+                    const chunkId = `para-${paraIndex}`;
+
+                    // Skip paragraphs that have splits - renderChunkSplit will handle them
+                    if (skipChunkIds.has(chunkId)) {
+                        console.log(`[Apply] Skipping para-${paraIndex} (has split)`);
+                        return;
+                    }
+
+                    const textEl = document.querySelector(`[data-para-index="${paraIndex}"]`);
+                    if (!textEl) return;
+
+                    const speaker = para.speaker;
+                    if (!speaker || speaker === 'UNKNOWN') return;
+
+                    // Get speaker color
+                    const speakerColor = getSpeakerColorById(speaker);
+                    const speakerBgColor = getSpeakerBgColor(speaker);
+
+                    // Create wrapper
+                    const speakerWrapper = document.createElement('div');
+                    speakerWrapper.className = 'segment-wrapper raw-diarization';
+                    speakerWrapper.style.cssText = `
+                        display: block;
+                        background: ${speakerBgColor};
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                        border-left: 4px solid ${speakerColor};
+                        position: relative;
+                    `;
+
+                    // Create speaker label
+                    const displayName = speakerNames[speaker] || speaker;
+                    const speakerLabel = document.createElement('span');
+                    speakerLabel.className = 'speaker-label';
+                    speakerLabel.textContent = displayName;
+                    speakerLabel.style.cssText = `
+                        border: 2px solid ${speakerColor};
+                        margin-right: 8px;
+                        cursor: pointer;
+                    `;
+                    speakerLabel.onclick = (e) => {
+                        e.stopPropagation();
+                        showSpeakerPicker(speakerLabel, speaker);
+                    };
+                    speakerWrapper.appendChild(speakerLabel);
+
+                    // Create split button
+                    const splitBtn = document.createElement('button');
+                    splitBtn.className = 'split-speaker-btn';
+                    splitBtn.innerHTML = '✂️';
+                    splitBtn.title = 'Split this paragraph by speaker';
+                    splitBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        speakerSplitManager.startSplit(`para-${paraIndex}`);
+                    };
+                    speakerWrapper.appendChild(splitBtn);
+
+                    // Move all word elements into the wrapper
+                    const wordElements = Array.from(textEl.querySelectorAll('.word-highlight'));
+                    wordElements.forEach(word => speakerWrapper.appendChild(word));
+
+                    // Add wrapper to text element
+                    textEl.appendChild(speakerWrapper);
+                });
+
+                console.log('[Apply] Raw diarization applied');
+            },
+
+            // Apply a user layer (text edits and annotations)
+            applyUserLayer(layerId) {
+                const layer = this.layers[layerId];
+                if (!layer) return;
+
+                console.log(`[Apply] Applying user layer ${layerId} (${layer.name})...`);
+
+                // Apply text edits
+                if (layer.textEdits && Object.keys(layer.textEdits).length > 0) {
+                    console.log(`[Apply] Applying ${Object.keys(layer.textEdits).length} text edits`);
+                    this.applyTextEditsFromLayer(layerId);
+                }
+
+                // Apply other annotations (tags, comments, etc.) - future
+            },
+
+            // Apply text edits from a specific layer
+            applyTextEditsFromLayer(layerId) {
+                const layer = this.layers[layerId];
+                if (!layer?.textEdits) return;
+
+                for (const [paraKey, editedText] of Object.entries(layer.textEdits)) {
+                    const paraIndex = parseInt(paraKey.replace('para-', ''));
+                    const textEl = document.querySelector(`[data-para-index="${paraIndex}"]`);
+
+                    if (!textEl) continue;
+
+                    // Skip split paragraphs for now (complex structure)
+                    const paraContainer = textEl.closest('.paragraph-container');
+                    if (paraContainer?.classList.contains('has-split-annotation')) {
+                        console.log(`[Apply] Skipping para-${paraIndex} (has split)`);
+                        continue;
+                    }
+
+                    // Update the text content
+                    const wordElements = textEl.querySelectorAll('.word-highlight');
+                    if (wordElements.length > 0) {
+                        // Replace word content - split edited text by spaces
+                        const words = editedText.split(/\s+/);
+                        wordElements.forEach((wordEl, i) => {
+                            if (i < words.length) {
+                                wordEl.textContent = words[i];
+                            }
+                        });
+                    } else {
+                        textEl.textContent = editedText;
+                    }
+
+                    textEl.classList.add('has-layer-edit');
+                    console.log(`[Apply] Applied edit to para-${paraIndex}`);
+                }
+            },
+
+            // Apply visibility CSS classes based on layer state (without text stacking)
+            applyLayerVisibilityCSS() {
                 const editorContent = document.getElementById('editor-content');
                 if (!editorContent) return;
 
-                // Layer 1: Speaker Chunks - toggle ALL speaker labels (raw diarization + splits)
+                // Layer 1: Speakers - toggle ALL speaker labels (raw diarization + splits)
                 if (this.layers[1]?.visible) {
-                    editorContent.classList.remove('hide-speaker-chunks');
+                    editorContent.classList.remove('hide-speakers');
                 } else {
-                    editorContent.classList.add('hide-speaker-chunks');
+                    editorContent.classList.add('hide-speakers');
                 }
 
                 // Layer 0: Raw Transcription - always visible (base text)
                 // No toggle needed - text is always shown
+            },
+
+            // Legacy method - calls both CSS and text stacking
+            applyLayerVisibility() {
+                this.applyLayerVisibilityCSS();
+                this.applyTextEditStacking();
+            },
+
+            // Apply text-edit annotations from visible layers (Photoshop-style stacking)
+            applyTextEditStacking() {
+                console.log('[TextEditStacking] Starting...');
+                if (!processedData?.paragraphs) {
+                    console.log('[TextEditStacking] No processedData, returning');
+                    return;
+                }
+
+                // Check if ANY layer has text edits - if not, skip this entirely
+                // This prevents interfering with speaker split rendering
+                const anyLayerHasEdits = this.layerOrder.some(layerId => {
+                    const layer = this.layers[layerId];
+                    if (!layer) return false;
+                    // Check file-based textEdits
+                    if (layer.textEdits && Object.keys(layer.textEdits).length > 0) return true;
+                    // Check old annotation-based text-edits
+                    if (layer.annotations?.some(a => a.type === 'text-edit')) return true;
+                    return false;
+                });
+
+                console.log('[TextEditStacking] anyLayerHasEdits:', anyLayerHasEdits);
+
+                if (!anyLayerHasEdits) {
+                    // No text edits anywhere - just remove any stale indicators
+                    console.log('[TextEditStacking] No edits, clearing indicators');
+                    document.querySelectorAll('.paragraph-text.has-layer-edit').forEach(el => {
+                        el.classList.remove('has-layer-edit');
+                    });
+                    return;
+                }
+
+                document.querySelectorAll('.paragraph-text').forEach(textEl => {
+                    const paraIndex = parseInt(textEl.dataset.paraIndex);
+                    if (isNaN(paraIndex)) return;
+
+                    // Skip paragraphs that have speaker splits (they have their own rendering)
+                    const paraContainer = textEl.closest('.paragraph-container');
+                    if (paraContainer?.classList.contains('has-split-annotation')) {
+                        console.log(`[TextEditStacking] Skipping para-${paraIndex} (has split)`);
+                        return;
+                    }
+
+                    // Get the displayed text considering layer stacking
+                    const displayedText = this.getDisplayedText(paraIndex);
+                    const originalText = processedData.paragraphs[paraIndex]?.text || '';
+                    const para = processedData.paragraphs[paraIndex];
+
+                    // Check if this paragraph has a text-edit applied from a visible layer
+                    const hasEdit = displayedText !== originalText;
+
+                    // Update visual indicator and text content
+                    if (hasEdit) {
+                        textEl.classList.add('has-layer-edit');
+                        // Update displayed text to show edited version
+                        if (textEl.textContent !== displayedText) {
+                            textEl.textContent = displayedText;
+                            textEl.dataset.originalText = displayedText;
+                        }
+                    } else {
+                        textEl.classList.remove('has-layer-edit');
+                        // Only restore if this paragraph previously had an edit showing
+                        if (textEl.classList.contains('was-edited')) {
+                            textEl.classList.remove('was-edited');
+                            // Re-render with word-level spans using the proper function
+                            if (typeof wrapWordsWithTimestamps === 'function' && para) {
+                                wrapWordsWithTimestamps(textEl, para);
+                            } else {
+                                textEl.textContent = originalText;
+                            }
+                            textEl.dataset.originalText = originalText;
+                        }
+                    }
+
+                    // Track if this paragraph is showing an edit (for later restoration)
+                    if (hasEdit) {
+                        textEl.classList.add('was-edited');
+                    }
+                });
             },
 
             toggleLock(layerId) {
@@ -2815,6 +3256,23 @@
                     this.activeLayer = layerId;
                     this.renderLayerPanel();
                     console.log(`[Layer] Selected: ${layerId}`);
+
+                    // If edit mode is on and the new layer doesn't allow text edits, turn it off
+                    if (editModeEnabled && !this.canEditText(layerId)) {
+                        // Turn off edit mode
+                        editModeEnabled = false;
+                        const btn = document.getElementById('edit-mode-btn');
+                        if (btn) {
+                            btn.textContent = '✏️ Edit Mode: OFF';
+                            btn.classList.remove('active');
+                        }
+                        document.querySelectorAll('.paragraph-text').forEach(p => {
+                            p.contentEditable = false;
+                            delete p.dataset.originalText;
+                        });
+                        const layerName = this.layers[layerId]?.name || `Layer ${layerId}`;
+                        showToast(`Edit mode disabled - "${layerName}" doesn't allow text edits`);
+                    }
                 }
             },
 
@@ -2842,6 +3300,128 @@
                 this.activeLayer = value;
             },
 
+            // Check if a layer allows text edits (only user layers 5+)
+            canEditText(layerId) {
+                // Layer 0 (Raw Transcription) - read-only
+                // Layer 1 (Speakers) - only speaker splits, no text edits
+                // Layer 5+ (User layers) - text edits allowed
+                return layerId >= 5;
+            },
+
+            // Get the displayed text for a paragraph, considering layer stacking
+            // Returns the topmost visible text-edit, or original text if none
+            getDisplayedText(paraIndex) {
+                const originalText = processedData.paragraphs[paraIndex]?.text || '';
+                const paraKey = `para-${paraIndex}`;
+
+                // Check layers from top to bottom for text-edits
+                for (const layerId of this.layerOrder) {
+                    const layer = this.layers[layerId];
+                    if (!layer || !layer.visible) continue;
+
+                    // NEW: Check textEdits map first (file-based system)
+                    if (layer.textEdits && layer.textEdits[paraKey]) {
+                        return layer.textEdits[paraKey];
+                    }
+
+                    // BACKWARD COMPAT: Check old annotation-based text-edits
+                    if (layer.annotations) {
+                        const textEdit = layer.annotations.find(a =>
+                            a.type === 'text-edit' &&
+                            (a.target?.chunkId === paraKey || a.target?.paraIndex === paraIndex)
+                        );
+                        if (textEdit && textEdit.data?.editedText) {
+                            return textEdit.data.editedText;
+                        }
+                    }
+                }
+
+                return originalText;
+            },
+
+            // Set a text edit for a paragraph on the active layer (in-memory only)
+            setTextEdit(paraIndex, editedText) {
+                const layer = this.layers[this.activeLayer];
+                if (!layer || !this.canEditText(this.activeLayer)) return false;
+
+                const paraKey = `para-${paraIndex}`;
+                const originalText = processedData.paragraphs[paraIndex]?.text || '';
+
+                if (editedText === originalText) {
+                    // Remove edit if text matches original
+                    delete layer.textEdits[paraKey];
+                } else {
+                    // Store the edit
+                    layer.textEdits[paraKey] = editedText;
+                }
+
+                this._editsModified = true;
+                this.renderLayerPanel(); // Update edit count
+                return true;
+            },
+
+            // Get edit count for a layer
+            getEditCount(layerId) {
+                const layer = this.layers[layerId];
+                if (!layer) return 0;
+                return Object.keys(layer.textEdits || {}).length;
+            },
+
+            // Save all text edits for a layer to S3
+            async saveLayerEdits(layerId) {
+                if (!currentSession?.folder) {
+                    console.error('No session folder available');
+                    return false;
+                }
+
+                const layer = this.layers[layerId];
+                if (!layer) return false;
+
+                const sessionId = encodeURIComponent(currentSession.folder);
+
+                try {
+                    const response = await apiCall(`/api/sessions/${sessionId}/layers/${layerId}/edits`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ edits: layer.textEdits || {} })
+                    });
+
+                    if (response.saved) {
+                        console.log(`[Layer] Saved ${response.editCount} edits to layer ${layerId}`);
+                        this._editsModified = false;
+                        return true;
+                    }
+                } catch (err) {
+                    console.error('Failed to save layer edits:', err);
+                    showToast('Failed to save edits', 'error');
+                }
+                return false;
+            },
+
+            // Load text edits for all layers from S3
+            async loadAllLayerEdits() {
+                if (!currentSession?.folder) return;
+
+                const sessionId = encodeURIComponent(currentSession.folder);
+
+                try {
+                    const response = await apiCall(`/api/sessions/${sessionId}/all-layer-edits`);
+
+                    if (response.layers) {
+                        for (const [layerId, editsData] of Object.entries(response.layers)) {
+                            const lid = parseInt(layerId);
+                            if (this.layers[lid]) {
+                                this.layers[lid].textEdits = editsData.edits || {};
+                                console.log(`[Layer] Loaded ${Object.keys(editsData.edits || {}).length} text edits for layer ${lid}`);
+                            }
+                        }
+                        this.renderLayerPanel();
+                        this.applyTextEditStacking();
+                    }
+                } catch (err) {
+                    console.log('[Layer] No existing layer edits found:', err.message);
+                }
+            },
+
             async loadLayersForSession(sessionId) {
                 try {
                     const response = await apiCall(`/api/sessions/${sessionId}/layers`);
@@ -2856,25 +3436,25 @@
                                 console.log(`[Layers] Layer ${layerId} has ${layerData.data.annotations.length} annotations`);
                             }
 
-                            // Layer 1 (Speaker Chunks) - chunk-split annotations
+                            // Layer 1 (Speakers) - chunk-split annotations
                             if (lid === 1) {
                                 this.layers[1].annotations = layerData.data?.annotations || [];
-                                console.log(`[Layers] Loaded ${this.layers[1].annotations.length} annotations into Speaker Chunks (layer 1)`);
+                                console.log(`[Layers] Loaded ${this.layers[1].annotations.length} annotations into Speakers (layer 1)`);
                             }
-                            // Layer 10 (Human Edits) - chunk-split annotations go to Speaker Chunks layer
+                            // Layer 10 (Human Edits) - chunk-split annotations go to Speakers layer
                             else if (lid === 10 && layerData.data?.annotations) {
-                                // Filter chunk-split annotations and add to Speaker Chunks layer
+                                // Filter chunk-split annotations and add to Speakers layer
                                 const chunkSplits = layerData.data.annotations.filter(a => a.type === 'chunk-split');
                                 const existing = this.layers[1].annotations || [];
                                 this.layers[1].annotations = [...existing, ...chunkSplits];
-                                console.log(`[Layers] Loaded ${chunkSplits.length} chunk-split annotations from layer 10 into Speaker Chunks`);
+                                console.log(`[Layers] Loaded ${chunkSplits.length} chunk-split annotations from layer 10 into Speakers`);
                             }
                             // Layer 2 (legacy speaker chunks) - also goes to layer 1 for backward compat
                             else if (layerId === '2' && layerData.data?.annotations) {
                                 // Merge with existing layer 1 annotations
                                 const existing = this.layers[1].annotations || [];
                                 this.layers[1].annotations = [...existing, ...layerData.data.annotations];
-                                console.log(`[Layers] Merged ${layerData.data.annotations.length} legacy layer 2 annotations into Speaker Chunks`);
+                                console.log(`[Layers] Merged ${layerData.data.annotations.length} legacy layer 2 annotations into Speakers`);
                             }
                             // User annotation layers (5, 6, 7)
                             else if (this.layers[lid] && layerData.data) {
@@ -2941,10 +3521,18 @@
                     nameSpan.className = 'layer-name';
                     nameSpan.textContent = layer.name;
 
-                    // Annotation count
+                    // Edit/Annotation count
                     const countSpan = document.createElement('span');
                     countSpan.className = 'layer-count';
-                    countSpan.textContent = layer.id === 0 ? '-' : (layer.annotations?.length || 0);
+                    countSpan.id = `layer-${layer.id}-count`;
+                    // For user layers (5+), show textEdits count; for system layers, show annotations count
+                    if (layer.id === 0) {
+                        countSpan.textContent = '-';
+                    } else if (layer.id >= 5) {
+                        countSpan.textContent = Object.keys(layer.textEdits || {}).length;
+                    } else {
+                        countSpan.textContent = layer.annotations?.length || 0;
+                    }
 
                     // Assemble
                     item.appendChild(eyeBtn);
@@ -3019,7 +3607,7 @@
                     return null;
                 }
 
-                // Route chunk-split annotations to Layer 1 (Speaker Chunks)
+                // Route chunk-split annotations to Layer 1 (Speakers)
                 // All other annotations go to the current edit layer
                 const targetLayer = (type === 'chunk-split') ? 1 : this.currentEditLayer;
                 console.log(`[Layer] Creating ${type} annotation in layer ${targetLayer}`);
@@ -3098,7 +3686,8 @@
                         }
                     }
 
-                    this.renderAnnotations();
+                    // Full rebuild to restore raw diarization for deleted splits
+                    this.rebuildFromVisibleLayers();
                     showToast('Annotation deleted');
                     return true;
                 } catch (err) {
@@ -3476,8 +4065,8 @@
             startSplit(chunkId) {
                 console.log('[Split] startSplit called with chunkId:', chunkId);
 
-                // Cancel any existing split
-                if (this.activeChunkId) this.cancelSplit();
+                // Cancel any existing split (without rebuild, since we're starting a new one)
+                if (this.activeChunkId) this.cancelSplit(true);
 
                 this.activeChunkId = chunkId;
                 this.splits = [];
@@ -3499,9 +4088,26 @@
                 // Enter split mode
                 chunkEl.classList.add('split-mode');
 
-                // Add blade cursor and click handlers between words
+                // Remove raw-diarization wrapper if present (unwrap words first)
                 const textEl = chunkEl.querySelector('.paragraph-text');
                 if (textEl) {
+                    const rawWrapper = textEl.querySelector('.segment-wrapper.raw-diarization');
+                    if (rawWrapper) {
+                        console.log('[Split] Removing raw-diarization wrapper');
+                        // Hide speaker label and split button
+                        const speakerLabel = rawWrapper.querySelector('.speaker-label');
+                        const splitBtn = rawWrapper.querySelector('.split-speaker-btn');
+                        if (speakerLabel) speakerLabel.style.display = 'none';
+                        if (splitBtn) splitBtn.style.display = 'none';
+
+                        // Move words out of wrapper to textEl
+                        const words = Array.from(rawWrapper.querySelectorAll('.word-highlight'));
+                        words.forEach(word => textEl.insertBefore(word, rawWrapper));
+
+                        // Remove the wrapper
+                        rawWrapper.remove();
+                    }
+
                     this.setupBladeTool(textEl);
                 }
 
@@ -3594,14 +4200,19 @@
                 const textEl = this.activeChunkEl.querySelector('.paragraph-text');
                 const words = textEl.querySelectorAll('.word-highlight');
 
-                // Remove existing segment wrappers
+                // Remove existing segment wrappers - but first remove chips to prevent orphaning
                 textEl.querySelectorAll('.segment-wrapper').forEach(w => {
-                    // Move children back out
+                    // Remove chips first (they shouldn't be moved back to textEl)
+                    w.querySelectorAll('.segment-speaker-chip').forEach(c => c.remove());
+                    // Move other children (words, blades) back out
                     while (w.firstChild) {
                         w.parentNode.insertBefore(w.firstChild, w);
                     }
                     w.remove();
                 });
+
+                // Also clean up any orphaned chips that escaped previous cleanup
+                textEl.querySelectorAll('.segment-speaker-chip').forEach(c => c.remove());
 
                 if (this.splits.length === 0) {
                     this.segments = [];
@@ -3900,16 +4511,18 @@
 
                 if (annotation) {
                     showToast(`✅ Split saved: ${this.segments.length} segments`);
-                    // Cancel edit mode first, then re-render to show saved split
+                    // Cancel edit mode first, then do full rebuild
                     this.cancelSplit();
-                    // Re-render annotations to show the saved split permanently
-                    layerManager.renderAnnotations();
+                    // Full rebuild from visible layers to show saved split correctly
+                    layerManager.rebuildFromVisibleLayers();
                 } else {
                     this.cancelSplit();
                 }
             },
 
-            cancelSplit() {
+            cancelSplit(skipRebuild = false) {
+                const wasActive = !!this.activeChunkEl;
+
                 if (this.activeChunkEl) {
                     this.activeChunkEl.classList.remove('split-mode');
 
@@ -3933,6 +4546,12 @@
                 const toolbar = document.getElementById('split-toolbar');
                 if (toolbar) {
                     toolbar.style.display = 'none';
+                }
+
+                // Rebuild layers to restore raw-diarization wrapper that was removed in startSplit
+                // Skip rebuild if we're transitioning to a new split (called from startSplit)
+                if (wasActive && !skipRebuild && typeof layerManager !== 'undefined') {
+                    layerManager.rebuildFromVisibleLayers();
                 }
             }
         };
@@ -4483,6 +5102,7 @@
                     // Load annotations for this session (if any)
                     if (currentSession?.folder) {
                         await layerManager.loadLayersForSession(encodeURIComponent(currentSession.folder));
+                        await layerManager.loadAllLayerEdits();  // Load file-based text edits
                         layerManager.renderAnnotations();
                     }
 
@@ -4591,6 +5211,7 @@
                 // Load annotations for this session (if any)
                 if (currentSession?.folder) {
                     await layerManager.loadLayersForSession(encodeURIComponent(currentSession.folder));
+                    await layerManager.loadAllLayerEdits();  // Load file-based text edits
                     layerManager.renderAnnotations();
                 }
 
@@ -4868,7 +5489,8 @@
                 text.className = 'paragraph-text';
                 text.contentEditable = false;  // Start in read-only mode for text selection
                 text.dataset.paraIndex = index;
-                text.addEventListener('input', () => markEdited(index));
+                // Mark as having pending changes when edited (don't auto-save)
+                text.addEventListener('input', () => markPendingEdit(index));
 
                 // Add speaker wrapper if diarization data is available
                 const speaker = para.speaker;
@@ -4940,6 +5562,11 @@
                     // Skip if in split mode - let blade tool handle clicks
                     if (speakerSplitManager.activeChunkId) {
                         console.log('[Para Click] Skipped - split mode active');
+                        return;
+                    }
+                    // Skip if in edit mode - let user edit text
+                    if (editModeEnabled) {
+                        console.log('[Para Click] Skipped - edit mode active');
                         return;
                     }
                     // Only trigger if not clicking on interactive elements
@@ -5265,7 +5892,7 @@
                         }
                     };
 
-                    // Add annotation to Layer 1 (Speaker Chunks)
+                    // Add annotation to Layer 1 (Speakers)
                     layerManager.addAnnotation(annotation);
                     showToast(`Speaker set to ${name}`);
                 };
@@ -6267,6 +6894,17 @@
         // Toggle edit mode
         let editModeEnabled = false;
         function toggleEditMode() {
+            const activeLayerId = layerManager.activeLayer;
+
+            // If trying to enable edit mode, check if active layer allows text edits
+            if (!editModeEnabled) {
+                if (!layerManager.canEditText(activeLayerId)) {
+                    const layerName = layerManager.layers[activeLayerId]?.name || `Layer ${activeLayerId}`;
+                    showToast(`Cannot edit text on "${layerName}". Select Annotations layer or create a new layer.`, 'error');
+                    return;
+                }
+            }
+
             editModeEnabled = !editModeEnabled;
             const btn = document.getElementById('edit-mode-btn');
             const paragraphs = document.querySelectorAll('.paragraph-text');
@@ -6274,30 +6912,209 @@
             // Toggle editing buttons
             const editButtons = ['undo-btn', 'redo-btn', 'bold-btn', 'italic-btn', 'underline-btn'];
             editButtons.forEach(id => {
-                document.getElementById(id).disabled = !editModeEnabled;
+                const el = document.getElementById(id);
+                if (el) el.disabled = !editModeEnabled;
             });
 
             if (editModeEnabled) {
+                const layerName = layerManager.layers[activeLayerId]?.name || 'Annotations';
                 btn.textContent = '✏️ Edit Mode: ON';
                 btn.classList.add('active');
-                paragraphs.forEach(p => p.contentEditable = true);
-                showToast('Edit mode enabled - you can now edit paragraphs');
+                let editableCount = 0;
+                console.log(`[EditMode] Total paragraphs found: ${paragraphs.length}`);
+                paragraphs.forEach((p, idx) => {
+                    const paraContainer = p.closest('.paragraph-container');
+                    const hasSplit = paraContainer?.classList.contains('has-split-annotation');
+
+                    if (hasSplit) {
+                        // For split paragraphs, make each segment wrapper editable
+                        const segments = p.querySelectorAll('.segment-wrapper.saved');
+                        segments.forEach((seg, segIdx) => {
+                            seg.contentEditable = 'true';
+                            // Store original text from word elements only (excluding chips)
+                            const wordElements = seg.querySelectorAll('.word, .word-highlight');
+                            if (wordElements.length > 0) {
+                                seg.dataset.originalText = Array.from(wordElements).map(w => w.textContent).join(' ');
+                            } else {
+                                // Fallback - get text but exclude chip text
+                                const chip = seg.querySelector('.segment-speaker-chip');
+                                const chipText = chip ? chip.textContent : '';
+                                seg.dataset.originalText = seg.textContent.replace(chipText, '').trim();
+                            }
+                            // Add input listener (only once)
+                            if (!seg.dataset.editListenerAdded) {
+                                seg.addEventListener('input', () => markPendingEdit(idx));
+                                seg.dataset.editListenerAdded = 'true';
+                            }
+                            console.log(`[EditMode] Para ${idx} segment ${segIdx} set contentEditable=true`);
+                        });
+                        editableCount += segments.length;
+                    } else {
+                        // Regular paragraph - make whole thing editable
+                        p.contentEditable = 'true';
+                        editableCount++;
+                        console.log(`[EditMode] Para ${idx} set contentEditable=${p.contentEditable}, isContentEditable=${p.isContentEditable}`);
+                        // Store original text from word elements only (not chips)
+                        const wordElements = p.querySelectorAll('.word, .word-highlight');
+                        if (wordElements.length > 0) {
+                            p.dataset.originalText = Array.from(wordElements).map(w => w.textContent).join(' ');
+                        } else {
+                            p.dataset.originalText = p.textContent;
+                        }
+                    }
+                });
+                console.log(`[EditMode] Result: ${editableCount} editable elements`);
+                showToast(`Edit mode enabled - edits will save to "${layerName}" layer`);
             } else {
                 btn.textContent = '✏️ Edit Mode: OFF';
                 btn.classList.remove('active');
-                paragraphs.forEach(p => p.contentEditable = false);
-                showToast('Edit mode disabled - you can now select and copy text');
+                paragraphs.forEach(p => {
+                    p.contentEditable = 'false';
+                    delete p.dataset.originalText;
+                    // Also disable segments in split paragraphs
+                    p.querySelectorAll('.segment-wrapper.saved').forEach(seg => {
+                        seg.contentEditable = 'false';
+                        delete seg.dataset.originalText;
+                    });
+                });
+                showToast('Edit mode disabled');
             }
         }
 
-        // Mark paragraph as edited
-        function markEdited(index) {
-            const textDiv = document.querySelector(`[data-para-index="${index}"]`);
-            textDiv.classList.add('edited');
+        // Track paragraphs with pending (unsaved) edits
+        const pendingEdits = new Set();
 
-            const para = processedData.paragraphs[index];
-            para.text = textDiv.textContent;
-            para.edited = true;
+        // Mark paragraph as having pending edits (doesn't save yet)
+        function markPendingEdit(index) {
+            const textDiv = document.querySelector(`[data-para-index="${index}"]`);
+            if (!textDiv) return;
+
+            const paraContainer = textDiv.closest('.paragraph-container');
+            const hasSplit = paraContainer?.classList.contains('has-split-annotation');
+
+            let editedText = '';
+            let originalText = '';
+
+            if (hasSplit) {
+                // For split paragraphs, collect text from all segments
+                const segments = textDiv.querySelectorAll('.segment-wrapper.saved');
+                const segmentTexts = [];
+                const segmentOriginals = [];
+                segments.forEach(seg => {
+                    const wordElements = seg.querySelectorAll('.word, .word-highlight');
+                    if (wordElements.length > 0) {
+                        segmentTexts.push(Array.from(wordElements).map(w => w.textContent).join(' '));
+                    } else {
+                        // Exclude chip text
+                        const chip = seg.querySelector('.segment-speaker-chip');
+                        const chipText = chip ? chip.textContent : '';
+                        segmentTexts.push(seg.textContent.replace(chipText, '').trim());
+                    }
+                    segmentOriginals.push(seg.dataset.originalText || '');
+                });
+                editedText = segmentTexts.join(' ');
+                originalText = segmentOriginals.join(' ');
+            } else {
+                // Regular paragraph - get text from word elements
+                const wordElements = textDiv.querySelectorAll('.word, .word-highlight');
+                if (wordElements.length > 0) {
+                    editedText = Array.from(wordElements).map(w => w.textContent).join(' ');
+                } else {
+                    editedText = textDiv.textContent;
+                }
+                originalText = textDiv.dataset.originalText || processedData.paragraphs[index]?.text || '';
+            }
+
+            if (editedText !== originalText) {
+                pendingEdits.add(index);
+                textDiv.classList.add('pending-edit');
+                updateSaveButton();
+            } else {
+                pendingEdits.delete(index);
+                textDiv.classList.remove('pending-edit');
+                updateSaveButton();
+            }
+        }
+
+        // Update the Save button visibility and text
+        function updateSaveButton() {
+            const saveBtn = document.getElementById('save-edits-btn');
+            if (!saveBtn) return;
+
+            if (pendingEdits.size > 0) {
+                saveBtn.style.display = 'inline-flex';
+                saveBtn.textContent = `💾 Save (${pendingEdits.size})`;
+                saveBtn.classList.add('has-pending');
+            } else {
+                saveBtn.style.display = 'none';
+                saveBtn.classList.remove('has-pending');
+            }
+        }
+
+        // Save all pending edits to the active layer (file-based)
+        async function saveAllPendingEdits() {
+            if (pendingEdits.size === 0) {
+                showToast('No pending edits to save');
+                return;
+            }
+
+            // Check if active layer allows text edits
+            if (!layerManager.canEditText(layerManager.activeLayer)) {
+                showToast('Cannot save edits to this layer. Select Annotations or create a new layer.', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('save-edits-btn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '💾 Saving...';
+            }
+
+            // Collect all pending edits into the layer's textEdits map
+            let editCount = 0;
+            for (const index of pendingEdits) {
+                const textDiv = document.querySelector(`[data-para-index="${index}"]`);
+                if (!textDiv) continue;
+
+                // Get text content properly (from word elements if available)
+                let editedText = '';
+                const wordElements = textDiv.querySelectorAll('.word, .word-highlight');
+                if (wordElements.length > 0) {
+                    editedText = Array.from(wordElements).map(w => w.textContent).join(' ');
+                } else {
+                    editedText = textDiv.textContent;
+                }
+
+                const originalText = processedData.paragraphs[index]?.text || '';
+
+                // Store in layer (or remove if matches original)
+                layerManager.setTextEdit(index, editedText);
+
+                if (editedText !== originalText) {
+                    editCount++;
+                }
+
+                textDiv.classList.remove('pending-edit');
+                textDiv.classList.add('edited');
+                textDiv.dataset.originalText = editedText;
+            }
+
+            // Save the entire layer file to S3
+            const success = await layerManager.saveLayerEdits(layerManager.activeLayer);
+
+            // Clear pending edits
+            pendingEdits.clear();
+
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
+            updateSaveButton();
+
+            if (success) {
+                showToast(`Saved ${editCount} edit(s) to layer`);
+            } else {
+                showToast('Failed to save edits', 'error');
+            }
         }
 
         // Show chunk details
