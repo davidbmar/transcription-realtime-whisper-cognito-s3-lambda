@@ -2516,29 +2516,7 @@
                     <input type="text" class="search-input" id="quick-search" placeholder="Quick search..." onkeyup="quickSearch(this.value)">
                 </div>
 
-                <div class="toolbar-group">
-                    <div class="dropdown">
-                        <button class="toolbar-btn" onclick="toggleDownloadMenu()">
-                            ⬇️ Download
-                        </button>
-                        <div class="dropdown-menu" id="download-menu">
-                            <button class="dropdown-item" onclick="downloadTranscript('markdown')">
-                                📝 Markdown (.md)
-                            </button>
-                            <button class="dropdown-item" onclick="downloadTranscript('text')">
-                                📄 Plain Text (.txt)
-                            </button>
-                            <button class="dropdown-item" onclick="downloadTranscript('json')">
-                                📊 JSON (.json)
-                            </button>
-                        </div>
-                    </div>
-                    <button class="toolbar-btn" onclick="copyAsMarkdown()">
-                        📋 Copy MD
-                    </button>
-                </div>
-
-                <button class="toolbar-btn" onclick="copyAllText()">
+                <button class="toolbar-btn" onclick="copyAllText()" title="Copy visible text to clipboard">
                     📋 Copy All
                 </button>
             </div>
@@ -2728,7 +2706,7 @@
         let wordHighlightInterval = null;
 
         // Version for debugging cache issues
-        const TRANSCRIPT_EDITOR_VERSION = '2.27.0';
+        const TRANSCRIPT_EDITOR_VERSION = '2.28.1';
         console.log(`%c[Transcript Editor] Version: ${TRANSCRIPT_EDITOR_VERSION}`, 'color: #00ff00; font-weight: bold; font-size: 14px;');
 
         // Global Sequential Playback State
@@ -3478,15 +3456,29 @@
                     const response = await apiCall(`/api/sessions/${sessionId}/all-layer-edits`);
 
                     if (response.layers) {
+                        let hasEdits = false;
                         for (const [layerId, editsData] of Object.entries(response.layers)) {
                             const lid = parseInt(layerId);
                             if (this.layers[lid]) {
                                 this.layers[lid].textEdits = editsData.edits || {};
-                                console.log(`[Layer] Loaded ${Object.keys(editsData.edits || {}).length} text edits for layer ${lid}`);
+                                const editCount = Object.keys(editsData.edits || {}).length;
+                                console.log(`[Layer] Loaded ${editCount} text edits for layer ${lid}`);
+                                if (editCount > 0) hasEdits = true;
                             }
                         }
                         this.renderLayerPanel();
-                        this.applyTextEditStacking();
+
+                        // Apply text edits to visible paragraphs (preserving word spans)
+                        if (hasEdits) {
+                            // Use applyTextEditsFromLayer for proper word-level handling
+                            for (const layerId of this.layerOrder) {
+                                const layer = this.layers[layerId];
+                                if (layer?.visible && layer?.textEdits && Object.keys(layer.textEdits).length > 0) {
+                                    console.log(`[Layer] Applying text edits from layer ${layerId} on load`);
+                                    this.applyTextEditsFromLayer(layerId);
+                                }
+                            }
+                        }
                     }
                 } catch (err) {
                     console.log('[Layer] No existing layer edits found:', err.message);
@@ -4986,12 +4978,20 @@
                             await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
                             return { session, hasTranscript: true };
                         } catch {
-                            // No preprocessed file, check for individual chunks
+                            // No preprocessed file, check for transcription chunks
                             const listResponse = await apiCall(`/api/s3/list?prefix=audio/sessions/${session.folder}/&userScope=true`);
-                            const hasChunks = listResponse.files.some(f =>
+
+                            // Check old format: transcription-chunk-*.json
+                            const hasOldChunks = listResponse.files.some(f =>
                                 f.displayKey.includes('transcription-chunk-') && f.displayKey.endsWith('.json')
                             );
-                            return { session, hasTranscript: hasChunks };
+
+                            // Check new layer format: layers/layer-0-raw-transcription/chunk-*.json
+                            const hasNewLayerChunks = listResponse.files.some(f =>
+                                f.displayKey.includes('layers/layer-0-raw-transcription/chunk-') && f.displayKey.endsWith('.json')
+                            );
+
+                            return { session, hasTranscript: hasOldChunks || hasNewLayerChunks };
                         }
                     } catch {
                         return { session, hasTranscript: false };
@@ -7305,11 +7305,13 @@
             });
         }
 
-        // Copy all text
+        // Copy all text - respects layer visibility (uses visible/edited text)
         function copyAllText() {
-            const allText = processedData.paragraphs.map(p => p.text).join('\n\n');
+            const allText = processedData.paragraphs.map((p, index) => {
+                return getVisibleParaText(index, p.text);
+            }).join('\n\n');
             navigator.clipboard.writeText(allText).then(() => {
-                showToast('Copied all text to clipboard');
+                showToast('Copied all visible text to clipboard');
             }).catch(err => {
                 showToast('Failed to copy text', 'error');
             });
@@ -7412,6 +7414,21 @@
             showToast(`✅ Downloaded as ${extension.toUpperCase()}`, 'success');
         }
 
+        // Get visible text for a paragraph - respects Annotations layer text edits
+        function getVisibleParaText(paraIndex, originalText) {
+            // Check if Annotations layer (5) is visible and has text edits
+            const annotationsVisible = layerManager?.layers[5]?.visible !== false;
+            const textEdits = layerManager?.layers[5]?.textEdits;
+
+            if (annotationsVisible && textEdits) {
+                const editKey = `para-${paraIndex}`;
+                if (textEdits[editKey]) {
+                    return textEdits[editKey];
+                }
+            }
+            return originalText;
+        }
+
         // Generate markdown format - respects layer visibility and annotations
         function generateMarkdown() {
             const sessionDate = formatSessionName(currentSession.folder, selectedTimezone);
@@ -7419,10 +7436,14 @@
 
             // Check which layers are visible
             const showSpeakers = layerManager?.layers[1]?.visible !== false;
+            const showAnnotations = layerManager?.layers[5]?.visible !== false;
 
             // Get chunk-split annotations for each paragraph
             const chunkSplitAnnotations = {};
             console.log('[Export] Layer 1 annotations:', layerManager?.layers[1]?.annotations);
+            console.log('[Export] Layer 5 (Annotations) visible:', showAnnotations);
+            console.log('[Export] Layer 5 textEdits:', layerManager?.layers[5]?.textEdits);
+
             if (showSpeakers && layerManager?.layers[1]?.annotations) {
                 layerManager.layers[1].annotations
                     .filter(a => a.type === 'chunk-split')
@@ -7453,16 +7474,26 @@
             processedData.paragraphs.forEach((para, index) => {
                 const chunkId = `para-${index}`;
                 const segments = chunkSplitAnnotations[chunkId];
+                // Get visible text (with annotations if layer visible)
+                const visibleText = getVisibleParaText(index, para.text);
 
                 if (showSpeakers && segments && segments.length > 0) {
-                    // Use chunk-split segments
-                    segments.forEach(seg => {
-                        const speakerName = speakerNames[seg.speaker] || seg.speaker;
-                        const segText = getSegmentText(para, seg);
-                        markdown += `**${speakerName}:** ${segText}\n\n`;
-                    });
+                    // Use chunk-split segments - but apply text edits if available
+                    const editedParaText = getVisibleParaText(index, null);
+                    if (editedParaText) {
+                        // If paragraph was edited, we export the full edited text with first segment's speaker
+                        const speakerName = speakerNames[segments[0].speaker] || segments[0].speaker;
+                        markdown += `**${speakerName}:** ${editedParaText}\n\n`;
+                    } else {
+                        // No edits - use original segment structure
+                        segments.forEach(seg => {
+                            const speakerName = speakerNames[seg.speaker] || seg.speaker;
+                            const segText = getSegmentText(para, seg);
+                            markdown += `**${speakerName}:** ${segText}\n\n`;
+                        });
+                    }
                 } else {
-                    // Use original paragraph
+                    // Use original paragraph with visible text
                     const timestamp = `[${formatTime(para.start)}]`;
                     if (showSpeakers && para.speaker) {
                         const speakerName = speakerNames[para.speaker] || para.speaker;
@@ -7470,7 +7501,7 @@
                     } else {
                         markdown += `### ${timestamp}\n\n`;
                     }
-                    markdown += `${para.text}\n\n`;
+                    markdown += `${visibleText}\n\n`;
                 }
             });
 
@@ -7538,16 +7569,26 @@
             processedData.paragraphs.forEach((para, index) => {
                 const chunkId = `para-${index}`;
                 const segments = chunkSplitAnnotations[chunkId];
+                // Get visible text (with annotations if layer visible)
+                const visibleText = getVisibleParaText(index, para.text);
 
                 if (showSpeakers && segments && segments.length > 0) {
-                    // Use chunk-split segments
-                    segments.forEach(seg => {
-                        const speakerName = speakerNames[seg.speaker] || seg.speaker;
-                        const segText = getSegmentText(para, seg);
-                        text += `${speakerName}: ${segText}\n\n`;
-                    });
+                    // Use chunk-split segments - but apply text edits if available
+                    const editedParaText = getVisibleParaText(index, null);
+                    if (editedParaText) {
+                        // If paragraph was edited, export full edited text with first segment's speaker
+                        const speakerName = speakerNames[segments[0].speaker] || segments[0].speaker;
+                        text += `${speakerName}: ${editedParaText}\n\n`;
+                    } else {
+                        // No edits - use original segment structure
+                        segments.forEach(seg => {
+                            const speakerName = speakerNames[seg.speaker] || seg.speaker;
+                            const segText = getSegmentText(para, seg);
+                            text += `${speakerName}: ${segText}\n\n`;
+                        });
+                    }
                 } else {
-                    // Use original paragraph
+                    // Use original paragraph with visible text
                     const timestamp = `[${formatTime(para.start)}]`;
                     if (showSpeakers && para.speaker) {
                         const speakerName = speakerNames[para.speaker] || para.speaker;
@@ -7555,7 +7596,7 @@
                     } else {
                         text += `${timestamp}\n`;
                     }
-                    text += `${para.text}\n\n`;
+                    text += `${visibleText}\n\n`;
                 }
             });
 

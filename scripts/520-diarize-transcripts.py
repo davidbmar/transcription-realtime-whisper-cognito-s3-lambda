@@ -387,9 +387,17 @@ def upload_diarized_transcript(bucket, session_path, result):
         os.unlink(temp_file)
 
 
-def process_session(diarizer, bucket, session_path, work_dir):
+def process_session(diarizer, bucket, session_path, work_dir, min_speakers=None, max_speakers=None):
     """
     Process a single session: download, diarize, upload.
+
+    Args:
+        diarizer: OfflineDiarizer instance.
+        bucket: S3 bucket name.
+        session_path: Full S3 path to session.
+        work_dir: Temporary working directory.
+        min_speakers: Minimum number of speakers (optional).
+        max_speakers: Maximum number of speakers (optional).
 
     Returns True on success, False on failure.
     """
@@ -421,8 +429,12 @@ def process_session(diarizer, bucket, session_path, work_dir):
 
         print(f"[INFO] Transcription has {len(segments)} segments")
 
+        # Log speaker constraints if provided
+        if min_speakers is not None or max_speakers is not None:
+            print(f"[INFO] Speaker constraints: min={min_speakers}, max={max_speakers}")
+
         # Run diarization
-        result = diarizer.process(audio_path, segments)
+        result = diarizer.process(audio_path, segments, min_speakers=min_speakers, max_speakers=max_speakers)
 
         # Check if single speaker (might want to mark for skip in future)
         if len(result['speakers']) == 1:
@@ -456,7 +468,18 @@ def main():
                         help='List sessions that would be processed without processing')
     parser.add_argument('--max-sessions', type=int, default=0,
                         help='Maximum number of sessions to process (0=unlimited)')
+    parser.add_argument('--num-speakers', type=int, default=None,
+                        help='Exact number of speakers (constrains diarization)')
+    parser.add_argument('--min-speakers', type=int, default=None,
+                        help='Minimum number of speakers')
+    parser.add_argument('--max-speakers', type=int, default=None,
+                        help='Maximum number of speakers')
     args = parser.parse_args()
+
+    # Handle --num-speakers as setting both min and max
+    if args.num_speakers is not None:
+        args.min_speakers = args.num_speakers
+        args.max_speakers = args.num_speakers
 
     print("=" * 60)
     print("520: Diarize Transcripts")
@@ -541,7 +564,8 @@ def main():
         for i, session_path in enumerate(sessions, 1):
             print(f"\n[PROGRESS] Processing session {i}/{len(sessions)}")
 
-            if process_session(diarizer, bucket, session_path, work_dir):
+            if process_session(diarizer, bucket, session_path, work_dir,
+                             min_speakers=args.min_speakers, max_speakers=args.max_speakers):
                 success_count += 1
             else:
                 fail_count += 1
