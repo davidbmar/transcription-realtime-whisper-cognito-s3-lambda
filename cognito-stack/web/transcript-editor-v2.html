@@ -6312,9 +6312,14 @@
             // The paragraph chunkIds may be "topic-1", "topic-2" etc which aren't actual audio files
             let actualChunkCount = 1; // Default to 1 for uploads
 
+            // Debug: track chunk counting sources
+            let chunkCountSource = 'default';
+            let debugChunkIds = new Set();
+
             if (metadata.chunks && Array.isArray(metadata.chunks) && metadata.chunks.length > 0) {
                 // Use metadata.chunks which has the actual audio files
                 actualChunkCount = metadata.chunks.length;
+                chunkCountSource = 'metadata.chunks';
                 console.log('[Global Playback] Got chunk count from metadata.chunks:', actualChunkCount);
             } else if (!isUpload) {
                 // For live sessions without metadata.chunks, count unique chunk-XXX patterns
@@ -6322,23 +6327,39 @@
                 processedData.paragraphs.forEach(para => {
                     if (para.chunkIds) {
                         para.chunkIds.forEach(id => {
-                            // Only count actual chunk IDs (chunk-001, etc), not topic IDs
+                            // Only count actual chunk IDs (chunk-001, chunk-1, etc), not topic IDs
+                            // Fixed regex: match chunk- followed by digits (with or without leading zeros)
                             if (id.match(/^chunk-\d+$/)) {
                                 chunkIds.add(id);
                             }
                         });
                     }
                 });
+                debugChunkIds = chunkIds;
                 if (chunkIds.size > 0) {
                     actualChunkCount = chunkIds.size;
+                    chunkCountSource = 'paragraph.chunkIds';
                 } else {
                     // Fallback: estimate from transcript data if no chunk IDs found
                     const lastPara = processedData.paragraphs[processedData.paragraphs.length - 1];
                     if (lastPara && lastPara.end) {
                         actualChunkCount = Math.ceil(lastPara.end / CHUNK_DURATION);
+                        chunkCountSource = 'time-based-fallback';
                     }
                 }
             }
+
+            // Debug logging to diagnose chunk count issues
+            const lastPara = processedData.paragraphs[processedData.paragraphs.length - 1];
+            console.log('%c[Global Playback] Chunk Count Debug:', 'color: #ff9900; font-weight: bold', {
+                source: chunkCountSource,
+                finalCount: actualChunkCount,
+                metadataChunks: metadata.chunks?.length || 'N/A',
+                foundChunkIds: debugChunkIds.size > 0 ? Array.from(debugChunkIds).sort() : 'none',
+                lastParaEnd: lastPara?.end || 'N/A',
+                timeBasedCalc: lastPara?.end ? Math.ceil(lastPara.end / CHUNK_DURATION) : 'N/A',
+                isUpload: isUpload
+            });
 
             globalPlaybackState.totalChunks = actualChunkCount;
 
@@ -6478,7 +6499,25 @@
 
             const audio = globalPlaybackState.chunkAudios[globalPlaybackState.currentChunkIndex];
             if (!audio) {
-                console.error('[Global Playback] Failed to load audio for chunk', globalPlaybackState.currentChunkIndex);
+                const chunkNum = globalPlaybackState.currentChunkIndex + 1;
+                const totalChunks = globalPlaybackState.totalChunks;
+                console.error(`%c[Global Playback] FAILED to load audio for chunk ${chunkNum} of ${totalChunks}`, 'color: #ff0000; font-weight: bold');
+                console.error('[Global Playback] Debug info:', {
+                    currentChunkIndex: globalPlaybackState.currentChunkIndex,
+                    totalChunks: totalChunks,
+                    loadedChunks: Object.keys(globalPlaybackState.chunkAudios).filter(k => globalPlaybackState.chunkAudios[k]),
+                    chunkUrls: globalPlaybackState.chunkUrls
+                });
+                // Show user-visible error
+                const errorMsg = `Failed to load audio chunk ${chunkNum}/${totalChunks}. This may indicate the chunk file doesn't exist in S3. Check browser console for details.`;
+                console.error(errorMsg);
+                // Create a non-blocking notification instead of alert
+                const notification = document.createElement('div');
+                notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ff4444; color: white; padding: 15px 20px; border-radius: 8px; z-index: 10000; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+                notification.innerHTML = `<strong>Playback Error</strong><br>Failed to load audio chunk ${chunkNum}/${totalChunks}.<br><small>Check console (F12) for details.</small>`;
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 5000);
+
                 globalPlaybackState.isPlaying = false;
                 updateGlobalPlaybackUI();
                 return;
@@ -6635,14 +6674,18 @@
          * Handle when a chunk finishes playing
          */
         function onChunkEnded(chunkIndex) {
-            console.log('[Global Playback] Chunk', chunkIndex, 'ended');
+            const nextChunk = chunkIndex + 1;
+            const totalChunks = globalPlaybackState.totalChunks;
+            console.log(`%c[Global Playback] Chunk ${chunkIndex} ended. Next: ${nextChunk}, Total: ${totalChunks}, Condition: ${nextChunk} < ${totalChunks} = ${nextChunk < totalChunks}`,
+                nextChunk < totalChunks ? 'color: #00ff00' : 'color: #ff9900; font-weight: bold');
 
             if (!globalPlaybackState.isPlaying) {
+                console.log('[Global Playback] Not advancing - user paused');
                 return; // User paused
             }
 
             // Move to next chunk
-            if (chunkIndex + 1 < globalPlaybackState.totalChunks) {
+            if (nextChunk < totalChunks) {
                 globalPlaybackState.currentChunkIndex = chunkIndex + 1;
                 globalPlaybackState.absoluteTime = globalPlaybackState.currentChunkIndex * CHUNK_DURATION;
 

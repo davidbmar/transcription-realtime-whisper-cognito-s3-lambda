@@ -173,16 +173,16 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 ./scripts/450-test-audio-transcription.sh
 ```
 
-### WhisperLive Operations
+### WhisperLive Operations (AWS EC2)
 
 ```bash
 cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 
 # Start GPU and restore everything (4-5 minutes)
-./scripts/820-startup-restore.sh
+./scripts/820-aws--startup-restore.sh
 
 # Shutdown GPU to save costs (~$189/month savings)
-./scripts/810-shutdown-gpu.sh
+./scripts/810-aws--shutdown-gpu.sh
 
 # Handle Edge Box IP changes after restart
 ./scripts/825-edge-box-detect-new-ip-and-redeploy.sh
@@ -194,13 +194,41 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 ./scripts/827-edge-box-enable-auto-ip-detection-on-boot.sh
 ```
 
-### Batch Transcription
+### RunPod GPU Operations (Cheaper Alternative)
+
+RunPod provides GPU access at $0.13-0.20/hr (vs $0.52/hr for EC2) with WhisperX and speaker diarization.
 
 ```bash
 cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 
-# Run batch transcription on all audio sessions
-./scripts/515-run-batch-transcribe.py --all
+# Start RunPod pod (auto-selects cheapest available GPU)
+./scripts/850-runpod--start.sh
+
+# Check pod status and health
+./scripts/851-runpod--status.sh
+
+# View container logs
+./scripts/852-runpod--logs.sh
+
+# Stop pod to save money
+./scripts/855-runpod--stop.sh
+```
+
+**GPU Provider Comparison:**
+
+| Provider | Script Prefix | Cost/hr | Features |
+|----------|---------------|---------|----------|
+| AWS EC2 (g4dn.xlarge) | `8XX-aws--*` | $0.52 | Full SSH, stable, debugging |
+| RunPod Community | `8XX-runpod--*` | $0.13-0.20 | Cheaper, auto-select, diarization |
+
+### Batch Transcription
+
+**Using AWS EC2 GPU:**
+```bash
+cd transcription-realtime-whisper-cognito-s3-lambda-ver4
+
+# Run batch transcription on all audio sessions (AWS)
+./scripts/515-aws--batch-transcribe.sh --all
 
 # Scan for missing audio chunks
 ./scripts/512-scan-missing-chunks.sh
@@ -211,6 +239,27 @@ cd transcription-realtime-whisper-cognito-s3-lambda-ver4
 # Check GPU usage costs
 ./scripts/530-gpu-cost-tracker.sh
 ```
+
+**Using RunPod GPU (with speaker diarization):**
+```bash
+cd transcription-realtime-whisper-cognito-s3-lambda-ver4
+
+# 1. Start RunPod (auto-selects cheapest GPU)
+./scripts/850-runpod--start.sh
+
+# 2. Run batch transcription via RunPod API
+./scripts/515-runpod--batch-transcribe.sh --all
+
+# 3. Stop RunPod when done (saves money!)
+./scripts/855-runpod--stop.sh
+```
+
+**Batch Transcription Comparison:**
+
+| Script | Provider | Cost | Diarization | Speed |
+|--------|----------|------|-------------|-------|
+| `515-aws--batch-transcribe.sh` | AWS EC2 | $0.52/hr | No | 24x real-time |
+| `515-runpod--batch-transcribe.sh` | RunPod | $0.13-0.20/hr | Yes | 35x real-time |
 
 ### EventBridge Deployment
 
@@ -328,8 +377,13 @@ s3://{BUCKET}/
 - **300-399:** WhisperLive Edge/GPU configuration
 - **400-499:** Cognito/S3/Lambda backend deployment
 - **500-599:** Google Docs integration and batch processing
+  - `515-aws--*`: AWS EC2 batch transcription
+  - `515-runpod--*`: RunPod batch transcription
 - **700-799:** Advanced features
 - **800-899:** Operations (startup, shutdown, diagnostics)
+  - `810-aws--*`, `820-aws--*`: AWS EC2 GPU operations
+  - `850-runpod--*`: RunPod GPU operations
+  - `825-827`: Edge box management (provider-agnostic)
 
 ## Claude Code Skills
 

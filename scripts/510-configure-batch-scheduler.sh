@@ -42,11 +42,11 @@ echo ""
 
 log_info "This script will:"
 log_info "  1. Create systemd service for batch transcription"
-log_info "  2. Create systemd timer (runs every 2 hours)"
+log_info "  2. Create systemd timer (runs every hour)"
 log_info "  3. Enable and start the timer"
 log_info "  4. Verify scheduler configuration"
 echo ""
-log_warn "Note: 2-hour intervals save 93% in GPU costs vs 5-minute scheduling"
+log_warn "Note: Hourly checks with RunPod save ~75% vs AWS EC2"
 echo ""
 
 # ============================================================================
@@ -65,7 +65,7 @@ After=network.target
 Type=oneshot
 User=$USER
 WorkingDirectory=$PROJECT_ROOT
-ExecStart=$PROJECT_ROOT/scripts/515-run-batch-transcribe.sh
+ExecStart=$PROJECT_ROOT/scripts/535-smart-batch-scheduler.sh
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=batch-transcribe
@@ -80,19 +80,19 @@ EOF
 log_success "Service file created"
 echo ""
 
-log_info "Step 2/4: Creating systemd timer (every 2 hours)..."
+log_info "Step 2/4: Creating systemd timer (every hour)..."
 
 # Create the timer file
 sudo tee /etc/systemd/system/batch-transcribe.timer > /dev/null <<EOF
 [Unit]
-Description=Run Batch Transcription Every 2 Hours
+Description=Run Batch Transcription Every Hour
 Requires=batch-transcribe.service
 
 [Timer]
-# Run every 2 hours (12 times per day)
-# First run 5 minutes after boot, then every 2 hours
+# Run every hour (24 times per day)
+# First run 5 minutes after boot, then every hour
 OnBootSec=5min
-OnUnitActiveSec=2h
+OnUnitActiveSec=1h
 AccuracySec=1min
 
 [Install]
@@ -145,15 +145,16 @@ echo ""
 log_info "Scheduler Status:"
 log_info "  - Service: batch-transcribe.service"
 log_info "  - Timer: batch-transcribe.timer"
-log_info "  - Frequency: Every 2 hours (12 runs/day)"
+log_info "  - Frequency: Every hour (24 runs/day)"
 log_info "  - Status: $TIMER_STATUS"
 log_info "  - Cost savings: ~93% vs 5-minute intervals"
 echo ""
 log_info "How it Works:"
-log_info "  1. Timer triggers 515-run-batch-transcribe.sh"
-log_info "  2. Script calls 525-scan (fast S3 scan, no GPU)"
-log_info "  3. If chunks found: Start GPU, transcribe, stop GPU"
-log_info "  4. If no chunks: Skip (no GPU costs)"
+log_info "  1. Timer triggers 535-smart-batch-scheduler.sh"
+log_info "  2. Script scans S3 for missing chunks"
+log_info "  3. If below threshold: Skip (no GPU costs)"
+log_info "  4. If threshold met: Try RunPod first (\$0.13-0.20/hr)"
+log_info "  5. If RunPod fails after 6h: Fallback to AWS (\$0.52/hr)"
 echo ""
 log_info "Management Commands:"
 log_info "  - Check timer: systemctl status batch-transcribe.timer"
@@ -165,8 +166,8 @@ log_info "  - Disable timer: sudo systemctl disable batch-transcribe.timer"
 log_info "  - List timers: systemctl list-timers batch-transcribe*"
 echo ""
 log_info "Next Steps:"
-log_info "  1. Test manually: ./scripts/515-run-batch-transcribe.sh"
-log_info "  2. Or test system: ./scripts/520-test-batch-transcription.sh"
+log_info "  1. Test dry-run: ./scripts/535-smart-batch-scheduler.sh --dry-run"
+log_info "  2. Test manually: ./scripts/535-smart-batch-scheduler.sh"
 log_info "  3. Monitor: sudo journalctl -u batch-transcribe -f"
-log_info "  4. View reports: ls -lart batch-reports/"
+log_info "  4. View logs: ls -lart logs/535-scheduler-*.log"
 echo ""
