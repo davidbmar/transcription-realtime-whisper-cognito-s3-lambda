@@ -20,6 +20,7 @@
 #
 # Options:
 #   --gpu TYPE      Override GPU type (default: auto-select cheapest)
+#   --secure        Use secure cloud (guaranteed availability, ~2x cost)
 #   --list-gpus     List available GPU types and exit
 #   --debug         Show full API responses
 #   --help          Show this help message
@@ -52,6 +53,7 @@ RUNPOD_REST_API="https://rest.runpod.io/v1"
 GPU_TYPE=""
 DEBUG_MODE=false
 LIST_GPUS=false
+USE_SECURE_CLOUD=false
 
 # =============================================================================
 # Parse Arguments
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
         --gpu)
             GPU_TYPE="$2"
             shift 2
+            ;;
+        --secure)
+            USE_SECURE_CLOUD=true
+            shift
             ;;
         --list-gpus)
             LIST_GPUS=true
@@ -114,43 +120,142 @@ KNOWN_CHEAP_GPUS=(
 )
 
 # =============================================================================
-# Find Cheapest Available GPU
+# Find Cheapest Available GPU (with real-time stock check)
 # =============================================================================
 
 find_cheapest_gpu() {
     # Log to stderr so stdout only contains the GPU name
-    log_info "Finding cheapest available GPU on community cloud..." >&2
-    log_info "Using known GPU list (RTX 3070 is typically cheapest at ~\$0.13/hr)" >&2
+    log_info "Querying RunPod API for GPU availability..." >&2
 
-    # Return the first known cheap GPU - RTX 3070
-    # The pod creation will fail if not available, and we can try another
-    echo "NVIDIA GeForce RTX 3070"
+    # Query GPU types with stock status
+    local response=$(curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -X POST "${RUNPOD_GRAPHQL_API}" \
+        -d '{"query":"{ gpuTypes { id displayName memoryInGb communityCloud lowestPrice(input:{gpuCount:1}) { minimumBidPrice uninterruptablePrice stockStatus } } }"}')
+
+    # Parse and find available GPUs sorted by price
+    local gpu_id=$(echo "$response" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    gpus = d.get('data', {}).get('gpuTypes', [])
+
+    # Filter community cloud GPUs with High or Medium stock
+    available = []
+    for g in gpus:
+        if not g.get('communityCloud'):
+            continue
+        lp = g.get('lowestPrice', {})
+        stock = (lp.get('stockStatus') or '').lower()
+        price = lp.get('uninterruptablePrice')
+        if stock in ['high', 'medium'] and price:
+            available.append({
+                'id': g['id'],
+                'name': g['displayName'],
+                'price': float(price),
+                'stock': stock,
+                'mem': g.get('memoryInGb', 0)
+            })
+
+    if not available:
+        # Fallback to Low stock if nothing else available
+        for g in gpus:
+            if not g.get('communityCloud'):
+                continue
+            lp = g.get('lowestPrice', {})
+            price = lp.get('uninterruptablePrice')
+            if price:
+                available.append({
+                    'id': g['id'],
+                    'name': g['displayName'],
+                    'price': float(price),
+                    'stock': lp.get('stockStatus', 'unknown'),
+                    'mem': g.get('memoryInGb', 0)
+                })
+
+    # Sort by price
+    available.sort(key=lambda x: x['price'])
+
+    if available:
+        best = available[0]
+        # Output to stderr for logging
+        print(f\"Found {len(available)} available GPUs\", file=sys.stderr)
+        print(f\"Best: {best['name']} ({best['mem']}GB) @ \${best['price']}/hr [{best['stock']} stock]\", file=sys.stderr)
+        # Output just the ID to stdout
+        print(best['id'])
+    else:
+        print('No GPUs available', file=sys.stderr)
+except Exception as e:
+    print(f'Error parsing GPU data: {e}', file=sys.stderr)
+" 2>&2)
+
+    if [ -n "$gpu_id" ]; then
+        echo "$gpu_id"
+    else
+        # Fallback to known GPU
+        log_warn "API query failed, falling back to RTX A5000" >&2
+        echo "NVIDIA RTX A5000"
+    fi
 }
 
 # =============================================================================
-# List Available GPUs
+# List Available GPUs (real-time from API)
 # =============================================================================
 
 list_available_gpus() {
     echo ""
     echo "============================================"
-    echo "Known Cheap GPUs on RunPod Community Cloud"
+    echo "RunPod Community Cloud - GPU Availability"
     echo "============================================"
     echo ""
-    printf "%-35s %-8s %-12s\n" "GPU Type" "VRAM" "Est. Price"
-    printf "%-35s %-8s %-12s\n" "--------" "----" "----------"
-    printf "%-35s %-8s %-12s\n" "NVIDIA GeForce RTX 3070" "8GB" "\$0.13/hr"
-    printf "%-35s %-8s %-12s\n" "NVIDIA RTX A5000" "24GB" "\$0.16/hr"
-    printf "%-35s %-8s %-12s\n" "NVIDIA RTX A4000" "16GB" "\$0.17/hr"
-    printf "%-35s %-8s %-12s\n" "NVIDIA GeForce RTX 3080" "10GB" "\$0.17/hr"
-    printf "%-35s %-8s %-12s\n" "NVIDIA GeForce RTX 4070 Ti" "12GB" "\$0.20/hr"
+    echo "Querying RunPod API..."
+    echo ""
+
+    curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -X POST "${RUNPOD_GRAPHQL_API}" \
+        -d '{"query":"{ gpuTypes { id displayName memoryInGb communityCloud lowestPrice(input:{gpuCount:1}) { minimumBidPrice uninterruptablePrice stockStatus } } }"}' | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+gpus = d.get('data', {}).get('gpuTypes', [])
+
+print(f\"{'':3}{'GPU Type':<38} {'VRAM':>6} {'Price':>9} {'Stock':>8}\")
+print('-' * 70)
+
+community = []
+for g in gpus:
+    if not g.get('communityCloud'):
+        continue
+    lp = g.get('lowestPrice', {})
+    if not lp:
+        continue
+    community.append({
+        'id': g['id'],
+        'name': g['displayName'],
+        'mem': g.get('memoryInGb', 0),
+        'price': lp.get('uninterruptablePrice'),
+        'stock': lp.get('stockStatus', 'unknown')
+    })
+
+community.sort(key=lambda x: float(x['price']) if x['price'] else 999)
+
+for g in community[:20]:
+    stock = g['stock'] or 'unknown'
+    marker = '✓' if stock.lower() in ['high', 'medium'] else ' '
+    stock_display = stock.upper() if stock.lower() in ['high', 'medium'] else stock
+    price = f\"\${g['price']}/hr\" if g['price'] else 'N/A'
+    print(f\"{marker:3}{g['name']:<38} {g['mem']:>4}GB {price:>9} {stock_display:>8}\")
+
+print()
+print('✓ = High/Medium availability (recommended)')
+print()
+"
 
     echo ""
-    echo "Note: Prices vary based on availability. The script will"
-    echo "default to RTX 3070 (cheapest) when auto-selecting."
-    echo ""
-    echo "To use a specific GPU:"
-    echo "  ./scripts/850-runpod--start.sh --gpu \"NVIDIA RTX A5000\""
+    echo "Usage:"
+    echo "  ./scripts/850-runpod--start.sh              # Auto-select best available"
+    echo "  ./scripts/850-runpod--start.sh --secure     # Use secure cloud (guaranteed)"
+    echo "  ./scripts/850-runpod--start.sh --gpu \"NVIDIA RTX A5000\"  # Specific GPU"
     echo ""
 }
 
@@ -163,13 +268,31 @@ try_create_pod() {
     local pod_name="$2"
     local docker_image="$3"
 
+    # Generate presigned URL for pyannote models (valid for 7 days)
+    local pyannote_url=""
+    if [ "${ENABLE_DIARIZATION:-false}" = "true" ]; then
+        log_info "Generating presigned URL for pyannote models..." >&2
+        pyannote_url=$(aws s3 presign "s3://dbm-cf-2-web/bintarball/diarized/latest/huggingface-cache.tar.gz" --expires-in 604800 2>/dev/null || echo "")
+        if [ -n "$pyannote_url" ]; then
+            log_info "Pyannote models URL generated (diarization enabled)" >&2
+        else
+            log_warn "Could not generate presigned URL - diarization may not work" >&2
+        fi
+    fi
+
+    # Determine cloud type
+    local cloud_type="COMMUNITY"
+    if [ "$USE_SECURE_CLOUD" = true ]; then
+        cloud_type="SECURE"
+    fi
+
     # Build request payload
     local payload=$(cat <<EOF
 {
     "name": "$pod_name",
     "imageName": "$docker_image",
     "gpuTypeIds": ["$gpu_type"],
-    "cloudType": "COMMUNITY",
+    "cloudType": "$cloud_type",
     "gpuCount": 1,
     "volumeInGb": 0,
     "containerDiskInGb": 50,
@@ -179,7 +302,8 @@ try_create_pod() {
         "WHISPER_COMPUTE_TYPE": "${WHISPER_COMPUTE_TYPE:-float16}",
         "WHISPER_BATCH_SIZE": "${WHISPER_BATCH_SIZE:-16}",
         "HF_TOKEN": "${HF_TOKEN:-}",
-        "ENABLE_DIARIZATION": "${ENABLE_DIARIZATION:-false}"
+        "ENABLE_DIARIZATION": "${ENABLE_DIARIZATION:-false}",
+        "PYANNOTE_CACHE_URL": "${pyannote_url:-}"
     }
 }
 EOF
@@ -233,6 +357,12 @@ create_pod() {
     local pod_name="$2"
     local docker_image="$3"
 
+    # Determine cloud type display
+    local cloud_display="COMMUNITY (cheapest)"
+    if [ "$USE_SECURE_CLOUD" = true ]; then
+        cloud_display="SECURE (guaranteed availability)"
+    fi
+
     # Use stderr for logs so stdout only contains pod_id
     log_info "Creating RunPod GPU Pod..." >&2
     echo "" >&2
@@ -240,7 +370,7 @@ create_pod() {
     echo "  ─────────────────────────────────────────" >&2
     echo "  Pod Name:     $pod_name" >&2
     echo "  GPU Type:     $gpu_type" >&2
-    echo "  Cloud Type:   COMMUNITY (cheapest)" >&2
+    echo "  Cloud Type:   $cloud_display" >&2
     echo "  Docker Image: $docker_image" >&2
     echo "  ─────────────────────────────────────────" >&2
     echo "" >&2
@@ -314,16 +444,38 @@ create_pod() {
 }
 
 # =============================================================================
-# Wait for Pod Ready
+# Cleanup Pod (on failure)
 # =============================================================================
 
-wait_for_pod_ready() {
+cleanup_pod() {
     local pod_id="$1"
-    local max_attempts=30
+    local reason="$2"
+
+    log_warn "Cleaning up pod $pod_id due to: $reason"
+
+    local response=$(curl -s -X DELETE "${RUNPOD_REST_API}/pods/${pod_id}" \
+        -H "Authorization: Bearer ${RUNPOD_API_KEY}")
+
+    # Clear env vars
+    update_env_var "RUNPOD_POD_ID" ""
+    update_env_var "RUNPOD_HOST" ""
+    update_env_var "RUNPOD_PORT" ""
+    update_env_var "RUNPOD_GPU_SELECTED" ""
+
+    log_info "Pod deleted and env vars cleared"
+}
+
+# =============================================================================
+# Wait for Pod to Start (GPU assignment + image pull)
+# =============================================================================
+
+wait_for_pod_start() {
+    local pod_id="$1"
+    local max_attempts=60  # 10 minutes max (10s intervals) - image pull can take a while
     local attempt=1
 
-    log_info "Waiting for pod to become ready..."
-    echo "  (This typically takes 1-3 minutes for image pull + startup)"
+    log_info "Waiting for pod to start..."
+    echo "  (Image pull + container startup typically takes 2-5 minutes)"
     echo ""
 
     while [ $attempt -le $max_attempts ]; do
@@ -332,30 +484,101 @@ wait_for_pod_ready() {
 
         debug_json "$response"
 
-        local status=$(echo "$response" | jq -r '.desiredStatus // .status // "unknown"')
+        local status=$(echo "$response" | jq -r '.desiredStatus // "unknown"')
         local runtime=$(echo "$response" | jq -r '.runtime // empty')
+        local machine_id=$(echo "$response" | jq -r '.machineId // empty')
 
-        # Show progress
-        printf "  [%2d/%d] Status: %s\n" "$attempt" "$max_attempts" "$status"
+        # Check for failed state first
+        if [ "$status" = "EXITED" ] || [ "$status" = "FAILED" ]; then
+            log_error "Pod failed (status: $status)"
+            return 1
+        fi
 
-        if [ "$status" = "RUNNING" ] && [ -n "$runtime" ] && [ "$runtime" != "null" ]; then
-            # For community cloud, we need to use proxy URL format
-            local pod_id_short=$(echo "$pod_id" | cut -c1-12)
-            local proxy_host="${pod_id}-8000.proxy.runpod.net"
-            local proxy_port="443"
+        # Show detailed progress
+        if [ -n "$runtime" ] && [ "$runtime" != "null" ] && [ "$runtime" != "{}" ]; then
+            # Runtime exists - container is starting
+            local uptime=$(echo "$response" | jq -r '.runtime.uptimeInSeconds // 0')
+            printf "  [%2d/%d] Container running (uptime: %ds)\n" "$attempt" "$max_attempts" "$uptime"
+            echo ""
+            log_success "Pod has started!"
+            return 0
+        elif [ -n "$machine_id" ] && [ "$machine_id" != "null" ]; then
+            # Machine assigned but container not yet running - image pulling
+            printf "  [%2d/%d] GPU assigned (machine: %s) - pulling image...\n" "$attempt" "$max_attempts" "${machine_id:0:8}"
+        else
+            # Waiting for GPU
+            printf "  [%2d/%d] Waiting for GPU... (status: %s)\n" "$attempt" "$max_attempts" "$status"
+        fi
 
+        sleep 10
+        attempt=$((attempt + 1))
+    done
+
+    log_warn "Timeout waiting for pod to start after $((max_attempts * 10)) seconds"
+    echo ""
+    echo "The pod is still pulling the Docker image (7.75GB can take 10-15 min)."
+    echo ""
+    echo "The pod is NOT being deleted because it has a GPU assigned."
+    echo "Check status: ./scripts/851-runpod--status.sh"
+    echo "View console: https://www.runpod.io/console/pods"
+    echo ""
+
+    # Save the endpoint anyway so user can check health later
+    local proxy_host="${pod_id}-8000.proxy.runpod.net"
+    update_env_var "RUNPOD_HOST" "$proxy_host"
+    update_env_var "RUNPOD_PORT" "443"
+    update_env_var "RUNPOD_HTTPS" "true"
+
+    log_info "Endpoint saved to .env - check health when ready:"
+    echo "  curl https://${proxy_host}/health"
+
+    # Return success but with warning - don't trigger cleanup
+    return 0
+}
+
+# =============================================================================
+# Wait for Health Check
+# =============================================================================
+
+wait_for_health_check() {
+    local pod_id="$1"
+    local max_attempts=36  # 6 minutes max (10s intervals) - model loading can take time
+    local attempt=1
+    local proxy_host="${pod_id}-8000.proxy.runpod.net"
+    local health_url="https://${proxy_host}/health"
+
+    log_info "Waiting for API to be healthy..."
+    echo "  (Container is downloading models and starting FastAPI)"
+    echo "  Health endpoint: $health_url"
+    echo ""
+
+    while [ $attempt -le $max_attempts ]; do
+        local http_code=$(curl -s -o /tmp/health_response.json -w "%{http_code}" \
+            --max-time 10 "$health_url" 2>/dev/null || echo "000")
+
+        if [ "$http_code" = "200" ]; then
+            local health_status=$(cat /tmp/health_response.json | jq -r '.status // "unknown"' 2>/dev/null)
+            local device=$(cat /tmp/health_response.json | jq -r '.device // "unknown"' 2>/dev/null)
+            local model=$(cat /tmp/health_response.json | jq -r '.model // "unknown"' 2>/dev/null)
+            local diarization=$(cat /tmp/health_response.json | jq -r '.diarization // false' 2>/dev/null)
+
+            printf "  [%2d/%d] HTTP %s - API READY!\n" "$attempt" "$max_attempts" "$http_code"
             echo ""
             log_success "============================================"
-            log_success "POD IS READY!"
+            log_success "POD IS READY AND HEALTHY!"
             log_success "============================================"
             echo ""
-            echo "  Pod ID:   $pod_id"
-            echo "  Endpoint: https://${proxy_host}"
+            echo "  Pod ID:       $pod_id"
+            echo "  Endpoint:     https://${proxy_host}"
+            echo "  Status:       $health_status"
+            echo "  Device:       $device"
+            echo "  Model:        $model"
+            echo "  Diarization:  $diarization"
             echo ""
 
-            # Save endpoint to .env (proxy URL for community cloud)
+            # Save endpoint to .env
             update_env_var "RUNPOD_HOST" "$proxy_host"
-            update_env_var "RUNPOD_PORT" "$proxy_port"
+            update_env_var "RUNPOD_PORT" "443"
             update_env_var "RUNPOD_HTTPS" "true"
 
             log_success "Saved endpoint to .env"
@@ -369,29 +592,19 @@ wait_for_pod_ready() {
             echo ""
 
             return 0
-        fi
-
-        # Check for failed state
-        if [ "$status" = "EXITED" ] || [ "$status" = "FAILED" ]; then
-            log_error "Pod failed to start (status: $status)"
-            echo ""
-            echo "Full response:"
-            echo "$response" | jq .
-            return 1
+        else
+            printf "  [%2d/%d] HTTP %s - waiting...\n" "$attempt" "$max_attempts" "$http_code"
         fi
 
         sleep 10
         attempt=$((attempt + 1))
     done
 
-    log_warn "Timeout waiting for pod"
+    log_error "Timeout waiting for health check after $((max_attempts * 10)) seconds"
     echo ""
-    echo "The pod may still be starting. Check status manually:"
-    echo "  ./scripts/851-runpod--status.sh"
-    echo ""
-    echo "Or check the RunPod console:"
+    echo "The container may have crashed during startup."
+    echo "Check the RunPod console for logs:"
     echo "  https://www.runpod.io/console/pods"
-
     return 1
 }
 
@@ -463,14 +676,47 @@ main() {
         exit 1
     fi
 
-    # Log the start event
-    if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
-        source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+    # Log the start event (optional)
+    if [ -f "$REPO_ROOT/scripts/lib/gpu-event-logger.sh" ]; then
+        source "$REPO_ROOT/scripts/lib/gpu-event-logger.sh"
         log_runpod_start "$pod_id" "$pod_name" "$GPU_TYPE" "0" "$docker_image"
     fi
 
-    # Wait for ready
-    wait_for_pod_ready "$pod_id"
+    # Wait for pod to start (GPU assignment + image pull)
+    # Note: wait_for_pod_start returns success even on timeout if GPU is assigned
+    # to prevent deleting pods that are still pulling the large Docker image
+    wait_for_pod_start "$pod_id"
+    local start_result=$?
+
+    # Check if pod actually has a GPU assigned
+    local pod_status=$(curl -s "${RUNPOD_REST_API}/pods/${pod_id}" \
+        -H "Authorization: Bearer ${RUNPOD_API_KEY}")
+    local machine_id=$(echo "$pod_status" | jq -r '.machineId // empty')
+
+    if [ -z "$machine_id" ] || [ "$machine_id" = "null" ]; then
+        # No GPU assigned - something is wrong, cleanup
+        log_error "No GPU was assigned to this pod"
+        cleanup_pod "$pod_id" "No GPU assigned"
+        exit 1
+    fi
+
+    # GPU is assigned - wait for health check
+    log_info "Waiting for API to become healthy..."
+    if ! wait_for_health_check "$pod_id"; then
+        # Health check timed out, but pod has GPU - don't delete
+        log_warn "Health check timed out, but pod is running with GPU assigned"
+        echo ""
+        echo "The container may still be loading models. Check manually:"
+        echo "  ./scripts/851-runpod--status.sh"
+        echo "  curl https://${pod_id}-8000.proxy.runpod.net/health"
+        echo ""
+        echo "To stop the pod if needed:"
+        echo "  ./scripts/855-runpod--stop.sh"
+        echo ""
+        exit 0  # Exit without cleanup
+    fi
+
+    log_success "Pod startup complete!"
 }
 
 # =============================================================================

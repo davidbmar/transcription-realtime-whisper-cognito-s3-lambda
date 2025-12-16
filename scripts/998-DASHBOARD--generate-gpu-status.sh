@@ -50,8 +50,26 @@ get_runpod_status() {
         return
     fi
 
-    curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-        "https://rest.runpod.io/v1/pods" 2>/dev/null || echo "[]"
+    # Use GraphQL API for complete pod info including costPerHr
+    local response=$(curl -s -X POST "https://api.runpod.io/graphql" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+        -d '{"query": "{ myself { pods { id name desiredStatus costPerHr createdAt machine { gpuDisplayName } runtime { uptimeInSeconds } } } }"}' 2>/dev/null)
+
+    # Extract pods array and format for compatibility
+    echo "$response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    pods = data.get('data', {}).get('myself', {}).get('pods', [])
+    # Normalize field names for compatibility
+    for pod in pods:
+        pod['machine'] = pod.get('machine', {})
+        pod['machine']['gpuDisplayName'] = pod.get('machine', {}).get('gpuDisplayName', 'unknown')
+    print(json.dumps(pods))
+except:
+    print('[]')
+" 2>/dev/null || echo "[]"
 }
 
 get_aws_gpu_status() {

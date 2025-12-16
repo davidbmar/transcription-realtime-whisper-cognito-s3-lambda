@@ -103,18 +103,24 @@ main() {
         -H "Authorization: Bearer ${RUNPOD_API_KEY}")
 
     # Check for error
+    local pod_deleted=true
     if echo "$response" | jq -e '.error' &>/dev/null; then
-        log_error "Failed to delete pod"
-        echo "$response" | jq .
-        exit 1
+        local error_msg=$(echo "$response" | jq -r '.error // "unknown error"')
+        if [[ "$error_msg" == *"not found"* ]]; then
+            log_warn "Pod already deleted (not found)"
+        else
+            log_error "Failed to delete pod: $error_msg"
+            echo "$response" | jq .
+            exit 1
+        fi
+    else
+        log_success "Pod deleted successfully!"
     fi
-
-    log_success "Pod deleted successfully!"
     echo ""
 
     # Log termination event
-    if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
-        source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+    if [ -f "$REPO_ROOT/scripts/lib/gpu-event-logger.sh" ]; then
+        source "$REPO_ROOT/scripts/lib/gpu-event-logger.sh"
         log_runpod_terminate "$RUNPOD_POD_ID" "user-terminated"
     fi
 
