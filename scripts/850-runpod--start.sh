@@ -609,6 +609,33 @@ wait_for_health_check() {
 }
 
 # =============================================================================
+# Ensure Watchdog Cron is Running
+# =============================================================================
+
+ensure_watchdog_cron() {
+    local watchdog_script="$REPO_ROOT/scripts/999-WATCHDOG--gpu-cost-guardian.sh"
+    local cron_entry="*/15 * * * * $watchdog_script --kill --cron >> /var/log/gpu-watchdog.log 2>&1"
+
+    # Check if watchdog cron exists
+    if crontab -l 2>/dev/null | grep -q "999-WATCHDOG"; then
+        log_info "Watchdog cron: OK"
+        return 0
+    fi
+
+    # Watchdog cron missing - add it
+    log_warn "Watchdog cron missing - adding..."
+    (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
+
+    if crontab -l 2>/dev/null | grep -q "999-WATCHDOG"; then
+        log_success "Watchdog cron installed (runs every 15 min)"
+        log_info "  - Kills pods idle > 30 min"
+        log_info "  - Kills pods running > 2 hours (safety cap)"
+    else
+        log_warn "Failed to install watchdog cron - please add manually"
+    fi
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -621,6 +648,9 @@ main() {
 
     # Load environment
     load_environment
+
+    # Ensure watchdog is set up (auto-repair if missing)
+    ensure_watchdog_cron
 
     # Validate API key
     if [ -z "${RUNPOD_API_KEY:-}" ]; then

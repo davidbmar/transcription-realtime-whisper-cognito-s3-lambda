@@ -50,23 +50,59 @@ get_runpod_status() {
         return
     fi
 
-    # Use GraphQL API for complete pod info including costPerHr
-    local response=$(curl -s -X POST "https://api.runpod.io/graphql" \
+    # Try GraphQL API first (has costPerHr field)
+    local graphql_response=$(curl -s --max-time 10 -X POST "https://api.runpod.io/graphql" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
         -d '{"query": "{ myself { pods { id name desiredStatus costPerHr createdAt machine { gpuDisplayName } runtime { uptimeInSeconds } } } }"}' 2>/dev/null)
 
-    # Extract pods array and format for compatibility
-    echo "$response" | python3 -c "
+    # Check if GraphQL succeeded
+    local pods=$(echo "$graphql_response" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    pods = data.get('data', {}).get('myself', {}).get('pods', [])
-    # Normalize field names for compatibility
-    for pod in pods:
-        pod['machine'] = pod.get('machine', {})
-        pod['machine']['gpuDisplayName'] = pod.get('machine', {}).get('gpuDisplayName', 'unknown')
-    print(json.dumps(pods))
+    # Check for error response
+    if 'error' in data or 'errors' in data:
+        print('GRAPHQL_FAILED')
+    else:
+        pods = data.get('data', {}).get('myself', {}).get('pods', [])
+        if pods:
+            for pod in pods:
+                pod['machine'] = pod.get('machine', {})
+                pod['machine']['gpuDisplayName'] = pod.get('machine', {}).get('gpuDisplayName', 'unknown')
+            print(json.dumps(pods))
+        else:
+            print('GRAPHQL_EMPTY')
+except:
+    print('GRAPHQL_FAILED')
+" 2>/dev/null)
+
+    # If GraphQL worked and has data, use it
+    if [[ "$pods" != "GRAPHQL_FAILED" && "$pods" != "GRAPHQL_EMPTY" && -n "$pods" ]]; then
+        echo "$pods"
+        return
+    fi
+
+    # Fallback to REST API (more reliable, but missing some fields)
+    local rest_response=$(curl -s --max-time 10 "https://rest.runpod.io/v1/pods" \
+        -H "Authorization: Bearer ${RUNPOD_API_KEY}" 2>/dev/null)
+
+    # Normalize REST API response to match GraphQL format
+    echo "$rest_response" | python3 -c "
+import sys, json
+try:
+    pods = json.load(sys.stdin)
+    if isinstance(pods, list):
+        for pod in pods:
+            # Normalize machine field
+            if 'machine' not in pod or not pod['machine']:
+                pod['machine'] = {'gpuDisplayName': 'unknown'}
+            # REST API uses different field names sometimes
+            if 'gpuDisplayName' not in pod.get('machine', {}):
+                pod['machine']['gpuDisplayName'] = pod.get('gpu', 'unknown')
+        print(json.dumps(pods))
+    else:
+        print('[]')
 except:
     print('[]')
 " 2>/dev/null || echo "[]"
@@ -105,6 +141,7 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPU Cost Guardian</title>
     <meta http-equiv="refresh" content="300">
+    <meta name="dashboard-date" content="__DASHBOARD_DATE__">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -416,6 +453,92 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
         .legend-dot.runpod { background: #7c3aed; }
         .legend-dot.aws { background: #ea580c; }
         .legend-dot.running { background: #10b981; }
+        /* Date navigation */
+        .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .date-nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: none;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .date-nav-btn:hover { background: #5a67d8; transform: scale(1.05); }
+        .date-nav-btn:disabled, .date-nav-btn.disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .date-display {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            min-width: 140px;
+            text-align: center;
+        }
+        .date-display small {
+            display: block;
+            font-size: 11px;
+            font-weight: normal;
+            color: #6b7280;
+        }
+        .tz-selector {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tz-selector label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .tz-selector select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 12px;
+            background: white;
+            cursor: pointer;
+        }
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #10b981;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        .archive-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #6b7280;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -426,17 +549,52 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
                 GPU Cost Guardian
             </div>
             <div style="text-align: center; font-size: 12px; color: #6b7280;">
-                <i class="fas fa-clock"></i> Updated: __TIMESTAMP__ · Auto-refresh every 5 min
+                <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="__TIMESTAMP_ISO__">__TIMESTAMP__</span>
+                <span id="live-indicator"></span>
             </div>
             <a href="https://d2l28rla2hk7np.cloudfront.net/index.html" class="nav-link">
                 <i class="fas fa-arrow-left"></i>
                 Back to CloudDrive
             </a>
         </div>
+
+        <!-- Date Navigation -->
+        <div class="date-nav">
+            <a id="prev-day" class="date-nav-btn" title="Previous day">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            <div class="date-display">
+                <span id="display-date">__DASHBOARD_DATE__</span>
+                <small id="display-date-label">UTC</small>
+            </div>
+            <a id="next-day" class="date-nav-btn" title="Next day">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            <a href="index.html" class="date-nav-btn" title="Today (Live)" style="margin-left: 8px; width: auto; padding: 0 12px;">
+                <i class="fas fa-broadcast-tower"></i>&nbsp;Live
+            </a>
+            <div class="tz-selector">
+                <label for="timezone"><i class="fas fa-globe"></i></label>
+                <select id="timezone">
+                    <option value="UTC">UTC</option>
+                    <option value="America/Chicago">Central (Austin)</option>
+                    <option value="America/New_York">Eastern</option>
+                    <option value="America/Denver">Mountain</option>
+                    <option value="America/Los_Angeles">Pacific</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Europe/Paris">Paris</option>
+                    <option value="Asia/Tokyo">Tokyo</option>
+                </select>
+            </div>
+        </div>
 HTMLHEADER
 
-# Replace timestamp placeholder
-sed -i "s|__TIMESTAMP__|$(date '+%Y-%m-%d %H:%M:%S %Z')|g" "$OUTPUT_FILE"
+# Replace placeholders
+TODAY=$(date -u +"%Y-%m-%d")
+TIMESTAMP_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+sed -i "s|__TIMESTAMP__|$(date -u '+%Y-%m-%d %H:%M:%S UTC')|g" "$OUTPUT_FILE"
+sed -i "s|__TIMESTAMP_ISO__|${TIMESTAMP_ISO}|g" "$OUTPUT_FILE"
+sed -i "s|__DASHBOARD_DATE__|${TODAY}|g" "$OUTPUT_FILE"
 
 # Add summary cards
 RUNPOD_COUNT=$(echo "$RUNPOD_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([p for p in d if p.get('desiredStatus')=='RUNNING']))" 2>/dev/null || echo "0")
@@ -750,15 +908,13 @@ for pod_id, info in running_pods.items():
                 'running': True
             }
 
-# Generate hour markers
-hours = []
+# Generate hour markers with UTC data attributes
+print('<div class="timeline-hours">')
 for i in range(0, 25, 6):
     t = start_time + timedelta(hours=i)
-    hours.append(t.strftime('%H:%M'))
-
-print('<div class="timeline-hours">')
-for h in hours:
-    print(f'<span>{h}</span>')
+    iso_time = t.strftime('%Y-%m-%dT%H:%M:%SZ')
+    display_time = t.strftime('%H:%M')
+    print(f'<span class="tz-hour" data-utc="{iso_time}">{display_time}</span>')
 print('</div>')
 
 # Generate timeline bars
@@ -797,16 +953,25 @@ if sessions:
         if duration.total_seconds() >= 3600:
             duration_str = f'{duration.total_seconds() / 3600:.1f}h'
 
-        # Time range for display
-        time_range = f'{start.strftime("%H:%M")} - {end.strftime("%H:%M") if not is_running else "now"}'
+        # Time range for display with UTC data attributes
+        start_iso = start.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_iso = end.strftime('%Y-%m-%dT%H:%M:%SZ') if not is_running else ''
+        start_display = start.strftime('%H:%M')
+        end_display = end.strftime('%H:%M') if not is_running else 'now'
         status_indicator = ' <span style="color:#10b981;">● LIVE</span>' if is_running else ' <span style="color:#ef4444;">■ ended</span>'
 
         # Only show pod_id in parens if name is different (avoid "abc123 (abc123)")
         id_display = f' ({pod_id[:8]})' if name != pod_id[:8] and name != pod_id else ''
 
-        print(f'<div class="timeline-label">{name}{status_indicator} <span style="color:#6b7280; font-size: 11px;">{id_display} {time_range} ({duration_str})</span></div>')
+        # Build time range with data attributes for JS conversion
+        if is_running:
+            time_range_html = f'<span class="tz-time" data-utc="{start_iso}">{start_display}</span> - now'
+        else:
+            time_range_html = f'<span class="tz-time" data-utc="{start_iso}">{start_display}</span> - <span class="tz-time" data-utc="{end_iso}">{end_display}</span>'
+
+        print(f'<div class="timeline-label" data-start="{start_iso}" data-end="{end_iso}">{name}{status_indicator} <span style="color:#6b7280; font-size: 11px;">{id_display} {time_range_html} ({duration_str})</span></div>')
         print(f'<div class="timeline-track">')
-        print(f'    <div class="timeline-bar {bar_class}" style="left: {start_pct:.1f}%; width: {width_pct:.1f}%;" title="{name}: {time_range} ({duration_str})">')
+        print(f'    <div class="timeline-bar {bar_class}" style="left: {start_pct:.1f}%; width: {width_pct:.1f}%;" data-start="{start_iso}" data-end="{end_iso}" title="{name}: {start_display} - {end_display} ({duration_str})">')
         print(f'        {duration_str}')
         print(f'    </div>')
         print(f'</div>')
@@ -921,41 +1086,166 @@ cat >> "$OUTPUT_FILE" << 'HTMLSETTINGS'
         </div>
 HTMLSETTINGS
 
-# Add daily history navigation
-TODAY=$(date -u +"%Y-%m-%d")
-YESTERDAY=$(date -u -d "yesterday" +"%Y-%m-%d" 2>/dev/null || date -u -v-1d +"%Y-%m-%d" 2>/dev/null || echo "")
-TWO_DAYS_AGO=$(date -u -d "2 days ago" +"%Y-%m-%d" 2>/dev/null || date -u -v-2d +"%Y-%m-%d" 2>/dev/null || echo "")
+cat >> "$OUTPUT_FILE" << 'HTMLFOOTER'
 
-cat >> "$OUTPUT_FILE" << 'HTMLHISTORYNAV'
-
-        <h2><i class="fas fa-calendar-alt"></i> Daily History</h2>
-        <div class="card" style="margin-bottom: 20px;">
-            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                <span style="color: #6b7280; font-size: 13px;"><i class="fas fa-clock"></i> View previous days:</span>
-HTMLHISTORYNAV
-
-# Add links for available daily archives
-for i in 1 2 3 4 5 6 7; do
-    PAST_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d" 2>/dev/null || date -u -v-${i}d +"%Y-%m-%d" 2>/dev/null || echo "")
-    if [ -n "$PAST_DATE" ]; then
-        echo "                <a href=\"${PAST_DATE}.html\" class=\"nav-link\" style=\"padding: 6px 12px; font-size: 12px;\"><i class=\"fas fa-file\"></i> ${PAST_DATE}</a>" >> "$OUTPUT_FILE"
-    fi
-done
-
-cat >> "$OUTPUT_FILE" << 'HTMLHISTORYNAVEND'
-            </div>
-        </div>
-HTMLHISTORYNAVEND
-
-cat >> "$OUTPUT_FILE" << HTMLFOOTER
-
-        <p class="timestamp">Last updated: ${TIMESTAMP}</p>
         <p class="timestamp">
             <a href="https://github.com/davidbmar/whisperlive-runpod">
                 <i class="fab fa-github"></i> GitHub: whisperlive-runpod
             </a>
         </p>
     </div>
+
+    <script>
+    (function() {
+        // Dashboard date (UTC) from meta tag
+        const dashboardDate = document.querySelector('meta[name="dashboard-date"]')?.content || new Date().toISOString().split('T')[0];
+        const todayUTC = new Date().toISOString().split('T')[0];
+        const pathname = window.location.pathname;
+        const isLive = (dashboardDate === todayUTC) && (pathname.endsWith('index.html') || pathname.endsWith('/') || pathname.endsWith('/gpu-dashboard/'));
+
+        // Timezone handling
+        const tzSelect = document.getElementById('timezone');
+        const savedTz = localStorage.getItem('gpu-dashboard-tz') || 'America/Chicago';
+        tzSelect.value = savedTz;
+
+        tzSelect.addEventListener('change', function() {
+            localStorage.setItem('gpu-dashboard-tz', this.value);
+            updateAllTimes(this.value);
+        });
+
+        // Format date for display
+        function formatDateForTz(dateStr, tz) {
+            try {
+                const date = new Date(dateStr + 'T12:00:00Z');
+                return date.toLocaleDateString('en-US', {
+                    timeZone: tz,
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Format full datetime for display
+        function formatDateTimeForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleString('en-US', {
+                    timeZone: tz,
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Format just time (HH:MM) for timeline
+        function formatTimeOnlyForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleTimeString('en-US', {
+                    timeZone: tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Get timezone abbreviation
+        function getTzAbbr(tz) {
+            try {
+                const date = new Date();
+                const parts = date.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'short' }).split(' ');
+                return parts[parts.length - 1];
+            } catch (e) {
+                return tz;
+            }
+        }
+
+        // Update all displayed times
+        function updateAllTimes(tz) {
+            // Update header timestamp (full datetime)
+            document.querySelectorAll('.local-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatDateTimeForTz(utc, tz);
+                }
+            });
+
+            // Update timeline hour markers (just HH:MM)
+            document.querySelectorAll('.tz-hour').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update timeline event times (just HH:MM)
+            document.querySelectorAll('.tz-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update date display
+            document.getElementById('display-date').textContent = formatDateForTz(dashboardDate, tz);
+            document.getElementById('display-date-label').textContent = getTzAbbr(tz);
+        }
+
+        // Date navigation
+        function getAdjacentDate(dateStr, days) {
+            const date = new Date(dateStr + 'T12:00:00Z');
+            date.setUTCDate(date.getUTCDate() + days);
+            return date.toISOString().split('T')[0];
+        }
+
+        const prevBtn = document.getElementById('prev-day');
+        const nextBtn = document.getElementById('next-day');
+        const prevDate = getAdjacentDate(dashboardDate, -1);
+        const nextDate = getAdjacentDate(dashboardDate, 1);
+
+        // Previous day - always enabled (archives may exist)
+        prevBtn.href = prevDate + '.html';
+        prevBtn.title = 'Previous day: ' + prevDate;
+
+        // Next day - link to next date file, or index.html if next is today
+        if (dashboardDate >= todayUTC) {
+            // Viewing today or future - disable next
+            nextBtn.classList.add('disabled');
+            nextBtn.removeAttribute('href');
+            nextBtn.title = 'No future data';
+        } else if (nextDate === todayUTC) {
+            // Next day is today - link to live dashboard
+            nextBtn.href = 'index.html';
+            nextBtn.title = 'Today (Live)';
+        } else {
+            // Next day is in the past - link to archive
+            nextBtn.href = nextDate + '.html';
+            nextBtn.title = 'Next day: ' + nextDate;
+        }
+
+        // Show live indicator
+        const liveIndicator = document.getElementById('live-indicator');
+        if (isLive) {
+            liveIndicator.innerHTML = ' <span class="live-badge"><i class="fas fa-circle"></i> LIVE</span>';
+        } else {
+            liveIndicator.innerHTML = ' <span class="archive-badge"><i class="fas fa-archive"></i> Archive</span>';
+        }
+
+        // Initial time update
+        updateAllTimes(savedTz);
+    })();
+    </script>
 </body>
 </html>
 HTMLFOOTER
