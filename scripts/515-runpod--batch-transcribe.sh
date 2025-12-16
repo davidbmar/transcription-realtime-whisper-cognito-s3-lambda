@@ -7,13 +7,23 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 # ============================================================================
 # Batch transcription using RunPod's WhisperX API with speaker diarization.
 #
-# What this does:
-# 1. Checks RunPod pod is running (start if not)
-# 2. Scans S3 for missing transcriptions
-# 3. Downloads audio chunks from S3
-# 4. POSTs to RunPod WhisperX API
-# 5. Uploads results back to S3
-# 6. Generates batch report
+# PRESIGNED URL MODE (default for pre-merged audio.wav):
+# 1. Generates presigned GET URL for audio.wav
+# 2. Generates presigned PUT URL for transcription.json
+# 3. POSTs tiny JSON with URLs to RunPod
+# 4. RunPod downloads audio directly from S3 (bypasses proxy timeout)
+# 5. RunPod uploads result directly to S3 (bypasses response size limits)
+#
+# LEGACY MODE (for sessions without pre-merged audio):
+# 1. Downloads audio chunks from S3
+# 2. Merges with ffmpeg locally
+# 3. POSTs audio file to RunPod
+# 4. Uploads result to S3
+#
+# Benefits of Presigned URL mode:
+# - No 100s Cloudflare proxy timeout issues
+# - Handles 4+ hour audio files
+# - Faster (direct S3 transfer, not through proxy)
 #
 # Key difference from AWS version:
 # - Uses HTTP API instead of SSH
@@ -68,6 +78,7 @@ fi
 # Processing config
 BATCH_LIMIT="${BATCH_LIMIT:-0}"           # 0 = no limit
 ENABLE_DIARIZATION="${ENABLE_DIARIZATION:-true}"
+PRESIGNED_URL_EXPIRY="${PRESIGNED_URL_EXPIRY:-7200}"  # 2 hours default (generous for long audio)
 
 # Statistics
 TIMESTAMP_START=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -85,6 +96,31 @@ cleanup() {
     rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
+
+# ============================================================================
+# Presigned URL Generation
+# ============================================================================
+
+# Generate presigned PUT URL for uploading result to S3
+generate_put_url() {
+    local s3_key="$1"
+    local expiry="${2:-$PRESIGNED_URL_EXPIRY}"
+
+    python3 << PYTHON
+import boto3
+s3 = boto3.client('s3', region_name='${AWS_REGION}')
+url = s3.generate_presigned_url(
+    'put_object',
+    Params={
+        'Bucket': '${S3_BUCKET}',
+        'Key': '${s3_key}',
+        'ContentType': 'application/json'
+    },
+    ExpiresIn=${expiry}
+)
+print(url)
+PYTHON
+}
 
 # ============================================================================
 # Validate Prerequisites
@@ -176,20 +212,86 @@ transcribe_session() {
 
     local audio_file=""
     local estimated_seconds=0
+    local use_presigned_urls=false
 
     # ========================================================================
     # Priority 1: Check for pre-merged audio.wav (from 516-merge-chunks-worker)
     # This is the optimal path - single file with all audio for best diarization
+    # Uses PRESIGNED URLs to bypass Cloudflare proxy timeout
     # ========================================================================
     if aws s3 ls "s3://${S3_BUCKET}/${session_path}/audio.wav" &>/dev/null; then
-        log_info "  Found pre-merged audio.wav (optimal for diarization)"
-        aws s3 cp "s3://${S3_BUCKET}/${session_path}/audio.wav" "$audio_dir/audio.wav" --quiet
-        audio_file="$audio_dir/audio.wav"
+        log_info "  Found pre-merged audio.wav - using PRESIGNED URL mode"
 
-        # Get duration from WAV file (16kHz, 16-bit = 32000 bytes/sec)
-        local file_size=$(stat -c%s "$audio_file" 2>/dev/null || stat -f%z "$audio_file" 2>/dev/null || echo "0")
-        estimated_seconds=$((file_size / 32000))
-        log_info "  Audio duration: ~${estimated_seconds}s"
+        # Get file size from S3 to estimate duration
+        local file_info=$(aws s3 ls "s3://${S3_BUCKET}/${session_path}/audio.wav" | head -1)
+        local file_size=$(echo "$file_info" | awk '{print $3}')
+        estimated_seconds=$((file_size / 32000))  # 16kHz, 16-bit = 32000 bytes/sec
+        log_info "  Audio: ~$((file_size / 1024 / 1024))MB (~${estimated_seconds}s / ~$((estimated_seconds / 60))min)"
+
+        # Generate presigned URLs
+        log_info "  Generating presigned URLs (${PRESIGNED_URL_EXPIRY}s expiry)..."
+
+        local audio_s3_key="${session_path}/audio.wav"
+        local result_s3_key="${session_path}/transcription.json"
+
+        # GET URL for audio (using aws s3 presign)
+        local audio_url=$(aws s3 presign "s3://${S3_BUCKET}/${audio_s3_key}" --expires-in "$PRESIGNED_URL_EXPIRY")
+
+        # PUT URL for result (using boto3 - aws cli presign only does GET)
+        local result_url=$(generate_put_url "$result_s3_key" "$PRESIGNED_URL_EXPIRY")
+
+        if [ -z "$audio_url" ] || [ -z "$result_url" ]; then
+            log_error "  Failed to generate presigned URLs"
+            return 1
+        fi
+
+        log_info "  Sending to RunPod (presigned URL mode)..."
+
+        local start_time=$(date +%s)
+
+        # POST tiny JSON with URLs (bypasses proxy size/time limits)
+        local response=$(curl -s --max-time 7200 \
+            -X POST "${BASE_URL}/transcribe" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"audio_url\": $(echo "$audio_url" | jq -Rs .),
+                \"result_url\": $(echo "$result_url" | jq -Rs .),
+                \"diarize\": ${ENABLE_DIARIZATION}
+            }" \
+            2>&1)
+
+        local end_time=$(date +%s)
+        local processing_time=$((end_time - start_time))
+
+        # Check for success
+        local status=$(echo "$response" | jq -r '.status // "error"' 2>/dev/null)
+
+        if [ "$status" = "ok" ]; then
+            local segment_count=$(echo "$response" | jq -r '.segments_count // 0')
+            local speaker_count=$(echo "$response" | jq -r '.speakers_count // 0')
+            local duration=$(echo "$response" | jq -r '.duration_seconds // 0')
+            local proc_time=$(echo "$response" | jq -r '.processing_time_seconds // 0')
+
+            log_success "  Transcription complete (presigned URL mode)"
+            log_info "    Segments: $segment_count | Speakers: $speaker_count | Duration: ${duration}s | GPU time: ${proc_time}s"
+
+            # Result already uploaded to S3 by RunPod - verify
+            if aws s3 ls "s3://${S3_BUCKET}/${result_s3_key}" &>/dev/null; then
+                log_success "  Result verified in S3"
+            else
+                log_warn "  Result not found in S3 - may still be uploading"
+            fi
+
+            # Update stats
+            CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
+            TOTAL_AUDIO_SECONDS=$((TOTAL_AUDIO_SECONDS + estimated_seconds))
+
+            return 0
+        else
+            log_error "  Transcription failed"
+            echo "$response" | jq . 2>/dev/null || echo "$response"
+            return 1
+        fi
     else
         # ====================================================================
         # Priority 2: Download and merge chunks with ffmpeg
