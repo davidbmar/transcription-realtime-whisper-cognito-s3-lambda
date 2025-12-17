@@ -95,13 +95,91 @@ This feature enables RunPod GPU workers to download audio and upload results dir
 | 30 min | 57 MB | 30s | 180s | 210s | 100s | TIMEOUT |
 | 74 min | 142 MB | 90s | 450s | 540s | 100s | TIMEOUT |
 
-### After (Presigned URLs) - WORKS for any size
+### After (Presigned URLs) - PARTIAL FIX
 
-| Audio Duration | Request Size | Transcription | Response Size | Proxy Limit | Result |
-|---------------|--------------|---------------|---------------|-------------|--------|
-| 5 min | <2 KB | 30s | <1 KB | 100s | OK |
-| 74 min | <2 KB | 450s | <1 KB | 100s | OK |
-| 4 hours | <2 KB | 1800s | <1 KB | 100s | OK |
+Presigned URLs solve the **payload transfer** timeout (S3 transfers are direct), but **NOT** the HTTP connection timeout. The HTTP request to RunPod still goes through Cloudflare proxy, which has a ~100s idle timeout.
+
+| Audio Duration | Request Size | Processing Time | HTTP Connection | Result |
+|---------------|--------------|-----------------|-----------------|--------|
+| 5 min | <2 KB | 30s | Held open 30s | ✅ OK |
+| 17 min | <2 KB | 116s | Held open 116s | ✅ OK (barely) |
+| 45 min | <2 KB | ~300s | **TIMEOUT @ 100s** | ❌ 502/524 |
+| 74 min | <2 KB | ~450s | **TIMEOUT @ 100s** | ❌ 502/524 |
+
+**The Problem:** Even though the request/response are tiny, the HTTP connection remains open while the server processes the transcription. Cloudflare terminates idle connections after ~100 seconds.
+
+### Solution: Async Request-Reply Pattern (PLANNED)
+
+To handle files of any duration, we need to return immediately and poll for completion:
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     ASYNC PATTERN (PLANNED)                              │
+│                                                                          │
+│  Client                      RunPod GPU                   S3 Bucket     │
+│      │                           │                           │          │
+│      ├──[POST /transcribe]──────►│                           │          │
+│      │  { audio_url, result_url }│                           │          │
+│      │                           │                           │          │
+│      │◄──[{"job_id": "abc123"}]──┤  (returns in <1 second)   │          │
+│      │                           │                           │          │
+│      │                           ├───[GET audio from S3]────►│          │
+│      │                           │                           │          │
+│      │   [POLL /status/abc123]   │   [PROCESSING...]         │          │
+│      ├──────────────────────────►│                           │          │
+│      │◄──{"status":"processing"}─┤                           │          │
+│      │                           │                           │          │
+│      │   ... (repeat every 30s)  │                           │          │
+│      │                           │                           │          │
+│      │   [POLL /status/abc123]   │                           │          │
+│      ├──────────────────────────►│                           │          │
+│      │◄──{"status":"completed"}──┤                           │          │
+│      │                           │                           │          │
+│      │                           ├───[PUT result to S3]─────►│          │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation Required:**
+
+1. **RunPod Container** ([github.com/davidbmar/whisperX-runpod](https://github.com/davidbmar/whisperX-runpod)):
+   - File: `src/handler_pod.py`
+   - `/transcribe` returns job_id immediately, spawns background thread
+   - `/status/{job_id}` returns job status (queued, processing, completed, failed)
+   - Job state stored in memory (dict or Redis for persistence)
+   - See `docs/ASYNC_PATTERN.md` in that repo for implementation details
+
+2. **Batch Script** (this repo: `transcription-realtime-whisper-cognito-s3-lambda-ver4`):
+   - Submit job, receive job_id
+   - Poll `/status/{job_id}` every 30 seconds
+   - Timeout after configurable max duration (e.g., 30 minutes)
+   - Handle failed jobs with retry logic
+
+**Async API Contract:**
+
+```json
+// POST /transcribe - Submit job
+Request:  { "audio_url": "...", "result_url": "...", "diarize": true }
+Response: { "job_id": "abc123", "status": "queued" }
+
+// GET /status/{job_id} - Check status
+Response: {
+    "job_id": "abc123",
+    "status": "processing",  // queued | processing | completed | failed
+    "progress": 45,          // percent complete (optional)
+    "error": null
+}
+
+// GET /status/{job_id} - When complete
+Response: {
+    "job_id": "abc123",
+    "status": "completed",
+    "segments_count": 1117,
+    "speakers_count": 4,
+    "duration_seconds": 2700,
+    "processing_time_seconds": 300
+}
+```
 
 ## Usage
 
