@@ -286,19 +286,49 @@ module.exports.listSessions = async (event) => {
             Bucket: bucketName,
             Key: metadataKey
           }).promise();
-          
+
           const metadata = JSON.parse(metadataObj.Body.toString());
+
+          // Check for transcription completion marker (created by batch transcription)
+          try {
+            await s3.headObject({
+              Bucket: bucketName,
+              Key: `${prefix.Prefix}.transcription-complete`
+            }).promise();
+
+            // Override transcription status if marker exists
+            if (!metadata.transcription) {
+              metadata.transcription = {};
+            }
+            metadata.transcription.status = 'complete';
+          } catch (markerErr) {
+            // Marker doesn't exist, keep original status
+          }
+
           sessions.push({
             sessionId: metadata.sessionId,
             folder: sessionFolder,
             metadata: metadata
           });
         } catch (err) {
-          // If no metadata, just include basic info
+          // If no metadata, check for transcription marker anyway
+          let transcriptionStatus = 'pending';
+          try {
+            await s3.headObject({
+              Bucket: bucketName,
+              Key: `${prefix.Prefix}.transcription-complete`
+            }).promise();
+            transcriptionStatus = 'complete';
+          } catch (markerErr) {
+            // No marker
+          }
+
           sessions.push({
             sessionId: sessionFolder,
             folder: sessionFolder,
-            metadata: null
+            metadata: {
+              transcription: { status: transcriptionStatus }
+            }
           });
         }
       }

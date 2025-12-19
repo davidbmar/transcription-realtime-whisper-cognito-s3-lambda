@@ -98,6 +98,9 @@ fi
 RUNPOD_API_KEY="${RUNPOD_API_KEY:-}"
 TOTAL_KILLED=0
 TOTAL_RUNNING=0
+RUNPOD_CHECK_FAILED=false
+AWS_CHECK_FAILED=false
+HEARTBEAT_FILE="/tmp/watchdog-last-success.txt"
 TOTAL_COST_PER_HOUR=0
 
 #===============================================================================
@@ -112,13 +115,43 @@ check_runpod() {
         return
     fi
 
-    # Get all pods
-    PODS_JSON=$(curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+    # Get all pods with proper error handling
+    PODS_JSON=$(curl -s --max-time 30 -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
         "https://rest.runpod.io/v1/pods" 2>/dev/null)
+    CURL_EXIT=$?
 
-    if [ -z "$PODS_JSON" ] || [ "$PODS_JSON" = "[]" ]; then
+    # Check for curl failures (network issues, timeout)
+    if [ $CURL_EXIT -ne 0 ]; then
+        log_error "RunPod API request failed (curl exit code: $CURL_EXIT) - possible network issue"
+        RUNPOD_CHECK_FAILED=true
+        return 1
+    fi
+
+    # Check for empty response
+    if [ -z "$PODS_JSON" ]; then
+        log_error "RunPod API returned empty response - possible network issue"
+        RUNPOD_CHECK_FAILED=true
+        return 1
+    fi
+
+    # Check for error responses (unauthorized, forbidden, etc.)
+    if echo "$PODS_JSON" | grep -qi "unauthorized\|forbidden\|error\|invalid"; then
+        log_error "RunPod API error: ${PODS_JSON:0:200}"
+        RUNPOD_CHECK_FAILED=true
+        return 1
+    fi
+
+    # Validate JSON structure before processing
+    if ! echo "$PODS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+        log_error "RunPod API returned invalid JSON: ${PODS_JSON:0:200}"
+        RUNPOD_CHECK_FAILED=true
+        return 1
+    fi
+
+    # Check for empty array (no pods)
+    if [ "$PODS_JSON" = "[]" ]; then
         log_ok "No RunPod pods running"
-        return
+        return 0
     fi
 
     # Process each pod
@@ -419,6 +452,28 @@ main() {
         fi
         "$DASHBOARD_SCRIPT" 2>/dev/null
     fi
+
+    # Determine exit status and write heartbeat
+    EXIT_CODE=0
+    if [ "$RUNPOD_CHECK_FAILED" = true ] || [ "$AWS_CHECK_FAILED" = true ]; then
+        log_error "Watchdog check completed with errors!"
+        if [ "$RUNPOD_CHECK_FAILED" = true ]; then
+            log_error "  - RunPod API check FAILED"
+        fi
+        if [ "$AWS_CHECK_FAILED" = true ]; then
+            log_error "  - AWS check FAILED"
+        fi
+        EXIT_CODE=1
+    else
+        # Only write heartbeat on successful run
+        echo "$(date -u +%s)" > "$HEARTBEAT_FILE"
+        if [ "$CRON_MODE" = false ]; then
+            log_ok "Watchdog heartbeat updated: $HEARTBEAT_FILE"
+        fi
+    fi
+
+    return $EXIT_CODE
 }
 
 main
+exit $?

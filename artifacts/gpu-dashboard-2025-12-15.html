@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Cost Guardian</title>
+    <meta http-equiv="refresh" content="300">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .logo i {
+            margin-right: 0.5rem;
+            font-size: 1.8rem;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .nav-link:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h2 {
+            color: white;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin: 25px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        h2 i { font-size: 16px; }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .card-icon.gpu { background: linear-gradient(45deg, #667eea, #764ba2); color: white; }
+        .card-icon.runpod { background: linear-gradient(45deg, #6e40c9, #9333ea); color: white; }
+        .card-icon.aws { background: linear-gradient(45deg, #ff9900, #ffb84d); color: white; }
+        .card-icon.cost { background: linear-gradient(45deg, #ef4444, #f87171); color: white; }
+        .card-title { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
+        .card-value { color: #1f2937; font-size: 32px; font-weight: bold; }
+        .card-value.cost { color: #ef4444; }
+        .card-value.running { color: #10b981; }
+        .resource-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .resource-table th, .resource-table td {
+            padding: 14px 16px;
+            text-align: left;
+        }
+        .resource-table th {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .resource-table tr:not(:last-child) td {
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-running { background: #d1fae5; color: #059669; }
+        .status-idle { background: #fef3c7; color: #d97706; }
+        .status-terminated { background: #fee2e2; color: #dc2626; }
+        .provider-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .provider-runpod { background: #ede9fe; color: #7c3aed; }
+        .provider-aws { background: #fff7ed; color: #ea580c; }
+        .event-log {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+        .event-row {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .event-row:hover { background: rgba(102, 126, 234, 0.05); }
+        .event-time { color: #6b7280; margin-right: 8px; }
+        .event-action-created { color: #10b981; font-weight: 600; }
+        .event-action-terminated { color: #ef4444; font-weight: 600; }
+        .event-action-checked { color: #667eea; font-weight: 600; }
+        .timestamp {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            margin-top: 25px;
+            text-align: center;
+        }
+        .timestamp a { color: white; }
+        .no-data {
+            color: #6b7280;
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .cost-warning {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        .cost-warning code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .settings-table td { padding: 8px 0; }
+        .settings-table td:first-child { color: #6b7280; }
+        .rule-ok { color: #10b981; }
+        .rule-warn { color: #f59e0b; }
+        .rule-kill { color: #ef4444; }
+        .code-block {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .timeline-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .timeline-track {
+            position: relative;
+            height: 40px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .timeline-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+        }
+        .timeline-bar.runpod { background: linear-gradient(90deg, #7c3aed, #9333ea); }
+        .timeline-bar.aws { background: linear-gradient(90deg, #ea580c, #f97316); }
+        .timeline-bar.running {
+            background: linear-gradient(90deg, #10b981, #34d399);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        /* Start/end markers */
+        .timeline-bar::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #10b981;
+            border-radius: 3px;
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+        }
+        .timeline-bar.ended::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #ef4444;
+            border-radius: 3px;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+        }
+        .timeline-bar.running::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #10b981;
+            border-radius: 3px;
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+            animation: pulse 1s infinite;
+        }
+        .timeline-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .timeline-hours {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #9ca3af;
+            padding: 0 2px;
+        }
+        .timeline-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+        .legend-dot.runpod { background: #7c3aed; }
+        .legend-dot.aws { background: #ea580c; }
+        .legend-dot.running { background: #10b981; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                GPU Cost Guardian
+            </div>
+            <div style="text-align: center; font-size: 12px; color: #6b7280;">
+                <i class="fas fa-clock"></i> Updated: 2025-12-15 23:55:03 UTC · Auto-refresh every 5 min
+            </div>
+            <a href="https://d2l28rla2hk7np.cloudfront.net/index.html" class="nav-link">
+                <i class="fas fa-arrow-left"></i>
+                Back to CloudDrive
+            </a>
+        </div>
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-icon gpu"><i class="fas fa-microchip"></i></div>
+                <div class="card-title">Running Now</div>
+                <div class="card-value running">0 GPUs</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">0 RunPod · 0 AWS</div>
+            </div>
+            <div class="card">
+                <div class="card-icon cost"><i class="fas fa-dollar-sign"></i></div>
+                <div class="card-title">Current Cost</div>
+                <div class="card-value cost">$0.00/hr</div>
+            </div>
+        </div>
+        <h2><i class="fas fa-chart-gantt"></i> Pod Activity Timeline (24h)</h2>
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <span>24 hours ago</span>
+                <span>Now</span>
+            </div>
+<div class="timeline-hours">
+<span>23:55</span>
+<span>05:55</span>
+<span>11:55</span>
+<span>17:55</span>
+<span>23:55</span>
+</div>
+<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; gap: 24px; flex-wrap: wrap;">
+    <div><strong style="color: #166534;">11</strong> <span style="color: #4b5563;">pod(s) ran in last 24h</span></div>
+    <div><strong style="color: #166534;">183</strong> <span style="color: #4b5563;">total GPU minutes</span></div>
+</div>
+<div class="timeline-label">yoxh3ny7 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> 16:12 - 16:27 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 67.9%; width: 4.0%;" title="yoxh3ny7: 16:12 - 16:27 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">jl9zfyq2 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> 16:22 - 16:44 (22m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 68.6%; width: 4.0%;" title="jl9zfyq2: 16:22 - 16:44 (22m)">
+        22m
+    </div>
+</div>
+<div class="timeline-label">ci6ase4e <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> 18:15 - 18:42 (26m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 76.4%; width: 4.0%;" title="ci6ase4e: 18:15 - 18:42 (26m)">
+        26m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-191223 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (qfcznj03) 19:12 - 19:27 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 80.4%; width: 4.0%;" title="whisperx-20251215-191223: 19:12 - 19:27 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-192339 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (byjrhjam) 19:23 - 19:38 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 81.2%; width: 4.0%;" title="whisperx-20251215-192339: 19:23 - 19:38 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-193000 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (jpzyqfrm) 19:30 - 19:45 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 81.6%; width: 4.0%;" title="whisperx-20251215-193000: 19:30 - 19:45 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-194135 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (oyx1v1g3) 19:41 - 19:56 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 82.4%; width: 4.0%;" title="whisperx-20251215-194135: 19:41 - 19:56 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-202000 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (x9gksf05) 20:20 - 20:35 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 85.1%; width: 4.0%;" title="whisperx-20251215-202000: 20:20 - 20:35 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">whisperx-20251215-204548 <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> (e5vdo3j2) 20:45 - 21:00 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 86.9%; width: 4.0%;" title="whisperx-20251215-204548: 20:45 - 21:00 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">test-pod <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> 21:48 - 22:03 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 91.2%; width: 4.0%;" title="test-pod: 21:48 - 22:03 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-label">eyc6m78f <span style="color:#ef4444;">■ ended</span> <span style="color:#6b7280; font-size: 11px;"> 21:49 - 22:04 (15m)</span></div>
+<div class="timeline-track">
+    <div class="timeline-bar runpod ended" style="left: 91.3%; width: 4.0%;" title="eyc6m78f: 21:49 - 22:04 (15m)">
+        15m
+    </div>
+</div>
+<div class="timeline-legend">
+    <div class="legend-item"><div style="width:4px;height:12px;background:#10b981;border-radius:2px;"></div> Started</div>
+    <div class="legend-item"><div style="width:4px;height:12px;background:#ef4444;border-radius:2px;"></div> Stopped</div>
+    <div class="legend-item"><div class="legend-dot runpod"></div> RunPod</div>
+    <div class="legend-item"><div class="legend-dot aws"></div> AWS</div>
+    <div class="legend-item"><div class="legend-dot running"></div> Running Now</div>
+</div>
+        </div>
+        <h2><i class="fas fa-history"></i> Recent Events (24h)</h2>
+        <div class="event-log">
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:49:18</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>eyc6m78fj6hc</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:48:24</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>test-pod-id</code> - manual-test
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:45:50</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e5vdo3j2cbh9</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:20:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>x9gksf05o0m2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:41:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oyx1v1g3kkzo</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:30:05</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jpzyqfrm0kzv</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:23:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>byjrhjam6is2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:12:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>qfcznj035yfp</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:27:00</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>ci6ase4eusgy</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:15:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>ci6ase4eusgy</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:29:36</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jl9zfyq2bwwv</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:22:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jl9zfyq2bwwv</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:12:19</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>yoxh3ny7o2f0</code> - starting
+    </div>
+        </div>
+
+        <h2><i class="fas fa-cog"></i> Watchdog Settings</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <table class="settings-table" style="width: 100%; font-size: 14px;">
+                <tr><td><i class="fas fa-clock"></i> Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
+                <tr><td><i class="fas fa-hourglass-half"></i> Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
+                <tr><td><i class="fas fa-stopwatch"></i> Max Runtime:</td><td>2 hours (safety cap)</td></tr>
+                <tr><td><i class="fas fa-tachometer-alt"></i> GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
+            </table>
+        </div>
+
+        <h2><i class="fas fa-gavel"></i> Decision Rules</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: 'Monaco', 'Menlo', monospace;">
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-shield-alt"></i> Rule 1:</span> runtime &lt; 20 min → <strong>PROTECTED</strong> (boot window)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-skull"></i> Rule 2:</span> runtime &gt; 2 hours → <strong>KILL</strong> (safety cap)</div>
+            <div style="padding: 6px 0;"><span class="rule-warn"><i class="fas fa-exclamation-triangle"></i> Rule 3:</span> boot stage 0 or 1 → <strong>WARN</strong> (still allocating/pulling)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-times-circle"></i> Rule 4:</span> container crashed &gt; 30 min → <strong>KILL</strong></div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-bolt"></i> Rule 5:</span> GPU &gt; 5% → <strong>ACTIVE</strong> (don't kill)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-bed"></i> Rule 6:</span> idle &gt; 30 min → <strong>KILL</strong> (forgotten)</div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-check-circle"></i> Rule 7:</span> otherwise → <strong>OK</strong> (grace period)</div>
+        </div>
+
+        <h2><i class="fas fa-terminal"></i> Setup &amp; Access</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px;">
+            <p style="margin-bottom: 8px;"><strong><i class="fas fa-play"></i> Run watchdog manually:</strong></p>
+            <div class="code-block">./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-clock"></i> Setup cron (every 15 min):</strong></p>
+            <div class="code-block" style="font-size: 11px;">*/15 * * * * /home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fab fa-aws"></i> Enable S3 upload (add to .env):</strong></p>
+            <div class="code-block">GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-desktop"></i> View dashboard locally:</strong></p>
+            <div class="code-block">cd artifacts && python3 -m http.server 8080</div>
+        </div>
+
+        <h2><i class="fas fa-calendar-alt"></i> Daily History</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                <span style="color: #6b7280; font-size: 13px;"><i class="fas fa-clock"></i> View previous days:</span>
+                <a href="2025-12-14.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-14</a>
+                <a href="2025-12-13.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-13</a>
+                <a href="2025-12-12.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-12</a>
+                <a href="2025-12-11.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-11</a>
+                <a href="2025-12-10.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-10</a>
+                <a href="2025-12-09.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-09</a>
+                <a href="2025-12-08.html" class="nav-link" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-file"></i> 2025-12-08</a>
+            </div>
+        </div>
+
+        <p class="timestamp">Last updated: 2025-12-15 23:55:01 UTC</p>
+        <p class="timestamp">
+            <a href="https://github.com/davidbmar/whisperlive-runpod">
+                <i class="fab fa-github"></i> GitHub: whisperlive-runpod
+            </a>
+        </p>
+    </div>
+</body>
+</html>

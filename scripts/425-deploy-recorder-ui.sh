@@ -181,6 +181,19 @@ if [ -f "$SOURCE_UI_DIR/transcript-plugins.js" ]; then
     log_info "  - Copied transcript-plugins.js"
 fi
 
+# Copy shared lib directory (header component, etc.)
+if [ -d "$SOURCE_UI_DIR/lib" ]; then
+    mkdir -p ./lib
+    cp -r "$SOURCE_UI_DIR/lib/"* ./lib/
+    log_info "  - Copied lib/ directory (shared header component)"
+fi
+
+# Copy profile page
+if [ -f "$SOURCE_UI_DIR/profile.html" ]; then
+    cp "$SOURCE_UI_DIR/profile.html" ./profile.html
+    log_info "  - Copied profile.html (user profile page)"
+fi
+
 # Note: Viewer files are deployed separately via 426-deploy-viewer.sh
 
 log_success "UI files copied"
@@ -251,6 +264,21 @@ if [ -f "./transcript-editor-v2.html" ]; then
     echo ""
 else
     log_info "Step 4c: transcript-editor-v2.html not found (skipping)"
+    echo ""
+fi
+
+# Update profile.html with deployment values
+if [ -f "./profile.html" ]; then
+    log_info "Step 4d: Updating profile.html configuration"
+
+    # Replace Cognito configuration placeholders in profile.html
+    sed -i "s|YOUR_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" profile.html
+    sed -i "s|YOUR_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" profile.html
+
+    log_success "Configuration updated in profile.html"
+    echo ""
+else
+    log_info "Step 4d: profile.html not found (skipping)"
     echo ""
 fi
 

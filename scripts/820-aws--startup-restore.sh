@@ -37,6 +37,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
+source "$REPO_ROOT/scripts/lib/gpu-event-logger.sh"
 load_environment
 
 # Record startup time
@@ -116,6 +117,16 @@ log_success "Current GPU IP: $CURRENT_IP (dynamic lookup)"
 export GPU_HOST="$CURRENT_IP"
 export WHISPERLIVE_HOST="$CURRENT_IP"
 export WHISPERLIVE_PORT="9090"
+
+# Get instance type for logging
+INSTANCE_TYPE=$(aws ec2 describe-instances \
+  --instance-ids "$GPU_INSTANCE_ID" \
+  --region "$REGION" \
+  --query 'Reservations[0].Instances[0].InstanceType' \
+  --output text)
+
+# Log GPU start event
+log_aws_start "$GPU_INSTANCE_ID" "$INSTANCE_TYPE" "GPU-Worker" "0.526"
 
 log_info "IP exported for current session (will be looked up dynamically on next run)"
 echo ""

@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Cost Guardian</title>
+    <meta http-equiv="refresh" content="120">
+    <meta name="dashboard-date" content="2025-12-17">
+    <meta name="dashboard-generated" content="2025-12-17T23:58:04Z">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .logo:hover {
+            opacity: 0.8;
+        }
+        .logo i {
+            margin-right: 0.5rem;
+            font-size: 1.8rem;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .nav-link:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .breadcrumb-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .breadcrumb-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #667eea;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .breadcrumb-link:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .breadcrumb-link i {
+            font-size: 16px;
+        }
+        .breadcrumb-separator {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        .breadcrumb-current {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #374151;
+            font-weight: 600;
+        }
+        .breadcrumb-current i {
+            color: #667eea;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h2 {
+            color: white;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin: 25px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        h2 i { font-size: 16px; }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .card-icon.gpu { background: linear-gradient(45deg, #667eea, #764ba2); color: white; }
+        .card-icon.runpod { background: linear-gradient(45deg, #6e40c9, #9333ea); color: white; }
+        .card-icon.aws { background: linear-gradient(45deg, #ff9900, #ffb84d); color: white; }
+        .card-icon.cost { background: linear-gradient(45deg, #ef4444, #f87171); color: white; }
+        .card-title { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
+        .card-value { color: #1f2937; font-size: 32px; font-weight: bold; }
+        .card-value.cost { color: #ef4444; }
+        .card-value.running { color: #10b981; }
+        .resource-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .resource-table th, .resource-table td {
+            padding: 14px 16px;
+            text-align: left;
+        }
+        .resource-table th {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .resource-table tr:not(:last-child) td {
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-running { background: #d1fae5; color: #059669; }
+        .status-idle { background: #fef3c7; color: #d97706; }
+        .status-terminated { background: #fee2e2; color: #dc2626; }
+        .provider-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .provider-runpod { background: #ede9fe; color: #7c3aed; }
+        .provider-aws { background: #fff7ed; color: #ea580c; }
+        .event-log {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+        .event-row {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .event-row:hover { background: rgba(102, 126, 234, 0.05); }
+        .event-time { color: #6b7280; margin-right: 8px; }
+        .event-action-created { color: #10b981; font-weight: 600; }
+        .event-action-terminated { color: #ef4444; font-weight: 600; }
+        .event-action-checked { color: #667eea; font-weight: 600; }
+        .timestamp {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            margin-top: 25px;
+            text-align: center;
+        }
+        .timestamp a { color: white; }
+        .no-data {
+            color: #6b7280;
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .cost-warning {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        .cost-warning code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .settings-table td { padding: 8px 0; }
+        .settings-table td:first-child { color: #6b7280; }
+        .rule-ok { color: #10b981; }
+        .rule-warn { color: #f59e0b; }
+        .rule-kill { color: #ef4444; }
+        .code-block {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .timeline-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        /* Activity Band - Container for each session */
+        .activity-band {
+            margin-bottom: 16px;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .activity-band:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .activity-band.runpod {
+            border: 2px solid #7c3aed;
+            background: #faf5ff;
+        }
+        .activity-band.aws {
+            border: 2px solid #ea580c;
+            background: #fffbeb;
+        }
+        .activity-band-header {
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .activity-band.runpod .activity-band-header {
+            background: linear-gradient(90deg, #7c3aed, #9333ea);
+            color: white;
+        }
+        .activity-band.aws .activity-band-header {
+            background: linear-gradient(90deg, #ea580c, #f97316);
+            color: white;
+        }
+        .activity-band-header .provider-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .activity-band-header .gpu-chip {
+            background: rgba(255,255,255,0.25);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .activity-band-header .status-chip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+        }
+        .activity-band-header .status-chip.running {
+            animation: pulse 2s infinite;
+        }
+        .activity-band-body {
+            padding: 12px 16px;
+        }
+        .activity-band-timeline {
+            position: relative;
+            height: 32px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .activity-bar {
+            position: absolute;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .activity-bar.runpod { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .activity-bar.aws { background: linear-gradient(90deg, #f97316, #fb923c); }
+        .activity-bar.running {
+            animation: pulse-bar 2s infinite;
+        }
+        .activity-bar.startup {
+            opacity: 0.5;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        @keyframes pulse-bar {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.85; }
+        }
+        /* Session row and Gantt track hover transitions */
+        .session-row {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .gantt-track {
+            transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+            cursor: pointer;
+        }
+        .gantt-bar {
+            transition: box-shadow 0.2s ease;
+        }
+        .activity-band-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 12px;
+            color: #4b5563;
+        }
+        .activity-band-meta .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .activity-band-meta .meta-item i {
+            color: #9ca3af;
+            width: 14px;
+        }
+        .activity-band-meta .meta-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .activity-band-meta .meta-value.success { color: #059669; }
+        .activity-band-meta .meta-value.failed { color: #dc2626; }
+        /* Tooltip styles */
+        .activity-band-tooltip {
+            display: none;
+            position: absolute;
+            z-index: 100;
+            background: #1f2937;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            min-width: 220px;
+        }
+        .activity-band:hover .activity-band-tooltip {
+            display: block;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #374151;
+        }
+        .tooltip-row:last-child { border-bottom: none; }
+        .tooltip-label { color: #9ca3af; }
+        .tooltip-value { font-weight: 600; }
+        /* Legacy timeline styles for fallback */
+        .timeline-track {
+            position: relative;
+            height: 40px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .timeline-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+        }
+        .timeline-bar.runpod { background: linear-gradient(90deg, #7c3aed, #9333ea); }
+        .timeline-bar.aws { background: linear-gradient(90deg, #ea580c, #f97316); }
+        .timeline-bar.running {
+            background: linear-gradient(90deg, #10b981, #34d399);
+            animation: pulse 2s infinite;
+        }
+        .timeline-bar.ended::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #ef4444;
+        }
+        .timeline-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .timeline-hours {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #9ca3af;
+            padding: 0 2px;
+            margin-bottom: 16px;
+        }
+        .timeline-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+        .legend-dot.runpod { background: #7c3aed; }
+        .legend-dot.aws { background: #ea580c; }
+        .legend-dot.running { background: #10b981; }
+        /* Date navigation */
+        .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .date-nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: none;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .date-nav-btn:hover { background: #5a67d8; transform: scale(1.05); }
+        .date-nav-btn:disabled, .date-nav-btn.disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .date-display {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            min-width: 140px;
+            text-align: center;
+        }
+        .date-display small {
+            display: block;
+            font-size: 11px;
+            font-weight: normal;
+            color: #6b7280;
+        }
+        .tz-selector {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tz-selector label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .tz-selector select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 12px;
+            background: white;
+            cursor: pointer;
+        }
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #10b981;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        .archive-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #6b7280;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <a href="https://d2l28rla2hk7np.cloudfront.net/index.html" class="logo">
+                    <i class="fas fa-cloud"></i>
+                    CloudDrive
+                </a>
+                <span class="breadcrumb-separator">›</span>
+                <span class="breadcrumb-current">
+                    <i class="fas fa-shield-alt"></i>
+                    GPU Cost Guardian
+                </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="text-align: right; font-size: 12px; color: #6b7280;">
+                    <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="2025-12-17T23:58:04Z">2025-12-17 23:58:04 UTC</span>
+                    <span id="live-indicator"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Navigation -->
+        <div class="date-nav">
+            <a id="prev-day" class="date-nav-btn" title="Previous day">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            <div class="date-display">
+                <span id="display-date">2025-12-17</span>
+                <small id="display-date-label">UTC</small>
+            </div>
+            <a id="next-day" class="date-nav-btn" title="Next day">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            <a href="/gpu-dashboard/index.html" class="date-nav-btn" title="Today (Live)" style="margin-left: 8px; width: auto; padding: 0 12px;">
+                <i class="fas fa-broadcast-tower"></i>&nbsp;Live
+            </a>
+            <div class="tz-selector">
+                <label for="timezone"><i class="fas fa-globe"></i></label>
+                <select id="timezone">
+                    <option value="UTC">UTC</option>
+                    <option value="America/Chicago">Central (Austin)</option>
+                    <option value="America/New_York">Eastern</option>
+                    <option value="America/Denver">Mountain</option>
+                    <option value="America/Los_Angeles">Pacific</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Europe/Paris">Paris</option>
+                    <option value="Asia/Tokyo">Tokyo</option>
+                </select>
+            </div>
+        </div>
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-icon gpu"><i class="fas fa-microchip"></i></div>
+                <div class="card-title">Running Now</div>
+                <div class="card-value running">0 GPUs</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">0 RunPod · 0 AWS</div>
+            </div>
+            <div class="card">
+                <div class="card-icon cost"><i class="fas fa-dollar-sign"></i></div>
+                <div class="card-title">Current Cost</div>
+                <div class="card-value cost">$0.00/hr</div>
+            </div>
+        </div>
+        <h2><i class="fas fa-chart-gantt"></i> Pod Activity Timeline (24h)</h2>
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <span>24 hours ago</span>
+                <span>Now</span>
+            </div>
+<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center;">
+    <div><i class="fas fa-server" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">10</strong> <span style="color: #4b5563;">session(s)</span></div>
+    <div><i class="fas fa-clock" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">932</strong> <span style="color: #4b5563;">GPU minutes</span></div>
+    <div><i class="fas fa-dollar-sign" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">$2.54</strong> <span style="color: #4b5563;">estimated cost</span></div>
+</div>
+
+<div class="session-row" data-session="70loinoywr" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T03:56:25Z">03:56</span> - <span class="tz-time" data-utc="2025-12-17T04:23:09Z">04:23</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">26m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.07</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>70loinoywr</code></div>
+</div>
+
+<div class="session-row" data-session="y3tntwrvtx" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T04:10:20Z">04:10</span> - <span class="tz-time" data-utc="2025-12-17T05:30:45Z">05:30</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">1h 20m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.21</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>y3tntwrvtx</code></div>
+</div>
+
+<div class="session-row" data-session="oq834iapcr" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T05:16:13Z">05:16</span> - <span class="tz-time" data-utc="2025-12-17T05:58:03Z">05:58</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">41m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.11</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>oq834iapcr</code></div>
+</div>
+
+<div class="session-row" data-session="h3cafp4qw0" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T05:43:13Z">05:43</span> - <span class="tz-time" data-utc="2025-12-17T06:21:11Z">06:21</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">37m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.10</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>h3cafp4qw0</code></div>
+</div>
+
+<div class="session-row" data-session="e88fbu9wyy" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T06:09:28Z">06:09</span> - <span class="tz-time" data-utc="2025-12-17T06:39:13Z">06:39</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">29m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.08</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>e88fbu9wyy</code></div>
+</div>
+
+<div class="session-row" data-session="wbhtmouj9p" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T06:36:01Z">06:36</span> - <span class="tz-time" data-utc="2025-12-17T16:46:37Z">16:46</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">10h 10m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$1.63</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>wbhtmouj9p</code></div>
+</div>
+
+<div class="session-row" data-session="enmchk3eiv" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T19:16:11Z">19:16</span> - <span class="tz-time" data-utc="2025-12-17T20:01:13Z">20:01</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">45m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.12</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>enmchk3eiv</code></div>
+</div>
+
+<div class="session-row" data-session="bkmbnjajsk" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T19:56:26Z">19:56</span> - <span class="tz-time" data-utc="2025-12-17T20:22:26Z">20:22</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">26m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.07</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>bkmbnjajsk</code></div>
+</div>
+
+<div class="session-row" data-session="aws-i-03a2" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fffbeb; border-left: 4px solid #ea580c; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fab fa-aws"></i>
+        <span style="font-weight: 600; color: #ea580c;">AWS EC2</span>
+        
+    </div>
+    <div style="background: #ea580c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        g4dn.xlarge
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T20:07:30Z">20:07</span> - <span class="tz-time" data-utc="2025-12-17T20:16:31Z">20:16</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">9m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.08</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>aws-i-03a2</code></div>
+</div>
+
+<div class="session-row" data-session="jffyy3arvb" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-17T22:20:26Z">22:20</span> - <span class="tz-time" data-utc="2025-12-17T22:45:43Z">22:45</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">25m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.07</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>jffyy3arvb</code></div>
+</div>
+
+<div id="gantt-timeline" style="margin-top: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <span style="font-size: 12px; font-weight: 600; color: #374151;">
+            <i class="fas fa-chart-gantt" style="color: #6b7280;"></i> 24h Timeline
+        </span>
+        <span style="font-size: 10px; color: #9ca3af;">← 24 hours ago</span>
+        <span style="flex:1;"></span>
+        <span style="font-size: 10px; color: #10b981; font-weight: 600;">now →</span>
+    </div>
+
+<div id="gantt-wrapper" style="position: relative;">
+<div id="time-axis" style="position: relative; height: 16px; margin-bottom: 2px;">
+<div id="now-label" style="position: absolute; top: 0; transform: translateX(-50%); color: #6b7280; font-size: 9px; font-weight: 500; white-space: nowrap; display: none;">now</div>
+</div>
+<div id="gantt-container" style="position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+<div id="now-indicator" style="position: absolute; top: 0; bottom: 0; width: 1px; background: #9ca3af; z-index: 50; display: none;"></div>
+<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none;">
+<div style="position: absolute; left: 4.166666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 8.333333333333332%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 12.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 16.666666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 20.833333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 25.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 29.166666666666668%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 33.33333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 37.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 41.66666666666667%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 45.83333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 50.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 54.166666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 58.333333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 62.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 66.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 70.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 75.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 79.16666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 83.33333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 87.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 91.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 95.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+</div>
+
+<div class="gantt-track runpod" data-session="70loinoywr" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 16.6%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        70loinoy
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="y3tntwrvtx" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 17.5%; width: 5.6%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">1h 20m</span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        y3tntwrv
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="oq834iapcr" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 22.1%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        oq834iap
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="h3cafp4qw0" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 24.0%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        h3cafp4q
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="e88fbu9wyy" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 25.8%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        e88fbu9w
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="wbhtmouj9p" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 27.6%; width: 42.4%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">10h 10m</span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        wbhtmouj
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="enmchk3eiv" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 80.4%; width: 3.1%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        enmchk3e
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="bkmbnjajsk" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 83.2%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        bkmbnjaj
+    </div>
+</div>
+
+<div class="gantt-track aws" data-session="aws-i-03a2" style="position: relative; height: 20px; background: #fffbeb; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 84.0%; width: 3.0%; top: 3px; bottom: 3px; background: #ea580c; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #fffbeb; padding: 0 4px; z-index: 1;">
+        g4dn.xlarge
+    </div>
+</div>
+
+<div class="gantt-track runpod" data-session="jffyy3arvb" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 93.2%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        jffyy3ar
+    </div>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; margin-top: 6px; padding: 0 2px;">
+<span class="tz-hour" data-utc="2025-12-16T23:58:04Z">23:58</span>
+<span class="tz-hour" data-utc="2025-12-17T03:58:04Z">03:58</span>
+<span class="tz-hour" data-utc="2025-12-17T07:58:04Z">07:58</span>
+<span class="tz-hour" data-utc="2025-12-17T11:58:04Z">11:58</span>
+<span class="tz-hour" data-utc="2025-12-17T15:58:04Z">15:58</span>
+<span class="tz-hour" data-utc="2025-12-17T19:58:04Z">19:58</span>
+<span class="tz-hour" data-utc="2025-12-17T23:58:04Z">23:58</span>
+</div>
+</div>
+</div>
+
+<script>
+document.querySelectorAll('[data-session-id]').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+        const sessionId = card.dataset.sessionId;
+        document.querySelectorAll('.gantt-track').forEach(track => {
+            if (track.dataset.session === sessionId) {
+                track.style.background = '#fef3c7';
+                track.style.boxShadow = 'inset 0 0 0 2px #f59e0b';
+            }
+        });
+    });
+    card.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.gantt-track').forEach(track => {
+            track.style.background = '';
+            track.style.boxShadow = '';
+        });
+    });
+});
+</script>
+
+
+<div class="timeline-legend">
+    <div class="legend-item"><div class="legend-dot runpod"></div> RunPod ($0.16/hr)</div>
+    <div class="legend-item"><div class="legend-dot aws"></div> AWS EC2 ($0.52/hr)</div>
+    <div class="legend-item"><div class="legend-dot running"></div> Currently Running</div>
+</div>
+        </div>
+        <h2><i class="fas fa-history"></i> Recent Events (24h)</h2>
+        <div class="event-log">
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:43</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>jffyy3arvbb7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jffyy3arvbb7</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:20:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jffyy3arvbb7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 20:07:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>bkmbnjajskhr</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:56:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>bkmbnjajskhr</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:46:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>enmchk3eivj1</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:16:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>enmchk3eivj1</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 16:31:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>wbhtmouj9p2e</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:36:01</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>wbhtmouj9p2e</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:24:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>e88fbu9wyy6f</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:09:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e88fbu9wyy6f</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:06:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>h3cafp4qw0mb</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>h3cafp4qw0mb</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>oq834iapcrbw</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:16:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oq834iapcrbw</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:15:45</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>y3tntwrvtxka</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:10:20</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>y3tntwrvtxka</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:08:09</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>70loinoywrv7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 03:56:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>70loinoywrv7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:44:08</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>onpuzrwt9lxi</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:24:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>onpuzrwt9lxi</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:12:58</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>4gfwokay9cri</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:02:22</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>oevr1vgk641c</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 05:55:39</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oevr1vgk641c</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:49:18</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>eyc6m78fj6hc</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:48:24</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>test-pod-id</code> - manual-test
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:45:50</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e5vdo3j2cbh9</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:20:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>x9gksf05o0m2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:41:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oyx1v1g3kkzo</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:30:05</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jpzyqfrm0kzv</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:23:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>byjrhjam6is2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:12:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>qfcznj035yfp</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:27:00</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>ci6ase4eusgy</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:15:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>ci6ase4eusgy</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:29:36</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jl9zfyq2bwwv</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:22:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jl9zfyq2bwwv</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 16:12:19</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>yoxh3ny7o2f0</code> - starting
+    </div>
+        </div>
+
+        <h2><i class="fas fa-cog"></i> Watchdog Settings</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <table class="settings-table" style="width: 100%; font-size: 14px;">
+                <tr><td><i class="fas fa-clock"></i> Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
+                <tr><td><i class="fas fa-hourglass-half"></i> Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
+                <tr><td><i class="fas fa-stopwatch"></i> Max Runtime:</td><td>2 hours (safety cap)</td></tr>
+                <tr><td><i class="fas fa-tachometer-alt"></i> GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
+            </table>
+        </div>
+
+        <h2><i class="fas fa-gavel"></i> Decision Rules</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: 'Monaco', 'Menlo', monospace;">
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-shield-alt"></i> Rule 1:</span> runtime &lt; 20 min → <strong>PROTECTED</strong> (boot window)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-skull"></i> Rule 2:</span> runtime &gt; 2 hours → <strong>KILL</strong> (safety cap)</div>
+            <div style="padding: 6px 0;"><span class="rule-warn"><i class="fas fa-exclamation-triangle"></i> Rule 3:</span> boot stage 0 or 1 → <strong>WARN</strong> (still allocating/pulling)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-times-circle"></i> Rule 4:</span> container crashed &gt; 30 min → <strong>KILL</strong></div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-bolt"></i> Rule 5:</span> GPU &gt; 5% → <strong>ACTIVE</strong> (don't kill)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-bed"></i> Rule 6:</span> idle &gt; 30 min → <strong>KILL</strong> (forgotten)</div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-check-circle"></i> Rule 7:</span> otherwise → <strong>OK</strong> (grace period)</div>
+        </div>
+
+        <h2><i class="fas fa-terminal"></i> Setup &amp; Access</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px;">
+            <p style="margin-bottom: 8px;"><strong><i class="fas fa-play"></i> Run watchdog manually:</strong></p>
+            <div class="code-block">./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-clock"></i> Setup cron (every 15 min):</strong></p>
+            <div class="code-block" style="font-size: 11px;">*/15 * * * * /home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fab fa-aws"></i> Enable S3 upload (add to .env):</strong></p>
+            <div class="code-block">GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-desktop"></i> View dashboard locally:</strong></p>
+            <div class="code-block">cd artifacts && python3 -m http.server 8080</div>
+        </div>
+
+        <p class="timestamp">
+            <a href="https://github.com/davidbmar/whisperlive-runpod">
+                <i class="fab fa-github"></i> GitHub: whisperlive-runpod
+            </a>
+        </p>
+    </div>
+
+    <script>
+    (function() {
+        // Dashboard date (UTC) from meta tag
+        const dashboardDate = document.querySelector('meta[name="dashboard-date"]')?.content || new Date().toISOString().split('T')[0];
+        const todayUTC = new Date().toISOString().split('T')[0];
+        const pathname = window.location.pathname;
+        const isLive = (dashboardDate === todayUTC) && (pathname.endsWith('index.html') || pathname.endsWith('/') || pathname.endsWith('/gpu-dashboard/') || pathname.endsWith('/gpu-dashboard.html'));
+
+        // Timezone handling
+        const tzSelect = document.getElementById('timezone');
+        const savedTz = localStorage.getItem('gpu-dashboard-tz') || 'America/Chicago';
+        tzSelect.value = savedTz;
+
+        tzSelect.addEventListener('change', function() {
+            localStorage.setItem('gpu-dashboard-tz', this.value);
+            updateAllTimes(this.value);
+        });
+
+        // Format date for display
+        function formatDateForTz(dateStr, tz) {
+            try {
+                const date = new Date(dateStr + 'T12:00:00Z');
+                return date.toLocaleDateString('en-US', {
+                    timeZone: tz,
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Format full datetime for display
+        function formatDateTimeForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleString('en-US', {
+                    timeZone: tz,
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Format just time (HH:MM) for timeline
+        function formatTimeOnlyForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleTimeString('en-US', {
+                    timeZone: tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Get timezone abbreviation
+        function getTzAbbr(tz) {
+            try {
+                const date = new Date();
+                const parts = date.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'short' }).split(' ');
+                return parts[parts.length - 1];
+            } catch (e) {
+                return tz;
+            }
+        }
+
+        // Update all displayed times
+        function updateAllTimes(tz) {
+            // Update header timestamp (full datetime)
+            document.querySelectorAll('.local-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatDateTimeForTz(utc, tz);
+                }
+            });
+
+            // Update timeline hour markers (just HH:MM)
+            document.querySelectorAll('.tz-hour').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update timeline event times (just HH:MM)
+            document.querySelectorAll('.tz-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update date display
+            document.getElementById('display-date').textContent = formatDateForTz(dashboardDate, tz);
+            document.getElementById('display-date-label').textContent = getTzAbbr(tz);
+        }
+
+        // Date navigation
+        function getAdjacentDate(dateStr, days) {
+            const date = new Date(dateStr + 'T12:00:00Z');
+            date.setUTCDate(date.getUTCDate() + days);
+            return date.toISOString().split('T')[0];
+        }
+
+        const prevBtn = document.getElementById('prev-day');
+        const nextBtn = document.getElementById('next-day');
+        const prevDate = getAdjacentDate(dashboardDate, -1);
+        const nextDate = getAdjacentDate(dashboardDate, 1);
+
+        // Previous day - always enabled (archives may exist)
+        prevBtn.href = "/gpu-dashboard/" + prevDate + ".html";
+        prevBtn.title = 'Previous day: ' + prevDate;
+
+        // Next day - link to next date file, or index.html if next is today
+        if (dashboardDate >= todayUTC) {
+            // Viewing today or future - disable next
+            nextBtn.classList.add('disabled');
+            nextBtn.removeAttribute('href');
+            nextBtn.title = 'No future data';
+        } else if (nextDate === todayUTC) {
+            // Next day is today - link to live dashboard
+            nextBtn.href = "/gpu-dashboard/index.html";
+            nextBtn.title = 'Today (Live)';
+        } else {
+            // Next day is in the past - link to archive
+            nextBtn.href = "/gpu-dashboard/" + nextDate + ".html";
+            nextBtn.title = 'Next day: ' + nextDate;
+        }
+
+        // Show live indicator
+        const liveIndicator = document.getElementById('live-indicator');
+        if (isLive) {
+            liveIndicator.innerHTML = ' <span class="live-badge"><i class="fas fa-circle"></i> LIVE</span>';
+        } else {
+            liveIndicator.innerHTML = ' <span class="archive-badge"><i class="fas fa-archive"></i> Archive</span>';
+        }
+
+        // Initial time update
+        updateAllTimes(savedTz);
+
+        // "Now" indicator positioning
+        // The timeline shows 24 hours ending at dashboard generation time
+        // Position the "now" line based on current time vs generation time
+        function updateNowIndicator() {
+            const nowIndicator = document.getElementById('now-indicator');
+            const nowLabel = document.getElementById('now-label');
+            if (!nowIndicator) return;
+
+            // Get dashboard generation timestamp from meta tag
+            const generatedAt = document.querySelector('meta[name="dashboard-generated"]')?.content;
+            if (!generatedAt) {
+                nowIndicator.style.display = 'none';
+                if (nowLabel) nowLabel.style.display = 'none';
+                return;
+            }
+
+            const generatedTime = new Date(generatedAt).getTime();
+            const currentTime = Date.now();
+            const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+            // The timeline spans from (generatedTime - 24h) to generatedTime
+            // Calculate where "now" falls on that timeline
+            const timelineStart = generatedTime - twentyFourHoursMs;
+            const timelineEnd = generatedTime;
+
+            if (currentTime < timelineStart || currentTime > timelineEnd + (2 * 60 * 60 * 1000)) {
+                // Current time is outside the 24h window (plus 2hr grace period)
+                nowIndicator.style.display = 'none';
+                if (nowLabel) nowLabel.style.display = 'none';
+                return;
+            }
+
+            // Calculate position as percentage
+            let position;
+            if (currentTime > timelineEnd) {
+                // Past the generation time - clamp to right edge
+                position = 100;
+            } else {
+                position = ((currentTime - timelineStart) / twentyFourHoursMs) * 100;
+            }
+
+            // Position the vertical line
+            nowIndicator.style.display = 'block';
+            nowIndicator.style.left = position + '%';
+
+            // Position the label above the chart
+            if (nowLabel) {
+                const tz = tzSelect.value || 'America/Chicago';
+                const timeStr = new Date().toLocaleTimeString('en-US', {
+                    timeZone: tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+                nowLabel.textContent = timeStr;
+                nowLabel.style.display = 'block';
+                nowLabel.style.left = position + '%';
+
+                // Shift label left when near the right edge to prevent clipping
+                if (position > 92) {
+                    nowLabel.style.transform = 'translateX(-100%)';
+                } else if (position < 8) {
+                    nowLabel.style.transform = 'translateX(0)';
+                } else {
+                    nowLabel.style.transform = 'translateX(-50%)';
+                }
+            }
+        }
+
+        // Update now indicator immediately and every minute
+        updateNowIndicator();
+        setInterval(updateNowIndicator, 60000);
+
+        // Session row <-> Timeline hover interaction
+        const sessionRows = document.querySelectorAll('.session-row');
+        const ganttTracks = document.querySelectorAll('.gantt-track');
+
+        sessionRows.forEach(row => {
+            const sessionId = row.dataset.session;
+            const matchingTrack = document.querySelector(`.gantt-track[data-session="${sessionId}"]`);
+
+            row.addEventListener('mouseenter', () => {
+                // Highlight row
+                row.style.transform = 'translateX(4px)';
+                row.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+
+                // Highlight matching timeline track
+                if (matchingTrack) {
+                    matchingTrack.style.background = '#fef3c7';
+                    matchingTrack.style.transform = 'scaleY(1.3)';
+                    matchingTrack.style.zIndex = '10';
+                    const bar = matchingTrack.querySelector('.gantt-bar');
+                    if (bar) {
+                        bar.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+                    }
+                }
+
+                // Dim other tracks
+                ganttTracks.forEach(track => {
+                    if (track !== matchingTrack) {
+                        track.style.opacity = '0.4';
+                    }
+                });
+            });
+
+            row.addEventListener('mouseleave', () => {
+                // Reset row
+                row.style.transform = '';
+                row.style.boxShadow = '';
+
+                // Reset matching track
+                if (matchingTrack) {
+                    const provider = matchingTrack.classList.contains('runpod') ? 'runpod' : 'aws';
+                    matchingTrack.style.background = provider === 'runpod' ? '#faf5ff' : '#fffbeb';
+                    matchingTrack.style.transform = '';
+                    matchingTrack.style.zIndex = '';
+                    const bar = matchingTrack.querySelector('.gantt-bar');
+                    if (bar) {
+                        bar.style.boxShadow = '';
+                    }
+                }
+
+                // Reset all tracks opacity
+                ganttTracks.forEach(track => {
+                    track.style.opacity = '';
+                });
+            });
+        });
+
+        // Also enable hover on timeline tracks to highlight corresponding session row
+        ganttTracks.forEach(track => {
+            const sessionId = track.dataset.session;
+            const matchingRow = document.querySelector(`.session-row[data-session="${sessionId}"]`);
+
+            track.addEventListener('mouseenter', () => {
+                track.style.transform = 'scaleY(1.3)';
+                track.style.zIndex = '10';
+                const bar = track.querySelector('.gantt-bar');
+                if (bar) {
+                    bar.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+                }
+
+                if (matchingRow) {
+                    matchingRow.style.transform = 'translateX(4px)';
+                    matchingRow.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                }
+
+                // Dim other tracks
+                ganttTracks.forEach(t => {
+                    if (t !== track) t.style.opacity = '0.4';
+                });
+            });
+
+            track.addEventListener('mouseleave', () => {
+                track.style.transform = '';
+                track.style.zIndex = '';
+                const bar = track.querySelector('.gantt-bar');
+                if (bar) {
+                    bar.style.boxShadow = '';
+                }
+
+                if (matchingRow) {
+                    matchingRow.style.transform = '';
+                    matchingRow.style.boxShadow = '';
+                }
+
+                ganttTracks.forEach(t => {
+                    t.style.opacity = '';
+                });
+            });
+        });
+    })();
+    </script>
+</body>
+</html>

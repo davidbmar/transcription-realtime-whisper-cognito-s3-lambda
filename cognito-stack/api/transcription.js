@@ -129,7 +129,12 @@ module.exports.finalizeTranscription = async (event) => {
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { sessionId } = body;
+    const { sessionId, diarization } = body;
+
+    // Log diarization settings if provided
+    if (diarization) {
+      console.log(`Diarization settings for session ${sessionId}:`, JSON.stringify(diarization));
+    }
 
     if (!sessionId) {
       return {
@@ -253,6 +258,12 @@ module.exports.finalizeTranscription = async (event) => {
       metadata.transcriptionUpdatedAt = new Date().toISOString();
       metadata.hasTranscription = true;
       metadata.hasWordTimestamps = consolidatedData.metadata.hasWordTimestamps;
+
+      // Save diarization settings for batch transcription
+      if (diarization) {
+        metadata.diarization = diarization;
+        console.log(`Saved diarization settings to metadata: ${JSON.stringify(diarization)}`);
+      }
 
       await s3.putObject({
         Bucket: BUCKET_NAME,

@@ -6,14 +6,22 @@
     <title>Live Transcript Viewer - CloudDrive</title>
     <link rel="stylesheet" href="viewer-styles.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <!-- Shared Header Component -->
+    <div id="clouddrive-header"
+         data-page="Live Viewer"
+         data-icon="eye"
+         data-show-user="false">
+    </div>
+    <script src="lib/clouddrive-header.js"></script>
+
     <div class="viewer-container">
-        <!-- Header -->
+        <!-- Viewer Toolbar (session info + controls) -->
         <div class="viewer-header">
             <div class="header-left">
-                <h1><i class="fas fa-eye"></i> Live Transcript Viewer</h1>
                 <div class="session-info" id="session-info">
                     <span class="status-badge" id="status-badge">
                         <i class="fas fa-circle"></i> Connecting...
@@ -41,9 +49,6 @@
                 <button class="btn btn-primary" onclick="refreshNow()">
                     <i class="fas fa-sync"></i> Refresh
                 </button>
-                <a href="/" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Dashboard
-                </a>
             </div>
         </div>
 

@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudDrive - Profile</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-height: 400px;
+        }
+
+        .profile-content {
+            padding: 2rem;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            margin-bottom: 1.5rem;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        .back-button i {
+            font-size: 12px;
+        }
+
+        .profile-section {
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            background: linear-gradient(to bottom, #ffffff, #f8fafc);
+            margin-bottom: 1.5rem;
+        }
+
+        .profile-section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .profile-section-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .profile-section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .profile-field {
+            margin-bottom: 1.25rem;
+        }
+
+        .profile-field:last-child {
+            margin-bottom: 0;
+        }
+
+        .profile-field-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .profile-field-value {
+            display: flex;
+            align-items: center;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            color: #374151;
+        }
+
+        .profile-field-value .value-text {
+            flex: 1;
+            word-break: break-all;
+        }
+
+        .profile-field-value .value-text.not-set {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .profile-field-icon {
+            color: #9ca3af;
+            margin-left: 0.75rem;
+            font-size: 0.9rem;
+        }
+
+        .copy-btn {
+            background: none;
+            border: none;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            color: #667eea;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+        }
+
+        .copy-btn:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .copy-btn.copied {
+            color: #10b981;
+        }
+
+        .copy-hint {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-align: right;
+            margin-top: 0.25rem;
+        }
+
+        .security-note {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .security-note i {
+            color: #d97706;
+            font-size: 1.1rem;
+            margin-top: 0.1rem;
+        }
+
+        .security-note-text {
+            font-size: 0.9rem;
+            color: #92400e;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+                margin: 1rem auto;
+            }
+
+            .main-content {
+                border-radius: 15px;
+            }
+
+            .profile-content {
+                padding: 1.5rem;
+            }
+
+            .profile-section {
+                padding: 1.25rem;
+            }
+
+            .profile-section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .profile-field-value {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Loading state */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: #9ca3af;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Not logged in state */
+        .not-logged-in {
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        .not-logged-in i {
+            font-size: 3rem;
+            color: #d1d5db;
+            margin-bottom: 1rem;
+        }
+
+        .not-logged-in h2 {
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .not-logged-in p {
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .change-email-btn {
+            margin-left: 0.5rem;
+        }
+
+        /* Status messages */
+        .status-message {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #d1fae5;
+            border: 1px solid #6ee7b7;
+            color: #065f46;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            display: block;
+        }
+
+        .status-message.info {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #1e40af;
+            display: block;
+        }
+
+        /* Password input styling */
+        .password-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .password-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .password-input::placeholder {
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <!-- Shared Header Component -->
+    <div id="clouddrive-header"
+         data-page="Profile"
+         data-icon="user"
+         data-show-user="true">
+    </div>
+    <script src="lib/clouddrive-header.js"></script>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="profile-content" id="profile-content">
+                <!-- Loading state initially -->
+                <div class="loading" id="loading-state">
+                    <i class="fas fa-spinner"></i>
+                </div>
+
+                <!-- Not logged in state (hidden by default) -->
+                <div class="not-logged-in" id="not-logged-in" style="display: none;">
+                    <i class="fas fa-user-lock"></i>
+                    <h2>Not Signed In</h2>
+                    <p>Please sign in to view your profile.</p>
+                    <a href="index.html" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Go to Sign In
+                    </a>
+                </div>
+
+                <!-- Profile info (hidden by default) -->
+                <div id="profile-info" style="display: none;">
+                    <!-- Back button -->
+                    <a href="#" class="back-button" id="back-btn">
+                        <i class="fas fa-arrow-left"></i>
+                        Back
+                    </a>
+
+                    <!-- Account Information Section -->
+                    <div class="profile-section">
+                        <div class="profile-section-header">
+                            <div class="profile-section-icon">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <h2 class="profile-section-title">Account Information</h2>
+                        </div>
+
+                        <div class="profile-field">
+                            <label class="profile-field-label">Email</label>
+                            <div class="profile-field-value">
+                                <span class="value-text" id="user-email">-</span>
+                                <button class="btn btn-secondary btn-sm change-email-btn" id="change-email-btn">
+                                    <i class="fas fa-edit"></i> Change
+                                </button>
+                            </div>
+                            <div id="email-status" class="status-message"></div>
+                        </div>
+
+                        <div class="profile-field">
+                            <label class="profile-field-label">Display Name</label>
+                            <div class="profile-field-value">
+                                <span class="value-text not-set" id="user-display-name">(Not set)</span>
+                                <i class="fas fa-lock profile-field-icon" title="Read-only"></i>
+                            </div>
+                        </div>
+
+                        <div class="profile-field">
+                            <label class="profile-field-label">User ID</label>
+                            <div class="profile-field-value">
+                                <span class="value-text" id="user-id" style="font-family: monospace; font-size: 0.9rem;">-</span>
+                                <button class="copy-btn" id="copy-user-id" title="Copy to clipboard">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="copy-hint">Click copy icon to copy User ID</div>
+                        </div>
+                    </div>
+
+                    <!-- Security Section -->
+                    <div class="profile-section">
+                        <div class="profile-section-header">
+                            <div class="profile-section-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h2 class="profile-section-title">Security</h2>
+                        </div>
+
+                        <div class="profile-field">
+                            <label class="profile-field-label">Password</label>
+                            <div class="profile-field-value">
+                                <span class="value-text" style="letter-spacing: 3px;">••••••••</span>
+                                <button class="btn btn-secondary btn-sm change-email-btn" id="change-password-btn">
+                                    <i class="fas fa-key"></i> Change
+                                </button>
+                            </div>
+                            <div id="password-status" class="status-message"></div>
+                        </div>
+
+                        <!-- Change Password Form (hidden by default) -->
+                        <div id="password-form" style="display: none; margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                            <div class="profile-field" style="margin-bottom: 1rem;">
+                                <label class="profile-field-label">Current Password</label>
+                                <input type="password" id="current-password" class="password-input" placeholder="Enter current password">
+                            </div>
+                            <div class="profile-field" style="margin-bottom: 1rem;">
+                                <label class="profile-field-label">New Password</label>
+                                <input type="password" id="new-password" class="password-input" placeholder="Enter new password">
+                            </div>
+                            <div class="profile-field" style="margin-bottom: 1rem;">
+                                <label class="profile-field-label">Confirm New Password</label>
+                                <input type="password" id="confirm-password" class="password-input" placeholder="Confirm new password">
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-primary btn-sm" id="submit-password-btn">
+                                    <i class="fas fa-check"></i> Update Password
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="cancel-password-btn">
+                                    Cancel
+                                </button>
+                            </div>
+                            <div class="security-note" style="margin-top: 1rem;">
+                                <i class="fas fa-info-circle"></i>
+                                <div class="security-note-text">
+                                    Password must be at least 8 characters with uppercase, lowercase, and numbers.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cognito SDK for email change -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js/dist/amazon-cognito-identity.min.js"></script>
+
+    <script>
+        // Cognito configuration - will be replaced by deployment script
+        const cognitoConfig = {
+            UserPoolId: 'us-east-2_6sN45GbIh',
+            ClientId: '7sjtp1gd6buhs3a7b362pvod3a'
+        };
+
+        // Profile page logic
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeProfile();
+        });
+
+        function initializeProfile() {
+            const userInfo = getUserInfo();
+
+            const loadingState = document.getElementById('loading-state');
+            const notLoggedIn = document.getElementById('not-logged-in');
+            const profileInfo = document.getElementById('profile-info');
+
+            // Hide loading
+            loadingState.style.display = 'none';
+
+            if (!userInfo || !userInfo.sub) {
+                // Not logged in
+                notLoggedIn.style.display = 'block';
+                return;
+            }
+
+            // Show profile
+            profileInfo.style.display = 'block';
+
+            // Populate fields
+            document.getElementById('user-email').textContent = userInfo.email || '-';
+            document.getElementById('user-id').textContent = userInfo.sub || '-';
+
+            // Display name (from 'name' claim or custom attribute)
+            const displayName = userInfo.name || userInfo['custom:display_name'] || userInfo['cognito:username'];
+            if (displayName && displayName !== userInfo.email && !displayName.includes('@')) {
+                document.getElementById('user-display-name').textContent = displayName;
+                document.getElementById('user-display-name').classList.remove('not-set');
+            }
+
+            // Setup copy button
+            document.getElementById('copy-user-id').addEventListener('click', function() {
+                const userId = document.getElementById('user-id').textContent;
+                copyToClipboard(userId, this);
+            });
+
+            // Setup change email button
+            document.getElementById('change-email-btn').addEventListener('click', handleChangeEmail);
+
+            // Setup change password button
+            document.getElementById('change-password-btn').addEventListener('click', togglePasswordForm);
+            document.getElementById('submit-password-btn').addEventListener('click', handleChangePassword);
+            document.getElementById('cancel-password-btn').addEventListener('click', hidePasswordForm);
+
+            // Setup back button
+            setupBackButton();
+        }
+
+        function getUserInfo() {
+            try {
+                const keys = Object.keys(localStorage);
+
+                // Try to get user info from Cognito idToken JWT
+                for (const key of keys) {
+                    if (key.includes('CognitoIdentityServiceProvider') && key.includes('.idToken')) {
+                        const idToken = localStorage.getItem(key);
+                        if (idToken) {
+                            try {
+                                const payload = JSON.parse(atob(idToken.split('.')[1]));
+                                return payload;
+                            } catch (e) {}
+                        }
+                    }
+                }
+
+                // Try legacy id_token key
+                const legacyToken = localStorage.getItem('id_token');
+                if (legacyToken) {
+                    try {
+                        const payload = JSON.parse(atob(legacyToken.split('.')[1]));
+                        return payload;
+                    } catch (e) {}
+                }
+
+                return null;
+            } catch (e) {
+                console.error('[Profile] Error getting user info:', e);
+                return null;
+            }
+        }
+
+        function getCognitoUser() {
+            const userPool = new AmazonCognitoIdentity.CognitoUserPool(cognitoConfig);
+            return userPool.getCurrentUser();
+        }
+
+        function showEmailStatus(message, type) {
+            const statusEl = document.getElementById('email-status');
+            statusEl.textContent = message;
+            statusEl.className = 'status-message ' + type;
+        }
+
+        function hideEmailStatus() {
+            const statusEl = document.getElementById('email-status');
+            statusEl.className = 'status-message';
+            statusEl.textContent = '';
+        }
+
+        async function handleChangeEmail() {
+            const btn = document.getElementById('change-email-btn');
+            const currentEmail = document.getElementById('user-email').textContent;
+
+            // Step 1: Ask for new email
+            const newEmail = prompt('Enter your new email address:', '');
+
+            if (!newEmail) {
+                return; // User cancelled
+            }
+
+            // Basic email validation
+            if (!newEmail.includes('@') || !newEmail.includes('.')) {
+                showEmailStatus('Please enter a valid email address.', 'error');
+                return;
+            }
+
+            if (newEmail === currentEmail) {
+                showEmailStatus('New email is the same as current email.', 'error');
+                return;
+            }
+
+            // Disable button during process
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            hideEmailStatus();
+
+            try {
+                const cognitoUser = getCognitoUser();
+
+                if (!cognitoUser) {
+                    throw new Error('No authenticated user found. Please sign in again.');
+                }
+
+                // Get session to ensure we're authenticated
+                await new Promise((resolve, reject) => {
+                    cognitoUser.getSession((err, session) => {
+                        if (err) reject(err);
+                        else resolve(session);
+                    });
+                });
+
+                // Update email attribute
+                const attributeList = [
+                    new AmazonCognitoIdentity.CognitoUserAttribute({
+                        Name: 'email',
+                        Value: newEmail
+                    })
+                ];
+
+                await new Promise((resolve, reject) => {
+                    cognitoUser.updateAttributes(attributeList, (err, result) => {
+                        if (err) reject(err);
+                        else resolve(result);
+                    });
+                });
+
+                showEmailStatus('Verification code sent to ' + newEmail + '. Please check your inbox.', 'info');
+
+                // Step 2: Ask for verification code
+                const verificationCode = prompt('Enter the verification code sent to ' + newEmail + ':');
+
+                if (!verificationCode) {
+                    showEmailStatus('Email change cancelled. Your email was not changed.', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-edit"></i> Change';
+                    return;
+                }
+
+                // Verify the email with the code
+                await new Promise((resolve, reject) => {
+                    cognitoUser.verifyAttribute('email', verificationCode, {
+                        onSuccess: resolve,
+                        onFailure: reject
+                    });
+                });
+
+                // Success! Update the display
+                document.getElementById('user-email').textContent = newEmail;
+                showEmailStatus('Email successfully changed to ' + newEmail + '!', 'success');
+
+                // Update header if it exists
+                if (window.cloudDriveHeader) {
+                    window.cloudDriveHeader.render();
+                    window.cloudDriveHeader.setupEventListeners();
+                }
+
+            } catch (error) {
+                console.error('Email change error:', error);
+                let errorMessage = 'Failed to change email. ';
+
+                if (error.code === 'CodeMismatchException') {
+                    errorMessage = 'Invalid verification code. Please try again.';
+                } else if (error.code === 'LimitExceededException') {
+                    errorMessage = 'Too many attempts. Please try again later.';
+                } else if (error.code === 'AliasExistsException') {
+                    errorMessage = 'This email is already associated with another account.';
+                } else if (error.message) {
+                    errorMessage += error.message;
+                }
+
+                showEmailStatus(errorMessage, 'error');
+            }
+
+            // Re-enable button
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-edit"></i> Change';
+        }
+
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show success state
+                const icon = button.querySelector('i');
+                icon.className = 'fas fa-check';
+                button.classList.add('copied');
+
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    icon.className = 'fas fa-copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+
+        function setupBackButton() {
+            const backBtn = document.getElementById('back-btn');
+
+            // Get referrer from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const refUrl = urlParams.get('ref');
+
+            if (refUrl) {
+                // Use the ref URL if provided
+                backBtn.href = refUrl;
+
+                // Extract page name from URL for button text
+                try {
+                    const url = new URL(refUrl);
+                    const pageName = url.pathname.split('/').pop().replace('.html', '') || 'Dashboard';
+                    const formattedName = pageName.charAt(0).toUpperCase() + pageName.slice(1);
+                    backBtn.innerHTML = `<i class="fas fa-arrow-left"></i> Back to ${formattedName}`;
+                } catch (e) {
+                    // Keep default text
+                }
+            } else if (document.referrer && document.referrer.includes(window.location.hostname)) {
+                // Use browser referrer if it's from the same domain
+                backBtn.href = document.referrer;
+            } else {
+                // Default to dashboard
+                backBtn.href = 'index.html';
+                backBtn.innerHTML = '<i class="fas fa-arrow-left"></i> Back to Dashboard';
+            }
+        }
+
+        // ============== Password Change Functions ==============
+
+        function togglePasswordForm() {
+            const form = document.getElementById('password-form');
+            const btn = document.getElementById('change-password-btn');
+
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+                document.getElementById('current-password').focus();
+            } else {
+                hidePasswordForm();
+            }
+        }
+
+        function hidePasswordForm() {
+            const form = document.getElementById('password-form');
+            const btn = document.getElementById('change-password-btn');
+
+            form.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-key"></i> Change';
+
+            // Clear inputs
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('confirm-password').value = '';
+            hidePasswordStatus();
+        }
+
+        function showPasswordStatus(message, type) {
+            const statusEl = document.getElementById('password-status');
+            statusEl.textContent = message;
+            statusEl.className = 'status-message ' + type;
+        }
+
+        function hidePasswordStatus() {
+            const statusEl = document.getElementById('password-status');
+            statusEl.className = 'status-message';
+            statusEl.textContent = '';
+        }
+
+        async function handleChangePassword() {
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const submitBtn = document.getElementById('submit-password-btn');
+
+            // Validation
+            if (!currentPassword) {
+                showPasswordStatus('Please enter your current password.', 'error');
+                return;
+            }
+
+            if (!newPassword) {
+                showPasswordStatus('Please enter a new password.', 'error');
+                return;
+            }
+
+            if (newPassword.length < 8) {
+                showPasswordStatus('New password must be at least 8 characters.', 'error');
+                return;
+            }
+
+            // Check for uppercase, lowercase, and number
+            if (!/[A-Z]/.test(newPassword)) {
+                showPasswordStatus('New password must contain at least one uppercase letter.', 'error');
+                return;
+            }
+            if (!/[a-z]/.test(newPassword)) {
+                showPasswordStatus('New password must contain at least one lowercase letter.', 'error');
+                return;
+            }
+            if (!/[0-9]/.test(newPassword)) {
+                showPasswordStatus('New password must contain at least one number.', 'error');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showPasswordStatus('New passwords do not match.', 'error');
+                return;
+            }
+
+            if (currentPassword === newPassword) {
+                showPasswordStatus('New password must be different from current password.', 'error');
+                return;
+            }
+
+            // Disable button during process
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            hidePasswordStatus();
+
+            try {
+                // Get user info to get the username
+                const userInfo = getUserInfo();
+                if (!userInfo || !userInfo.email) {
+                    throw new Error('Could not determine user email. Please sign in again.');
+                }
+
+                console.log('[ChangePassword] User email:', userInfo.email);
+
+                // Create user pool and user objects
+                const userPool = new AmazonCognitoIdentity.CognitoUserPool(cognitoConfig);
+                const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+                    Username: userInfo.email,
+                    Pool: userPool
+                });
+
+                // First, authenticate the user with their current password
+                const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+                    Username: userInfo.email,
+                    Password: currentPassword
+                });
+
+                console.log('[ChangePassword] Authenticating user...');
+
+                // Authenticate first
+                await new Promise((resolve, reject) => {
+                    cognitoUser.authenticateUser(authDetails, {
+                        onSuccess: (session) => {
+                            console.log('[ChangePassword] Authentication successful');
+                            resolve(session);
+                        },
+                        onFailure: (err) => {
+                            console.error('[ChangePassword] Authentication failed:', err);
+                            reject(err);
+                        }
+                    });
+                });
+
+                console.log('[ChangePassword] Changing password...');
+
+                // Now change the password
+                await new Promise((resolve, reject) => {
+                    cognitoUser.changePassword(currentPassword, newPassword, (err, result) => {
+                        if (err) {
+                            console.error('[ChangePassword] Change failed:', err);
+                            reject(err);
+                        } else {
+                            console.log('[ChangePassword] Password changed successfully');
+                            resolve(result);
+                        }
+                    });
+                });
+
+                // Success!
+                showPasswordStatus('Password changed successfully!', 'success');
+
+                // Hide form after brief delay
+                setTimeout(() => {
+                    hidePasswordForm();
+                }, 2000);
+
+            } catch (error) {
+                console.error('Password change error:', error);
+                let errorMessage = 'Failed to change password. ';
+
+                if (error.code === 'NotAuthorizedException') {
+                    errorMessage = 'Current password is incorrect.';
+                } else if (error.code === 'UserNotFoundException') {
+                    errorMessage = 'User not found. Please sign in again.';
+                } else if (error.code === 'InvalidPasswordException') {
+                    errorMessage = 'New password does not meet requirements. ' + (error.message || '');
+                } else if (error.code === 'LimitExceededException') {
+                    errorMessage = 'Too many attempts. Please try again later.';
+                } else if (error.message) {
+                    errorMessage += error.message;
+                }
+
+                showPasswordStatus(errorMessage, 'error');
+            }
+
+            // Re-enable button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> Update Password';
+        }
+    </script>
+</body>
+</html>

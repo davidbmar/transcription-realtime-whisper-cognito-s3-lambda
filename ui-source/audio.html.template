@@ -75,84 +75,6 @@
       opacity:.8;
     }
 
-    /* Header panel */
-    .header {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-      padding: 12px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-    }
-
-    .breadcrumb-nav {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-    }
-
-    .breadcrumb-link {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #2563eb;
-      text-decoration: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-
-    .breadcrumb-link:hover {
-      background: #eff6ff;
-    }
-
-    .breadcrumb-link i {
-      font-size: 16px;
-    }
-
-    .breadcrumb-separator {
-      color: #9ca3af;
-      font-size: 12px;
-    }
-
-    .breadcrumb-current {
-      color: #374151;
-      font-weight: 600;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .header-email {
-      color: #374151;
-      font-size: 14px;
-    }
-
-    .header-btn {
-      padding: 8px 16px;
-      border-radius: 6px;
-      border: 1px solid #d1d5db;
-      background: white;
-      color: #374151;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
-    }
-
-    .header-btn:hover {
-      background: #f3f4f6;
-    }
-
     /* Context ribbon - moved down since we have header now */
     .ribbon{
       position:fixed; top:60px; left:50%; transform:translateX(-50%);
@@ -427,23 +349,16 @@
     .spacer{ flex:1 }
     .hidden{ display:none !important }
   </style>
+  <link rel="stylesheet" href="lib/clouddrive-header.css">
 </head>
 <body>
-  <!-- Header Panel -->
-  <div class="header">
-    <div class="breadcrumb-nav">
-      <a href="index.html" class="breadcrumb-link">
-        <i class="fas fa-home"></i>
-        Dashboard
-      </a>
-      <span class="breadcrumb-separator">›</span>
-      <span class="breadcrumb-current">Live Record</span>
-    </div>
-    <div class="header-actions">
-      <span id="user-email" class="header-email"></span>
-      <button class="header-btn" id="header-logout-btn">Logout</button>
-    </div>
+  <!-- Shared Header Component -->
+  <div id="clouddrive-header"
+       data-page="Live Record"
+       data-icon="microphone"
+       data-show-user="true">
   </div>
+  <script src="lib/clouddrive-header.js"></script>
 
   <div class="app-shell">
 
@@ -510,6 +425,35 @@
           Storage: Loading...
         </div>
       </div>
+
+      <!-- Session Settings Box - applies to this recording -->
+      <fieldset id="session-settings" style="margin-top:12px;padding:10px 14px;border:1px solid var(--stroke);border-radius:8px;background:rgba(255,255,255,0.02);">
+        <legend style="color:var(--muted);font-size:11px;padding:0 6px;">This Recording</legend>
+        <div class="row" style="flex-wrap:wrap;gap:12px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;">
+            <input id="enable-diarization" type="checkbox" checked
+                   style="accent-color:var(--accent);width:14px;height:14px;" />
+            Speaker diarization
+          </label>
+          <div style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">
+            <span>Speakers:</span>
+            <input id="min-speakers" type="number" value="" min="1" max="20" placeholder="auto"
+                   style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                          border-radius:6px;padding:4px 6px;color:var(--text);width:50px;font-size:12px;text-align:center;" />
+            <span>to</span>
+            <input id="max-speakers" type="number" value="" min="1" max="20" placeholder="auto"
+                   style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
+                          border-radius:6px;padding:4px 6px;color:var(--text);width:50px;font-size:12px;text-align:center;" />
+            <span title="Leave empty for auto-detect. Set range if you know how many speakers to expect (improves accuracy)."
+                  style="cursor:help;opacity:0.6;">ⓘ</span>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;">
+            <input id="enable-speaker-id" type="checkbox" checked
+                   style="accent-color:var(--accent);width:14px;height:14px;" />
+            AI speaker identification
+          </label>
+        </div>
+      </fieldset>
     </div>
 
     <!-- Recorder card with live waveform AND transcription -->
@@ -1191,6 +1135,269 @@
         logEl.scrollTop = logEl.scrollHeight;
         console.log('[app]', line);
       }
+
+      // v6.11.0: Recording Error and Warning Display System
+      // ============================================================
+      var activeErrorBanner = null;
+      var activeWarningBanner = null;
+      var recordingHealthCheckInterval = null;
+      var lastChunkTimestamp = null;
+      var recordingStoppedByError = false;
+
+      /**
+       * Show a fatal recording error - stops recording immediately
+       * @param {string} message - Error message to display
+       * @param {string} [details] - Optional technical details
+       */
+      function showRecordingError(message, details) {
+        log('[FATAL ERROR] ' + message + (details ? ' - ' + details : ''));
+
+        // Stop recording if still running
+        if (typeof running !== 'undefined' && running) {
+          recordingStoppedByError = true;
+          stop();
+        }
+
+        // Remove any existing error banner
+        if (activeErrorBanner) {
+          activeErrorBanner.remove();
+        }
+
+        // Create error banner
+        activeErrorBanner = document.createElement('div');
+        activeErrorBanner.className = 'recording-error-banner';
+        activeErrorBanner.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+          color: white;
+          padding: 16px 20px;
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+          font-family: system-ui, -apple-system, sans-serif;
+        `;
+
+        const contentDiv = document.createElement('div');
+        contentDiv.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">⛔</span>
+            <div>
+              <div style="font-weight: 600; font-size: 16px;">Recording Stopped</div>
+              <div style="font-size: 14px; opacity: 0.9; margin-top: 2px;">${message}</div>
+              ${details ? `<div style="font-size: 12px; opacity: 0.7; margin-top: 4px; font-family: monospace;">${details}</div>` : ''}
+            </div>
+          </div>
+        `;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = `
+          background: rgba(255,255,255,0.2);
+          border: none;
+          color: white;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
+        closeBtn.onclick = () => {
+          activeErrorBanner.remove();
+          activeErrorBanner = null;
+        };
+
+        activeErrorBanner.appendChild(contentDiv);
+        activeErrorBanner.appendChild(closeBtn);
+        document.body.appendChild(activeErrorBanner);
+
+        // Vibrate if supported (mobile)
+        if (navigator.vibrate) {
+          navigator.vibrate([200, 100, 200]);
+        }
+      }
+
+      /**
+       * Show a warning banner - recording continues but user is alerted
+       * @param {string} message - Warning message to display
+       * @param {boolean} [persistent=false] - Keep banner visible until dismissed
+       */
+      function showRecordingWarning(message, persistent) {
+        log('[WARNING] ' + message);
+
+        // Remove any existing warning banner
+        if (activeWarningBanner) {
+          activeWarningBanner.remove();
+        }
+
+        // Create warning banner
+        activeWarningBanner = document.createElement('div');
+        activeWarningBanner.className = 'recording-warning-banner';
+        activeWarningBanner.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          color: white;
+          padding: 12px 20px;
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+          font-family: system-ui, -apple-system, sans-serif;
+        `;
+
+        const contentDiv = document.createElement('div');
+        contentDiv.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 20px;">⚠️</span>
+            <div style="font-size: 14px; font-weight: 500;">${message}</div>
+          </div>
+        `;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = `
+          background: rgba(255,255,255,0.2);
+          border: none;
+          color: white;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 14px;
+        `;
+        closeBtn.onclick = () => {
+          activeWarningBanner.remove();
+          activeWarningBanner = null;
+        };
+
+        activeWarningBanner.appendChild(contentDiv);
+        activeWarningBanner.appendChild(closeBtn);
+        document.body.appendChild(activeWarningBanner);
+
+        // Auto-dismiss non-persistent warnings after 10 seconds
+        if (!persistent) {
+          setTimeout(() => {
+            if (activeWarningBanner) {
+              activeWarningBanner.remove();
+              activeWarningBanner = null;
+            }
+          }, 10000);
+        }
+      }
+
+      /**
+       * Clear all error/warning banners
+       */
+      function clearRecordingBanners() {
+        if (activeErrorBanner) {
+          activeErrorBanner.remove();
+          activeErrorBanner = null;
+        }
+        if (activeWarningBanner) {
+          activeWarningBanner.remove();
+          activeWarningBanner = null;
+        }
+      }
+
+      /**
+       * Start recording health check - monitors for stalled recording
+       */
+      function startRecordingHealthCheck() {
+        if (recordingHealthCheckInterval) {
+          clearInterval(recordingHealthCheckInterval);
+        }
+
+        lastChunkTimestamp = Date.now();
+        log('[HealthCheck] Starting recording health monitor (30s interval)');
+
+        recordingHealthCheckInterval = setInterval(() => {
+          if (!running) {
+            stopRecordingHealthCheck();
+            return;
+          }
+
+          // Check if MediaStream is still alive
+          if (mediaStream) {
+            const tracks = mediaStream.getTracks();
+            const allEnded = tracks.every(t => t.readyState === 'ended');
+            if (allEnded) {
+              log('[HealthCheck] CRITICAL: All media stream tracks have ended');
+              showRecordingError('Microphone disconnected', 'All audio tracks ended unexpectedly');
+              return;
+            }
+          }
+
+          // Check if AudioContext is suspended (live transcription dead)
+          if (whisperAudioContext && whisperAudioContext.state === 'suspended') {
+            log('[HealthCheck] AudioContext suspended, attempting resume...');
+            whisperAudioContext.resume().catch(err => {
+              log('[HealthCheck] Failed to resume AudioContext:', err.message);
+            });
+          }
+
+          // Check for stalled chunks (no chunk in 2x the expected interval)
+          const timeSinceLastChunk = Date.now() - lastChunkTimestamp;
+          const expectedInterval = SLICE_MS || 5000;
+          if (timeSinceLastChunk > expectedInterval * 2.5) {
+            log('[HealthCheck] WARNING: No chunks received for ' + Math.round(timeSinceLastChunk / 1000) + 's');
+            showRecordingWarning('Recording may be stalled - no audio chunks received', true);
+          }
+
+          // Check IndexedDB quota (warn at 80%)
+          checkStorageQuota();
+
+        }, 30000); // Check every 30 seconds
+      }
+
+      /**
+       * Stop recording health check
+       */
+      function stopRecordingHealthCheck() {
+        if (recordingHealthCheckInterval) {
+          clearInterval(recordingHealthCheckInterval);
+          recordingHealthCheckInterval = null;
+          log('[HealthCheck] Stopped recording health monitor');
+        }
+      }
+
+      /**
+       * Check IndexedDB storage quota and warn if running low
+       */
+      async function checkStorageQuota() {
+        if (!navigator.storage || !navigator.storage.estimate) return;
+
+        try {
+          const estimate = await navigator.storage.estimate();
+          const usedBytes = estimate.usage || 0;
+          const quotaBytes = estimate.quota || 0;
+
+          if (quotaBytes > 0) {
+            const usedPercent = (usedBytes / quotaBytes) * 100;
+            const usedMB = Math.round(usedBytes / (1024 * 1024));
+            const quotaMB = Math.round(quotaBytes / (1024 * 1024));
+
+            if (usedPercent > 95) {
+              showRecordingError('Storage full', `Using ${usedMB}MB of ${quotaMB}MB (${usedPercent.toFixed(1)}%). Cannot save more recordings.`);
+            } else if (usedPercent > 80) {
+              log(`[Storage] WARNING: Using ${usedPercent.toFixed(1)}% of storage (${usedMB}MB / ${quotaMB}MB)`);
+              showRecordingWarning(`Storage running low: ${usedPercent.toFixed(0)}% used`, true);
+            }
+          }
+        } catch (err) {
+          log('[Storage] Error checking quota:', err.message);
+        }
+      }
       function pad3(n){ n=String(n); while(n.length<3) n='0'+n; return n; }
       function fmt(t){
         t = Math.max(0, t|0);
@@ -1759,6 +1966,11 @@
           }
 
           const apiUrl = window.config?.s3ApiUrl || window.config?.apiUrl;
+
+          // Include diarization settings from session
+          const diarizationSettings = currentSession.settings?.diarization || {};
+          console.log('📤 [S3-TRANSCRIPTION] Diarization settings:', diarizationSettings);
+
           const response = await fetch(`${apiUrl}/api/transcription/finalize`, {
             method: 'POST',
             headers: {
@@ -1766,7 +1978,9 @@
               'Authorization': `Bearer ${idToken}`
             },
             body: JSON.stringify({
-              sessionId: currentSession.id
+              sessionId: currentSession.id,
+              // Pass diarization settings for batch transcription
+              diarization: diarizationSettings
             })
           });
 
@@ -2117,7 +2331,14 @@
         };
 
         rec.onerror = function(err) {
-          log(`[Recorder] ERROR: ${err.error ? err.error.name : 'Unknown'} - ${err.error ? err.error.message : 'No details'}`);
+          const errorName = err.error ? err.error.name : 'Unknown';
+          const errorMsg = err.error ? err.error.message : 'No details';
+          log(`[Recorder] ERROR: ${errorName} - ${errorMsg}`);
+
+          // v6.11.0: Stop recording on MediaRecorder error to prevent silent failures
+          if (running) {
+            showRecordingError('Microphone recording failed', `${errorName}: ${errorMsg}`);
+          }
         };
 
         activeRecorders.push(rec);
@@ -2331,6 +2552,21 @@
             whisperAudioContext = new (window.AudioContext || window.webkitAudioContext)({
               sampleRate: 16000
             });
+
+            // v6.11.0: Monitor AudioContext state to detect suspension (backgrounding)
+            whisperAudioContext.addEventListener('statechange', () => {
+              log(`[AudioContext] State changed to: ${whisperAudioContext.state}`);
+              if (whisperAudioContext.state === 'suspended' && running) {
+                log('[AudioContext] Context suspended - attempting resume...');
+                whisperAudioContext.resume().then(() => {
+                  log('[AudioContext] Successfully resumed');
+                }).catch(err => {
+                  log('[AudioContext] Failed to resume:', err.message);
+                  showRecordingWarning('Audio processing paused - bring app to foreground', true);
+                });
+              }
+            });
+
             whisperSource = whisperAudioContext.createMediaStreamSource(stream);
             whisperProcessor = whisperAudioContext.createScriptProcessor(4096, 1, 1);
 
@@ -2414,6 +2650,11 @@
 
           ws.onclose = (event) => {
             log('WhisperLive WebSocket closed:', event.code);
+            // v6.11.0: Warn user if WebSocket closes during active recording
+            // Recording continues (chunks still saved locally) but live transcription stops
+            if (running && event.code !== 1000) { // 1000 = normal close
+              showRecordingWarning('Live transcription disconnected - recording continues offline', true);
+            }
           };
 
         } catch (error) {
@@ -3087,16 +3328,46 @@
 
         try {
           if (window.audioStorage) {
+            // Get session settings from UI
+            const enableDiarization = document.getElementById('enable-diarization')?.checked ?? true;
+            const minSpeakersVal = document.getElementById('min-speakers')?.value;
+            const maxSpeakersVal = document.getElementById('max-speakers')?.value;
+            const enableSpeakerId = document.getElementById('enable-speaker-id')?.checked ?? true;
+
             currentSession = await window.audioStorage.createSession({
               chunkDuration: SLICE_MS,
-              mimeType: chooseMime()
+              mimeType: chooseMime(),
+              // Speaker diarization settings for this session
+              diarization: {
+                enabled: enableDiarization,
+                minSpeakers: minSpeakersVal ? parseInt(minSpeakersVal) : null,
+                maxSpeakers: maxSpeakersVal ? parseInt(maxSpeakersVal) : null,
+                speakerIdentification: enableSpeakerId
+              }
             });
             log('Created session:', currentSession.id);
+            if (enableDiarization) {
+              const speakerRange = (minSpeakersVal || maxSpeakersVal)
+                ? `${minSpeakersVal || '?'}-${maxSpeakersVal || '?'}`
+                : 'auto';
+              log(`  Diarization: enabled (speakers: ${speakerRange})`);
+            }
           }
 
           const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
 
           mediaStream = stream;
+
+          // v6.11.0: Add track ended listener to detect mic disconnection (phone call, Bluetooth switch, etc.)
+          mediaStream.getTracks().forEach(track => {
+            track.addEventListener('ended', () => {
+              if (running) {
+                log('[Stream] CRITICAL: Audio track ended unexpectedly');
+                showRecordingError('Microphone disconnected', 'The audio input was interrupted (phone call, Bluetooth switch, or permission revoked)');
+              }
+            });
+            log(`[Stream] Monitoring track: ${track.kind} (${track.label})`);
+          });
 
           // v6.7.0: Request wake lock to prevent device sleep during recording
           // This prevents corrupted audio chunks caused by browser backgrounding
@@ -3114,8 +3385,17 @@
                   navigator.wakeLock.request('screen').then(newLock => {
                     wakeLock = newLock;
                     log("[WakeLock] Successfully re-acquired wake lock");
+                    // Also add release listener to new lock
+                    newLock.addEventListener('release', () => {
+                      if (running) {
+                        log("[WakeLock] Wake lock released again - stopping recording");
+                        showRecordingError('Device went to sleep', 'Wake lock could not be maintained. Keep screen on while recording.');
+                      }
+                    });
                   }).catch(err => {
                     log(`[WakeLock] Failed to re-acquire wake lock: ${err.message}`);
+                    // v6.11.0: Stop recording if we can't keep the device awake
+                    showRecordingError('Device went to sleep', 'Could not keep screen awake: ' + err.message);
                   });
                 }
               });
@@ -3150,6 +3430,11 @@
           setupLiveWaveform(stream);
           connectWhisperLive(stream);
 
+          // v6.11.0: Start recording health check and clear any previous error banners
+          clearRecordingBanners();
+          recordingStoppedByError = false;
+          startRecordingHealthCheck();
+
           var OVERLAP_MS = Math.max(0, Number(overlapInput.value) || 500);
 
           var loop = function(){
@@ -3163,6 +3448,8 @@
 
             recordOverlappingChunk(mediaStream, SLICE_MS, OVERLAP_MS, preferredMime, function(blob, actualDuration){
               log('Got chunk', idx, (blob.type||'audio/*'), (blob.size||0) + 'B');
+              // v6.11.0: Update health check timestamp
+              lastChunkTimestamp = Date.now();
               renderChunk(blob, idx, actualDuration);
             });
 
@@ -3185,6 +3472,9 @@
 
         stopAllRecorders();
         disconnectWhisperLive();
+
+        // v6.11.0: Stop health check
+        stopRecordingHealthCheck();
 
         // v6.7.0: Release wake lock when recording stops
         if (wakeLock) {
@@ -3558,10 +3848,10 @@
     });
   </script>
 
-  <!-- v6.8.0: Page Visibility Detection -->
+  <!-- v6.8.0: Page Visibility Detection (Enhanced in v6.11.0) -->
   <script>
     // Detect when page is backgrounded/hidden during recording
-    // This helps diagnose corruption issues from browser backgrounding
+    // v6.11.0: Auto-stop on mobile to prevent corrupted chunks
     document.addEventListener('visibilitychange', function() {
       const state = document.hidden ? 'HIDDEN' : 'VISIBLE';
       const timestamp = new Date().toISOString();
@@ -3572,11 +3862,27 @@
       if (typeof log === 'function') {
         log(`[Visibility] Page is now ${state}`);
 
-        // Only warn if recording is active (running variable from main script)
+        // Only act if recording is active (running variable from main script)
         if (typeof running !== 'undefined' && running && document.hidden) {
           log('[Visibility] WARNING: Page hidden during active recording!');
-          log('[Visibility] Audio chunks may be corrupted while page is in background');
-          log('[Visibility] Keep this tab in foreground for best results');
+
+          // v6.11.0: Detect mobile and auto-stop to prevent corruption
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+          if (isMobile) {
+            log('[Visibility] Mobile detected - auto-stopping recording to prevent data loss');
+            if (typeof showRecordingError === 'function') {
+              showRecordingError('App went to background', 'Recording stopped to prevent data loss. Keep the app in foreground while recording.');
+            } else if (typeof stop === 'function') {
+              stop();
+            }
+          } else {
+            log('[Visibility] Audio chunks may be corrupted while page is in background');
+            log('[Visibility] Keep this tab in foreground for best results');
+            if (typeof showRecordingWarning === 'function') {
+              showRecordingWarning('Tab is in background - audio may be corrupted', true);
+            }
+          }
         } else if (typeof running !== 'undefined' && running && !document.hidden) {
           log('[Visibility] Page visible again - recording should resume normally');
         }

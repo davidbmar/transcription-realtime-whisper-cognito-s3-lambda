@@ -19,88 +19,6 @@
             color: #333;
         }
 
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .logo i {
-            margin-right: 0.5rem;
-            font-size: 1.8rem;
-        }
-
-        .breadcrumb-nav {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-        }
-
-        .breadcrumb-link {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #667eea;
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 8px;
-            transition: all 0.2s;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .breadcrumb-link:hover {
-            background: rgba(102, 126, 234, 0.1);
-        }
-
-        .breadcrumb-link i {
-            font-size: 16px;
-        }
-
-        .breadcrumb-separator {
-            color: #9ca3af;
-            font-size: 14px;
-        }
-
-        .breadcrumb-current {
-            color: #374151;
-            font-weight: 600;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-        }
-
         .container {
             max-width: 1200px;
             margin: 2rem auto;
@@ -402,53 +320,6 @@
 
         /* Enhanced mobile styles */
         @media (max-width: 768px) {
-            .header {
-                padding: 0.75rem 1rem;
-                flex-direction: row;
-                gap: 0.5rem;
-            }
-
-            .logo {
-                font-size: 1.2rem;
-            }
-
-            .logo i {
-                font-size: 1.4rem;
-                margin-right: 0.25rem;
-            }
-
-            .breadcrumb-nav {
-                font-size: 12px;
-                gap: 4px;
-            }
-
-            .breadcrumb-link {
-                padding: 4px 8px;
-                gap: 4px;
-            }
-
-            .breadcrumb-link i {
-                font-size: 14px;
-            }
-
-            .breadcrumb-current {
-                font-size: 12px;
-            }
-
-            .user-info {
-                gap: 0.5rem;
-            }
-
-            .user-avatar {
-                width: 32px;
-                height: 32px;
-                font-size: 0.875rem;
-            }
-
-            #user-name {
-                display: none;
-            }
-
             .container {
                 padding: 0 0.5rem;
                 margin: 1rem auto;
@@ -1697,34 +1568,63 @@
         .back-button i {
             font-size: 12px;
         }
+
+        /* Dashboard quick actions toolbar */
+        .dashboard-toolbar {
+            background: #f9fafb;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            padding: 8px 24px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dashboard-toolbar .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .dashboard-toolbar .btn:hover {
+            background: #f3f4f6;
+        }
+
+        .dashboard-toolbar .btn-primary {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .dashboard-toolbar .btn-primary:hover {
+            background: #5a67d8;
+        }
     </style>
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
 </head>
 <body>
-    <div class="header">
-        <div class="logo" id="main-logo">
-            <i class="fas fa-cloud"></i>
-            CloudDrive
-        </div>
-        <div class="breadcrumb-nav" id="breadcrumb-header" style="display: none;">
-            <a href="javascript:void(0)" class="breadcrumb-link" onclick="showDashboard()">
-                <i class="fas fa-home"></i>
-                Dashboard
-            </a>
-            <span class="breadcrumb-separator">›</span>
-            <span class="breadcrumb-current" id="breadcrumb-page-name">File Manager</span>
-        </div>
-        <div class="user-info" id="user-info" style="display: none;">
-            <div class="user-avatar" id="user-avatar"></div>
-            <span id="user-name"></span>
-            <button class="btn btn-primary btn-sm" onclick="window.location.href='transcript-editor-v2.html'" style="margin-right: 10px;">
-                <i class="fas fa-file-alt"></i>
-                Transcript Editor
-            </button>
-            <button class="btn btn-danger btn-sm" id="logout-button">
-                <i class="fas fa-sign-out-alt"></i>
-                Sign Out
-            </button>
-        </div>
+    <!-- Shared Header Component (no breadcrumb for dashboard) -->
+    <div id="clouddrive-header"
+         data-page=""
+         data-show-user="true">
+    </div>
+    <script src="lib/clouddrive-header.js"></script>
+
+    <!-- Dashboard quick actions (visible after login) -->
+    <div class="dashboard-toolbar" id="dashboard-toolbar" style="display: none;">
+        <a href="transcript-editor-v2.html" class="btn btn-primary">
+            <i class="fas fa-file-alt"></i>
+            Transcript Editor
+        </a>
     </div>
 
     <div class="container">
@@ -1845,6 +1745,24 @@
                         <div class="dashboard-card-action">
                             <i class="fas fa-arrow-right"></i>
                             View Instructions
+                        </div>
+                    </div>
+
+                    <!-- GPU Cost Guardian Card -->
+                    <div class="dashboard-card" onclick="window.location.href='gpu-dashboard.html'">
+                        <div class="dashboard-card-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3>GPU Cost Guardian</h3>
+                        <p>Monitor GPU usage, costs, and transcription activity</p>
+                        <ul class="dashboard-features">
+                            <li><i class="fas fa-check"></i> Real-time GPU status</li>
+                            <li><i class="fas fa-check"></i> Cost tracking & estimates</li>
+                            <li><i class="fas fa-check"></i> Activity timeline</li>
+                        </ul>
+                        <div class="dashboard-card-action">
+                            <i class="fas fa-arrow-right"></i>
+                            View Dashboard
                         </div>
                     </div>
                 </div>
@@ -2006,20 +1924,74 @@
                 </div>
 
                 <div style="padding: 2rem 0;">
-                    <!-- Upload Area -->
-                    <div class="upload-area" id="upload-drop-zone">
-                        <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #667eea; margin-bottom: 1rem;"></i>
-                        <h3>Drag & Drop Audio Files Here</h3>
-                        <p style="color: #666; margin: 0.5rem 0;">or</p>
-                        <button class="btn btn-primary" onclick="document.getElementById('audio-file-input').click()">
-                            <i class="fas fa-folder-open"></i>
-                            Choose Files
-                        </button>
-                        <input type="file" id="audio-file-input" accept=".aac,.m4a,.wav,.mp3,.webm,.ogg,.flac,.mp4,.m4v,.mov,.avi" multiple style="display: none;">
-                        <p style="color: #999; margin-top: 1rem; font-size: 0.9rem;">
-                            Supported: audio (.mp3, .m4a, .aac, .wav) and video (.mp4, .mov) - Max 500MB
-                        </p>
-                    </div>
+                    <!-- Upload Container - groups drop zone and settings together -->
+                    <fieldset style="border: 2px solid #e2e8f0; border-radius: 16px; padding: 1.5rem; background: linear-gradient(to bottom, #ffffff, #f8fafc);">
+                        <legend style="padding: 0 1rem; font-weight: 600; color: #667eea; font-size: 1.1rem;">
+                            <i class="fas fa-upload" style="margin-right: 0.5rem;"></i>
+                            Upload & Transcription Settings
+                        </legend>
+
+                        <!-- Upload Area -->
+                        <div class="upload-area" id="upload-drop-zone" style="margin-bottom: 1.5rem;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #667eea; margin-bottom: 1rem;"></i>
+                            <h3>Drag & Drop Audio Files Here</h3>
+                            <p style="color: #666; margin: 0.5rem 0;">or</p>
+                            <button class="btn btn-primary" onclick="document.getElementById('audio-file-input').click()">
+                                <i class="fas fa-folder-open"></i>
+                                Choose Files
+                            </button>
+                            <input type="file" id="audio-file-input" accept=".aac,.m4a,.wav,.mp3,.webm,.ogg,.flac,.mp4,.m4v,.mov,.avi" multiple style="display: none;">
+                            <p style="color: #999; margin-top: 1rem; font-size: 0.9rem;">
+                                Supported: audio (.mp3, .m4a, .aac, .wav) and video (.mp4, .mov) - Max 500MB
+                            </p>
+                        </div>
+
+                        <!-- Divider -->
+                        <div style="border-top: 1px dashed #d1d5db; margin: 1rem 0;"></div>
+
+                        <!-- Speaker Diarization Settings -->
+                        <div id="speaker-settings">
+                            <h4 style="margin: 0 0 0.75rem 0; color: #374151; display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem;">
+                                <i class="fas fa-users" style="color: #667eea;"></i>
+                                Speaker Settings for This Upload
+                            </h4>
+                            <p style="color: #6b7280; font-size: 0.85rem; margin-bottom: 1rem;">
+                                How many speakers are in your audio? Setting this helps the AI accurately separate different voices.
+                            </p>
+                            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: end;">
+                                <div style="flex: 1; min-width: 120px;">
+                                    <label for="min-speakers" style="display: block; font-weight: 500; color: #374151; margin-bottom: 0.4rem; font-size: 0.9rem;">
+                                        Min Speakers
+                                    </label>
+                                    <select id="min-speakers" style="width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; background: white;">
+                                        <option value="1" selected>1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                </div>
+                                <div style="flex: 1; min-width: 120px;">
+                                    <label for="max-speakers" style="display: block; font-weight: 500; color: #374151; margin-bottom: 0.4rem; font-size: 0.9rem;">
+                                        Max Speakers
+                                    </label>
+                                    <select id="max-speakers" style="width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; background: white;">
+                                        <option value="1">1</option>
+                                        <option value="2" selected>2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="8">8</option>
+                                        <option value="10">10</option>
+                                    </select>
+                                </div>
+                                <div style="color: #9ca3af; font-size: 0.8rem; padding-bottom: 0.5rem;">
+                                    <i class="fas fa-info-circle"></i> Solo=1, Conversation=2-3
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
 
                     <!-- Upload Progress -->
                     <div id="upload-progress-container" style="display: none; margin-top: 2rem;">
@@ -2170,18 +2142,19 @@
         function showDashboard() {
             hideAllSections();
             document.getElementById('dashboard-section').style.display = 'block';
-            // Show main logo, hide breadcrumb
-            document.getElementById('main-logo').style.display = 'flex';
-            document.getElementById('breadcrumb-header').style.display = 'none';
+            // Update shared header to show no breadcrumb (dashboard)
+            if (window.cloudDriveHeader) {
+                window.cloudDriveHeader.setPage('', null);
+            }
         }
 
         function showFileManager() {
             hideAllSections();
             document.getElementById('authenticated-section').style.display = 'block';
-            // Hide main logo, show breadcrumb
-            document.getElementById('main-logo').style.display = 'none';
-            document.getElementById('breadcrumb-header').style.display = 'flex';
-            document.getElementById('breadcrumb-page-name').textContent = 'File Manager';
+            // Update shared header to show File Manager breadcrumb
+            if (window.cloudDriveHeader) {
+                window.cloudDriveHeader.setPage('File Manager', 'folder');
+            }
             // Load root directory files
             navigateToFolder('');
         }
@@ -2255,7 +2228,7 @@
                                     </button>
                                 ` : ''}
                                 ${transcriptionStatus === 'complete' ? `
-                                    <button class="btn" onclick="window.location.href='transcript-editor-v2.html?sessionId=${file.sessionId}'">
+                                    <button class="btn" onclick="window.location.href='transcript-editor-v2.html?sessionId=${file.folder || file.sessionId}'">
                                         <i class="fas fa-edit"></i>
                                         View in Editor
                                     </button>
@@ -2450,7 +2423,10 @@
                 document.getElementById(`progress-${safeFileName}`).style.width = '70%';
                 document.getElementById(`status-${safeFileName}`).textContent = 'Saving metadata...';
 
-                // Step 3: Save metadata
+                // Step 3: Save metadata (including speaker diarization settings)
+                const minSpeakers = parseInt(document.getElementById('min-speakers')?.value || '1');
+                const maxSpeakers = parseInt(document.getElementById('max-speakers')?.value || '2');
+
                 const metadataResponse = await fetch(`${config.apiUrl}/api/audio/session-metadata`, {
                     method: 'POST',
                     headers: {
@@ -2469,6 +2445,10 @@
                                 size: file.size,
                                 uploadedAt: new Date().toISOString()
                             }],
+                            diarization: {
+                                minSpeakers: minSpeakers,
+                                maxSpeakers: maxSpeakers
+                            },
                             transcription: {
                                 status: 'pending',
                                 jobId: null,

@@ -98,6 +98,13 @@ if [ ! -f "./styles.css" ] && [ -f "$SOURCE_UI_DIR/styles.css" ]; then
     cp "$SOURCE_UI_DIR/styles.css" ./styles.css
 fi
 
+# Copy shared lib directory (header component used by viewer)
+if [ -d "$SOURCE_UI_DIR/lib" ]; then
+    mkdir -p ./lib
+    cp -r "$SOURCE_UI_DIR/lib/"* ./lib/
+    log_info "  - Copied lib/ directory (shared header component)"
+fi
+
 log_success "Viewer files copied"
 echo ""
 
@@ -126,6 +133,13 @@ aws s3 cp viewer-styles.css "s3://$COGNITO_S3_BUCKET/viewer-styles.css" \
     --content-type "text/css" \
     --region "$AWS_REGION"
 
+# Upload lib directory (shared header component)
+if [ -d "./lib" ]; then
+    aws s3 sync ./lib/ "s3://$COGNITO_S3_BUCKET/lib/" \
+        --region "$AWS_REGION"
+    log_info "  - Uploaded lib/ directory"
+fi
+
 log_success "Files uploaded to S3"
 echo ""
 
@@ -134,7 +148,7 @@ log_info "Step 6: Invalidating CloudFront cache"
 
 aws cloudfront create-invalidation \
     --distribution-id "$DISTRIBUTION_ID" \
-    --paths "/viewer.html" "/viewer-styles.css" \
+    --paths "/viewer.html" "/viewer-styles.css" "/lib/*" \
     --region us-east-1 > /dev/null
 
 log_success "CloudFront cache invalidated"

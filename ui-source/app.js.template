@@ -31,15 +31,13 @@ function checkAuthentication() {
     const idToken = localStorage.getItem('id_token');
     const loginSection = document.getElementById('login-section');
     const dashboardSection = document.getElementById('dashboard-section');
-    const userInfo = document.getElementById('user-info');
-    const userAvatar = document.getElementById('user-avatar');
-    const userName = document.getElementById('user-name');
-    
+    const dashboardToolbar = document.getElementById('dashboard-toolbar');
+
     if (idToken) {
         console.log("Found ID token, verifying...");
         try {
             const payload = JSON.parse(atob(idToken.split('.')[1]));
-            
+
             // Check if token is expired
             const now = Math.floor(Date.now() / 1000);
             if (payload.exp && payload.exp < now) {
@@ -49,21 +47,14 @@ function checkAuthentication() {
                 showLoginSection();
                 return;
             }
-            
+
             console.log("Token valid, displaying dashboard");
-            
-            // Update user info
-            const email = payload.email || 'User';
-            const initials = email.split('@')[0].substring(0, 2).toUpperCase();
-            
-            userAvatar.textContent = initials;
-            userName.textContent = email;
-            
-            // Show dashboard UI
+
+            // Show dashboard UI (shared header handles user info display)
             loginSection.style.display = 'none';
             dashboardSection.style.display = 'block';
-            userInfo.style.display = 'flex';
-            
+            if (dashboardToolbar) dashboardToolbar.style.display = 'flex';
+
         } catch (error) {
             console.error('Error parsing token:', error);
             showLoginSection();
@@ -79,13 +70,13 @@ function showLoginSection() {
     const dashboardSection = document.getElementById('dashboard-section');
     const authenticatedSection = document.getElementById('authenticated-section');
     const memorySection = document.getElementById('memory-section');
-    const userInfo = document.getElementById('user-info');
-    
+    const dashboardToolbar = document.getElementById('dashboard-toolbar');
+
     loginSection.style.display = 'block';
     dashboardSection.style.display = 'none';
     authenticatedSection.style.display = 'none';
-    memorySection.style.display = 'none';
-    userInfo.style.display = 'none';
+    if (memorySection) memorySection.style.display = 'none';
+    if (dashboardToolbar) dashboardToolbar.style.display = 'none';
 }
 
 

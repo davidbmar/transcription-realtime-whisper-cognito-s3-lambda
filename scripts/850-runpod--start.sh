@@ -41,6 +41,33 @@ REPO_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
 exec > >(tee -a "$REPO_ROOT/logs/850-runpod--start-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
+# Track script state for trap handler
+SCRIPT_STATE="initializing"
+SCRIPT_EXIT_CODE=0
+
+# Trap handler for interruptions and exits
+handle_exit() {
+    local exit_code=$?
+    if [ "$exit_code" -ne 0 ] || [ "$SCRIPT_STATE" != "completed" ]; then
+        echo ""
+        echo "============================================"
+        echo "⚠️  SCRIPT INTERRUPTED OR FAILED"
+        echo "============================================"
+        echo "  State at exit: $SCRIPT_STATE"
+        echo "  Exit code: $exit_code"
+        echo "  Time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        echo ""
+        echo "  If the pod was created, check status with:"
+        echo "    ./scripts/851-runpod--status.sh"
+        echo ""
+        echo "  To manually set RUNPOD_HOST after pod is ready:"
+        echo "    POD_ID=\$(grep RUNPOD_POD_ID .env | cut -d= -f2)"
+        echo "    sed -i \"s|^RUNPOD_HOST=.*|RUNPOD_HOST=\${POD_ID}-8000.proxy.runpod.net|\" .env"
+        echo "============================================"
+    fi
+}
+trap handle_exit EXIT
+
 # Source common functions
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 
@@ -382,6 +409,7 @@ create_pod() {
     if [[ "$result" != FAILED:* ]]; then
         # Success!
         local pod_id="$result"
+        SCRIPT_STATE="pod_created:$pod_id"
         log_success "Pod created! ID: $pod_id" >&2
 
         # Save pod ID to .env (quote values with spaces)
@@ -474,11 +502,13 @@ wait_for_pod_start() {
     local max_attempts=60  # 10 minutes max (10s intervals) - image pull can take a while
     local attempt=1
 
+    SCRIPT_STATE="waiting_for_pod_start:$pod_id"
     log_info "Waiting for pod to start..."
     echo "  (Image pull + container startup typically takes 2-5 minutes)"
     echo ""
 
     while [ $attempt -le $max_attempts ]; do
+        SCRIPT_STATE="waiting_for_pod_start:$pod_id:attempt_$attempt"
         local response=$(curl -s "${RUNPOD_REST_API}/pods/${pod_id}" \
             -H "Authorization: Bearer ${RUNPOD_API_KEY}")
 
@@ -533,6 +563,7 @@ wait_for_pod_start() {
     echo "  curl https://${proxy_host}/health"
 
     # Return success but with warning - don't trigger cleanup
+    SCRIPT_STATE="completed"
     return 0
 }
 
@@ -547,12 +578,14 @@ wait_for_health_check() {
     local proxy_host="${pod_id}-8000.proxy.runpod.net"
     local health_url="https://${proxy_host}/health"
 
+    SCRIPT_STATE="waiting_for_health_check:$pod_id"
     log_info "Waiting for API to be healthy..."
     echo "  (Container is downloading models and starting FastAPI)"
     echo "  Health endpoint: $health_url"
     echo ""
 
     while [ $attempt -le $max_attempts ]; do
+        SCRIPT_STATE="waiting_for_health_check:$pod_id:attempt_$attempt"
         local http_code=$(curl -s -o /tmp/health_response.json -w "%{http_code}" \
             --max-time 10 "$health_url" 2>/dev/null || echo "000")
 
@@ -591,6 +624,7 @@ wait_for_health_check() {
             echo "  4. Stop pod:     ./scripts/855-runpod--stop.sh"
             echo ""
 
+            SCRIPT_STATE="completed"
             return 0
         else
             printf "  [%2d/%d] HTTP %s - waiting...\n" "$attempt" "$max_attempts" "$http_code"

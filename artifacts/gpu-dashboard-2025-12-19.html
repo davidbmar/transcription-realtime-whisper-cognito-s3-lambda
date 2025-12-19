@@ -1,139 +1,3 @@
-#!/bin/bash
-#===============================================================================
-# 998-DASHBOARD--generate-gpu-status.sh
-# Generates HTML dashboard of GPU status and uploads to S3
-#===============================================================================
-#
-# WHAT THIS SCRIPT DOES:
-# ----------------------
-# Creates a static HTML dashboard showing:
-#   - Currently running GPU resources (RunPod + AWS)
-#   - Event history from last 24 hours
-#   - Cost summary
-#   - Activity timeline
-#
-# Uploads to S3 for easy viewing in a browser.
-#
-# USAGE:
-#   ./scripts/998-DASHBOARD--generate-gpu-status.sh
-#
-# S3 CONFIGURATION:
-#   Set GPU_DASHBOARD_S3_BUCKET in .env or environment
-#   Default: s3://your-bucket/gpu-dashboard/
-#
-#===============================================================================
-
-set -uo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/gpu-event-logger.sh" 2>/dev/null || true
-
-# Load environment
-ENV_FILE="$SCRIPT_DIR/../.env"
-[ -f "$ENV_FILE" ] && source "$ENV_FILE"
-
-RUNPOD_API_KEY="${RUNPOD_API_KEY:-}"
-S3_BUCKET="${GPU_DASHBOARD_S3_BUCKET:-}"
-OUTPUT_DIR="$SCRIPT_DIR/../artifacts"
-OUTPUT_FILE="$OUTPUT_DIR/gpu-dashboard.html"
-TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-mkdir -p "$OUTPUT_DIR"
-
-#===============================================================================
-# Gather current state
-#===============================================================================
-
-get_runpod_status() {
-    if [ -z "$RUNPOD_API_KEY" ]; then
-        echo "[]"
-        return
-    fi
-
-    # Try GraphQL API first (has costPerHr field)
-    local graphql_response=$(curl -s --max-time 10 -X POST "https://api.runpod.io/graphql" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-        -d '{"query": "{ myself { pods { id name desiredStatus costPerHr createdAt machine { gpuDisplayName } runtime { uptimeInSeconds } } } }"}' 2>/dev/null)
-
-    # Check if GraphQL succeeded
-    local pods=$(echo "$graphql_response" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    # Check for error response
-    if 'error' in data or 'errors' in data:
-        print('GRAPHQL_FAILED')
-    else:
-        pods = data.get('data', {}).get('myself', {}).get('pods', [])
-        if pods:
-            for pod in pods:
-                pod['machine'] = pod.get('machine', {})
-                pod['machine']['gpuDisplayName'] = pod.get('machine', {}).get('gpuDisplayName', 'unknown')
-            print(json.dumps(pods))
-        else:
-            print('GRAPHQL_EMPTY')
-except:
-    print('GRAPHQL_FAILED')
-" 2>/dev/null)
-
-    # If GraphQL worked and has data, use it
-    if [[ "$pods" != "GRAPHQL_FAILED" && "$pods" != "GRAPHQL_EMPTY" && -n "$pods" ]]; then
-        echo "$pods"
-        return
-    fi
-
-    # Fallback to REST API (more reliable, but missing some fields)
-    local rest_response=$(curl -s --max-time 10 "https://rest.runpod.io/v1/pods" \
-        -H "Authorization: Bearer ${RUNPOD_API_KEY}" 2>/dev/null)
-
-    # Normalize REST API response to match GraphQL format
-    echo "$rest_response" | python3 -c "
-import sys, json
-try:
-    pods = json.load(sys.stdin)
-    if isinstance(pods, list):
-        for pod in pods:
-            # Normalize machine field
-            if 'machine' not in pod or not pod['machine']:
-                pod['machine'] = {'gpuDisplayName': 'unknown'}
-            # REST API uses different field names sometimes
-            if 'gpuDisplayName' not in pod.get('machine', {}):
-                pod['machine']['gpuDisplayName'] = pod.get('gpu', 'unknown')
-        print(json.dumps(pods))
-    else:
-        print('[]')
-except:
-    print('[]')
-" 2>/dev/null || echo "[]"
-}
-
-get_aws_gpu_status() {
-    aws ec2 describe-instances \
-        --filters "Name=instance-state-name,Values=running,pending,stopping" \
-        --query "Reservations[*].Instances[*].{id:InstanceId,type:InstanceType,state:State.Name,launch:LaunchTime,name:Tags[?Key=='Name'].Value|[0]}" \
-        --output json 2>/dev/null | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-gpu_types = ['g4dn', 'g5', 'p3', 'p4d', 'p5', 'g3', 'g6']
-result = []
-for reservation in data:
-    for inst in reservation:
-        if any(gt in inst.get('type', '') for gt in gpu_types):
-            result.append(inst)
-print(json.dumps(result))
-" 2>/dev/null || echo "[]"
-}
-
-RUNPOD_DATA=$(get_runpod_status)
-AWS_DATA=$(get_aws_gpu_status)
-EVENT_LOG="${GPU_EVENT_LOG:-$SCRIPT_DIR/../logs/gpu-events.jsonl}"
-
-#===============================================================================
-# Generate HTML
-#===============================================================================
-
-cat > "$OUTPUT_FILE" << 'HTMLHEADER'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,8 +5,8 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPU Cost Guardian</title>
     <meta http-equiv="refresh" content="120">
-    <meta name="dashboard-date" content="__DASHBOARD_DATE__">
-    <meta name="dashboard-generated" content="__TIMESTAMP_ISO__">
+    <meta name="dashboard-date" content="2025-12-19">
+    <meta name="dashboard-generated" content="2025-12-19T05:52:04Z">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -786,7 +650,7 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <a href="__CLOUDFRONT_URL__/index.html" class="logo">
+                <a href="https://d2l28rla2hk7np.cloudfront.net/index.html" class="logo">
                     <i class="fas fa-cloud"></i>
                     CloudDrive
                 </a>
@@ -798,60 +662,15 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div style="text-align: right; font-size: 12px; color: #6b7280;">
-                    <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="__TIMESTAMP_ISO__">__TIMESTAMP__</span>
+                    <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="2025-12-19T05:52:04Z">2025-12-19 05:52:04 UTC</span>
                     <span id="live-indicator"></span>
                 </div>
             </div>
         </div>
-HTMLHEADER
-
-# Replace placeholders
-TODAY=$(date -u +"%Y-%m-%d")
-TIMESTAMP_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-sed -i "s|__TIMESTAMP__|$(date -u '+%Y-%m-%d %H:%M:%S UTC')|g" "$OUTPUT_FILE"
-sed -i "s|__TIMESTAMP_ISO__|${TIMESTAMP_ISO}|g" "$OUTPUT_FILE"
-sed -i "s|__DASHBOARD_DATE__|${TODAY}|g" "$OUTPUT_FILE"
-sed -i "s|__CLOUDFRONT_URL__|${COGNITO_CLOUDFRONT_URL:-https://d2l28rla2hk7np.cloudfront.net}|g" "$OUTPUT_FILE"
-
-# Add summary cards
-RUNPOD_COUNT=$(echo "$RUNPOD_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([p for p in d if p.get('desiredStatus')=='RUNNING']))" 2>/dev/null || echo "0")
-AWS_COUNT=$(echo "$AWS_DATA" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-TOTAL_RUNNING=$((RUNPOD_COUNT + AWS_COUNT))
-
-# Calculate hourly cost (RunPod + AWS)
-RUNPOD_HOURLY=$(echo "$RUNPOD_DATA" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-total = sum(p.get('costPerHr', 0) for p in data if p.get('desiredStatus') == 'RUNNING')
-print(f'{total:.2f}')
-" 2>/dev/null || echo "0.00")
-
-# AWS GPU pricing (on-demand): g4dn.xlarge=$0.526/hr, g5.xlarge=$1.006/hr
-AWS_HOURLY=$(echo "$AWS_DATA" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-pricing = {
-    'g4dn.xlarge': 0.526, 'g4dn.2xlarge': 0.752, 'g4dn.4xlarge': 1.204,
-    'g5.xlarge': 1.006, 'g5.2xlarge': 1.212, 'g5.4xlarge': 1.624,
-    'p3.2xlarge': 3.06, 'p3.8xlarge': 12.24,
-}
-total = sum(pricing.get(inst.get('type', ''), 0.52) for inst in data if inst.get('state') == 'running')
-print(f'{total:.2f}')
-" 2>/dev/null || echo "0.00")
-
-HOURLY_COST=$(python3 -c "print(f'{float('$RUNPOD_HOURLY') + float('$AWS_HOURLY'):.2f}')" 2>/dev/null || echo "0.00")
-
-# Determine if GPUs are running for styling
-RUNNING_CLASS=""
-if [ "$TOTAL_RUNNING" -gt 0 ]; then
-    RUNNING_CLASS=" has-running"
-fi
-
-cat >> "$OUTPUT_FILE" << HTMLSUMMARY
         <!-- Live Status Section -->
-        <div class="section-container live-status${RUNNING_CLASS}">
+        <div class="section-container live-status">
             <div class="section-header">
-                <div class="section-title live${RUNNING_CLASS}">
+                <div class="section-title live">
                     <i class="fas fa-bolt"></i>
                     Live Status
                     <span class="live-badge"><i class="fas fa-circle"></i> LIVE</span>
@@ -861,196 +680,17 @@ cat >> "$OUTPUT_FILE" << HTMLSUMMARY
                 <div class="card">
                     <div class="card-icon gpu"><i class="fas fa-microchip"></i></div>
                     <div class="card-title">Running Now</div>
-                    <div class="card-value ${TOTAL_RUNNING:+running}">${TOTAL_RUNNING} GPU${TOTAL_RUNNING:+s}</div>
-                    <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${RUNPOD_COUNT} RunPod · ${AWS_COUNT} AWS</div>
+                    <div class="card-value running">0 GPUs</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">0 RunPod · 0 AWS</div>
                 </div>
                 <div class="card">
                     <div class="card-icon cost"><i class="fas fa-dollar-sign"></i></div>
                     <div class="card-title">Current Cost</div>
-                    <div class="card-value cost">\$${HOURLY_COST}/hr</div>
+                    <div class="card-value cost">$0.00/hr</div>
                 </div>
             </div>
-HTMLSUMMARY
-
-# Check watchdog heartbeat status
-WATCHDOG_HEARTBEAT="/tmp/watchdog-last-success.txt"
-WATCHDOG_STALE_THRESHOLD=1800  # 30 minutes in seconds
-WATCHDOG_STATUS="unknown"
-WATCHDOG_AGE_MIN=0
-
-if [ -f "$WATCHDOG_HEARTBEAT" ]; then
-    HEARTBEAT_TIME=$(cat "$WATCHDOG_HEARTBEAT" 2>/dev/null || echo "0")
-    CURRENT_TIME=$(date -u +%s)
-    WATCHDOG_AGE=$((CURRENT_TIME - HEARTBEAT_TIME))
-    WATCHDOG_AGE_MIN=$((WATCHDOG_AGE / 60))
-
-    if [ "$WATCHDOG_AGE" -lt "$WATCHDOG_STALE_THRESHOLD" ]; then
-        WATCHDOG_STATUS="healthy"
-    else
-        WATCHDOG_STATUS="stale"
-    fi
-else
-    WATCHDOG_STATUS="missing"
-fi
-
-# Add warning if watchdog is stale or missing
-if [ "$WATCHDOG_STATUS" = "stale" ] || [ "$WATCHDOG_STATUS" = "missing" ]; then
-    cat >> "$OUTPUT_FILE" << HTMLWATCHDOG
-        <div class="watchdog-warning" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px;">
-            <div style="font-size: 28px;">🚨</div>
-            <div>
-                <div style="font-weight: 700; color: #92400e; font-size: 14px; margin-bottom: 4px;">
-                    GPU Watchdog May Be Offline!
-                </div>
-                <div style="color: #b45309; font-size: 13px;">
-                    Last successful check: ${WATCHDOG_AGE_MIN} minutes ago.
-                    Pods may not be automatically terminated if left running.
-                </div>
-            </div>
-        </div>
-HTMLWATCHDOG
-fi
-
-# Add warning if resources are running
-if [ "$TOTAL_RUNNING" -gt 0 ]; then
-    cat >> "$OUTPUT_FILE" << 'HTMLWARN'
-        <div class="cost-warning">
-            ⚠️ <strong>GPU resources are currently running!</strong> Make sure these are intentional.
-            Run <code>./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill</code> to terminate idle resources.
-        </div>
-HTMLWARN
-fi
-
-# Only show RunPod table if pods are running
-if [ "$RUNPOD_COUNT" -gt 0 ]; then
-cat >> "$OUTPUT_FILE" << 'HTMLRUNPOD'
-        <h2><i class="fas fa-server"></i> Active RunPod Pods</h2>
-HTMLRUNPOD
-    cat >> "$OUTPUT_FILE" << 'HTMLTABLE1'
-        <table class="resource-table">
-            <tr>
-                <th>Pod ID</th>
-                <th>Name</th>
-                <th>GPU</th>
-                <th>Status</th>
-                <th>Cost/Hr</th>
-                <th>Runtime</th>
-            </tr>
-HTMLTABLE1
-
-    echo "$RUNPOD_DATA" | python3 -c "
-import sys, json
-from datetime import datetime, timezone, timedelta
-
-data = json.load(sys.stdin)
-now = datetime.now(timezone.utc)
-
-for pod in data:
-    if pod.get('desiredStatus') != 'RUNNING':
-        continue
-    pod_id = pod.get('id', 'unknown')
-    name = pod.get('name', 'unnamed')
-    gpu = pod.get('machine', {}).get('gpuDisplayName', 'unknown')
-    cost = pod.get('costPerHr', 0)
-    created_str = pod.get('createdAt', '')
-
-    # Calculate runtime
-    runtime_str = 'unknown'
-    try:
-        # Parse RunPod format: '2025-12-15 18:04:36.612 +0000 UTC'
-        created_clean = created_str.replace(' UTC', '').replace(' +0000', '')
-        created = datetime.strptime(created_clean.split('.')[0], '%Y-%m-%d %H:%M:%S')
-        created = created.replace(tzinfo=timezone.utc)
-        delta = now - created
-        mins = int(delta.total_seconds() / 60)
-        if mins < 60:
-            runtime_str = f'{mins}m'
-        else:
-            hours = mins // 60
-            remaining_mins = mins % 60
-            runtime_str = f'{hours}h {remaining_mins}m'
-    except:
-        pass
-
-    print(f'''<tr>
-        <td><code>{pod_id}</code></td>
-        <td>{name}</td>
-        <td>{gpu}</td>
-        <td><span class=\"status-badge status-running\">RUNNING</span></td>
-        <td>\${cost:.2f}</td>
-        <td><strong>{runtime_str}</strong></td>
-    </tr>''')
-" >> "$OUTPUT_FILE"
-
-    echo "        </table>" >> "$OUTPUT_FILE"
-fi
-
-# Only show AWS table if instances are running
-if [ "$AWS_COUNT" -gt 0 ]; then
-cat >> "$OUTPUT_FILE" << 'HTMLAWS'
-        <h2><i class="fab fa-aws"></i> Active AWS GPU Instances</h2>
-HTMLAWS
-    cat >> "$OUTPUT_FILE" << 'HTMLTABLE2'
-        <table class="resource-table">
-            <tr>
-                <th>Instance ID</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Runtime</th>
-            </tr>
-HTMLTABLE2
-
-    echo "$AWS_DATA" | python3 -c "
-import sys, json
-from datetime import datetime, timezone
-
-data = json.load(sys.stdin)
-now = datetime.now(timezone.utc)
-
-for inst in data:
-    inst_id = inst.get('id', 'unknown')
-    name = inst.get('name', 'unnamed') or 'unnamed'
-    inst_type = inst.get('type', 'unknown')
-    state = inst.get('state', 'unknown')
-    launch_str = inst.get('launch', '')
-
-    # Calculate runtime
-    runtime_str = 'unknown'
-    try:
-        launch = datetime.fromisoformat(launch_str.replace('Z', '+00:00'))
-        delta = now - launch
-        mins = int(delta.total_seconds() / 60)
-        if mins < 60:
-            runtime_str = f'{mins}m'
-        else:
-            hours = mins // 60
-            remaining_mins = mins % 60
-            runtime_str = f'{hours}h {remaining_mins}m'
-    except:
-        pass
-
-    status_class = 'status-running' if state == 'running' else 'status-idle'
-    print(f'''<tr>
-        <td><code>{inst_id}</code></td>
-        <td>{name}</td>
-        <td>{inst_type}</td>
-        <td><span class=\"status-badge {status_class}\">{state.upper()}</span></td>
-        <td><strong>{runtime_str}</strong></td>
-    </tr>''')
-" >> "$OUTPUT_FILE"
-
-    echo "        </table>" >> "$OUTPUT_FILE"
-fi
-
-# Close Live Status section
-cat >> "$OUTPUT_FILE" << 'HTMLLIVEEND'
         </div>
         <!-- End Live Status Section -->
-HTMLLIVEEND
-
-# Add 24h timeline visualization with Activity History section
-cat >> "$OUTPUT_FILE" << 'HTMLTIMELINE'
         <!-- Activity History Section -->
         <div class="section-container activity-history">
             <div class="section-header">
@@ -1096,352 +736,97 @@ cat >> "$OUTPUT_FILE" << 'HTMLTIMELINE'
                     <span>24 hours ago</span>
                     <span>Now</span>
                 </div>
-HTMLTIMELINE
+<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center;">
+    <div><i class="fas fa-server" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">5</strong> <span style="color: #4b5563;">session(s)</span></div>
+    <div><i class="fas fa-clock" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">197</strong> <span style="color: #4b5563;">GPU minutes</span></div>
+    <div><i class="fas fa-dollar-sign" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">$0.68</strong> <span style="color: #4b5563;">estimated cost</span></div>
+</div>
 
-# Generate timeline from event log and RunPod API
-export GPU_EVENT_LOG_PATH="${EVENT_LOG}"
-export GPU_RUNPOD_API_KEY="${RUNPOD_API_KEY}"
-TIMELINE_OUTPUT=$(python3 << 'TIMELINE_SCRIPT'
-import json
-import sys
-import os
-import subprocess
-from datetime import datetime, timedelta, timezone
-from collections import defaultdict
-
-EVENT_LOG = os.environ.get("GPU_EVENT_LOG_PATH", "logs/gpu-events.jsonl")
-RUNPOD_API_KEY = os.environ.get("GPU_RUNPOD_API_KEY", "")
-
-# Read event log
-events = []
-try:
-    with open(EVENT_LOG, 'r') as f:
-        for line in f:
-            try:
-                events.append(json.loads(line.strip()))
-            except:
-                pass
-except:
-    pass
-
-now = datetime.now(timezone.utc).replace(tzinfo=None)
-start_time = now - timedelta(hours=24)
-
-# Track pod activity from ALL event types (including "checked")
-pod_activity = defaultdict(list)  # pod_id -> list of {time, status, provider}
-
-# Get currently running pods from RunPod API
-running_pods = {}
-if RUNPOD_API_KEY:
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-H', f'Authorization: Bearer {RUNPOD_API_KEY}',
-             'https://rest.runpod.io/v1/pods'],
-            capture_output=True, text=True, timeout=10
-        )
-        pods = json.loads(result.stdout)
-        for pod in pods:
-            pod_id = pod.get('id', '')
-            created = pod.get('createdAt', '')
-            name = pod.get('name', pod_id[:8])
-            status = pod.get('desiredStatus', 'unknown')
-            running_pods[pod_id] = {'name': name, 'created': created, 'status': status}
-    except:
-        pass
-
-# Parse ALL events to build activity timeline
-for event in sorted(events, key=lambda x: x.get('timestamp', '')):
-    ts_str = event.get('timestamp', '')
-    try:
-        ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00').replace('+00:00', ''))
-    except:
-        continue
-
-    pod_id = event.get('resource_id', '')
-    if not pod_id:
-        continue
-
-    action = event.get('action', '')
-    provider = event.get('provider', 'runpod')
-    details = event.get('details', {})
-    status = details.get('status', action)
-    name = details.get('name', pod_id[:8])
-
-    # Extract GPU info from details
-    gpu = details.get('gpu', '')
-    cost_per_hr = details.get('cost_per_hr', 0)
-    reason = details.get('reason', '')
-
-    pod_activity[pod_id].append({
-        'time': ts,
-        'action': action,
-        'status': status,
-        'provider': provider,
-        'name': name,
-        'gpu': gpu,
-        'cost_per_hr': cost_per_hr,
-        'reason': reason
-    })
-
-# Build sessions from activity data
-sessions = {}
-for pod_id, activities in pod_activity.items():
-    if not activities:
-        continue
-
-    # Sort by time
-    activities.sort(key=lambda x: x['time'])
-
-    # Find first and last activity within 24h window
-    first_in_window = None
-    last_in_window = None
-    provider = 'runpod'
-    name = pod_id[:8]
-    gpu = ''
-    cost_per_hr = 0
-    reason = ''
-
-    for act in activities:
-        if act['time'] >= start_time:
-            if first_in_window is None:
-                first_in_window = act['time']
-            last_in_window = act['time']
-            provider = act['provider']
-            name = act.get('name', pod_id[:8])
-            if act.get('gpu'):
-                gpu = act['gpu']
-            if act.get('cost_per_hr'):
-                cost_per_hr = act['cost_per_hr']
-            if act.get('reason'):
-                reason = act['reason']
-
-    if first_in_window:
-        # Check if pod is still running
-        is_running = pod_id in running_pods and running_pods[pod_id]['status'] == 'RUNNING'
-
-        # If we have activity, estimate session duration
-        # Use first seen as start, last seen (or now if running) as end
-        sessions[pod_id] = {
-            'start': first_in_window,
-            'end': now if is_running else last_in_window + timedelta(minutes=15),  # Add buffer for last check
-            'provider': provider,
-            'name': name if name != pod_id[:8] else running_pods.get(pod_id, {}).get('name', pod_id[:8]),
-            'running': is_running,
-            'gpu': gpu,
-            'cost_per_hr': cost_per_hr,
-            'reason': reason
-        }
-
-# Add currently running pods that might not be in event log
-for pod_id, info in running_pods.items():
-    if info['status'] != 'RUNNING':
-        continue
-    if pod_id not in sessions:
-        try:
-            # RunPod format: "2025-12-15 18:04:36.612 +0000 UTC"
-            created_str = info['created'].replace(' UTC', '').replace(' +0000', '')
-            # Now it's: "2025-12-15 18:04:36.612"
-            created = datetime.strptime(created_str.split('.')[0], '%Y-%m-%d %H:%M:%S')
-            if created < start_time:
-                created = start_time
-            sessions[pod_id] = {
-                'start': created,
-                'end': now,
-                'provider': 'runpod',
-                'name': info['name'],
-                'running': True
-            }
-        except Exception as e:
-            # Fallback: use start of window
-            sessions[pod_id] = {
-                'start': now - timedelta(minutes=5),
-                'end': now,
-                'provider': 'runpod',
-                'name': info['name'],
-                'running': True
-            }
-
-# Check for AWS EC2 GPU instances
-try:
-    result = subprocess.run(
-        ['aws', 'ec2', 'describe-instances',
-         '--filters', 'Name=instance-type,Values=g4dn.*,g5.*,p3.*',
-         '--query', 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,LaunchTime,StateTransitionReason]',
-         '--output', 'json'],
-        capture_output=True, text=True, timeout=10
-    )
-    aws_instances = json.loads(result.stdout)
-    for reservation in aws_instances:
-        for inst in reservation:
-            inst_id, inst_type, state, launch_time, state_reason = inst
-            if state in ['running', 'stopping', 'stopped']:
-                try:
-                    # Parse AWS timestamp
-                    launch = datetime.fromisoformat(launch_time.replace('Z', '+00:00')).replace(tzinfo=None)
-                    if launch >= start_time or state == 'running':
-                        is_running = state == 'running'
-                        # Parse actual stop time from StateTransitionReason: "User initiated (2025-12-17 04:11:12 GMT)"
-                        end_time = now if is_running else launch + timedelta(minutes=5)  # Default 5min
-                        if state_reason and 'initiated' in str(state_reason):
-                            import re
-                            match = re.search(r'\((\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) GMT\)', str(state_reason))
-                            if match:
-                                end_time = datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
-                        if launch < start_time:
-                            launch = start_time
-                        sessions[f'aws-{inst_id}'] = {
-                            'start': launch,
-                            'end': end_time,
-                            'provider': 'aws',
-                            'name': inst_type,
-                            'running': is_running,
-                            'gpu': inst_type,
-                            'cost_per_hr': 0.52,
-                            'reason': state_reason or ''
-                        }
-                except:
-                    pass
-except:
-    pass
-
-# Hour markers removed - now shown in compact timeline at bottom
-
-# Generate activity bands
-if sessions:
-    # Summary stats
-    total_pods = len(sessions)
-    running_count = sum(1 for s in sessions.values() if s.get('running'))
-    total_minutes = sum((s['end'] - s['start']).total_seconds() / 60 for s in sessions.values())
-
-    # Estimate cost (RunPod ~$0.16/hr, AWS ~$0.52/hr)
-    total_cost = 0
-    for s in sessions.values():
-        mins = (s['end'] - s['start']).total_seconds() / 60
-        rate = 0.16 if s['provider'] == 'runpod' else 0.52
-        total_cost += (mins / 60) * rate
-
-    print(f'<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center;">')
-    print(f'    <div><i class="fas fa-server" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">{total_pods}</strong> <span style="color: #4b5563;">session(s)</span></div>')
-    print(f'    <div><i class="fas fa-clock" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">{int(total_minutes)}</strong> <span style="color: #4b5563;">GPU minutes</span></div>')
-    print(f'    <div><i class="fas fa-dollar-sign" style="color:#059669;margin-right:6px;"></i><strong style="color: #166534;">${total_cost:.2f}</strong> <span style="color: #4b5563;">estimated cost</span></div>')
-    if running_count > 0:
-        print(f'    <div style="margin-left:auto;"><span style="background:#10b981;color:white;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;animation:pulse 2s infinite;"><i class="fas fa-circle" style="font-size:8px;margin-right:4px;"></i>{running_count} RUNNING</span></div>')
-    print(f'</div>')
-
-    # Collect session data for timeline
-    all_sessions = []
-
-    # Generate activity bands for each session (oldest first, newest at bottom)
-    for pod_id, session in sorted(sessions.items(), key=lambda x: x[1]['start'], reverse=False):
-        start = session['start']
-        end = session['end'] or now
-        provider = session['provider']
-        name = session['name']
-        is_running = session.get('running', False)
-        gpu = session.get('gpu', '')
-        cost_per_hr = session.get('cost_per_hr', 0.16 if provider == 'runpod' else 0.52)
-        reason = session.get('reason', '')
-
-        # Calculate duration
-        duration = end - start
-        duration_mins = int(duration.total_seconds() / 60)
-        if duration_mins >= 60:
-            duration_str = f'{duration_mins // 60}h {duration_mins % 60}m'
-        else:
-            duration_str = f'{duration_mins}m'
-
-        # Calculate cost using actual rate if available
-        rate = cost_per_hr if cost_per_hr > 0 else (0.16 if provider == 'runpod' else 0.52)
-        cost = (duration_mins / 60) * rate
-
-        # Time formatting
-        start_iso = start.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_iso = end.strftime('%Y-%m-%dT%H:%M:%SZ') if not is_running else ''
-        start_display = start.strftime('%H:%M')
-        end_display = end.strftime('%H:%M') if not is_running else 'now'
-
-        # Calculate position as percentage of 24h window for the mini timeline
-        start_pct = max(0, (start - start_time).total_seconds() / (24 * 3600) * 100)
-        end_pct = min(100, (end - start_time).total_seconds() / (24 * 3600) * 100)
-        width_pct = max(3, end_pct - start_pct)  # Minimum 3% width
-
-        # Status
-        if is_running:
-            status_icon = '<i class="fas fa-circle" style="color:#10b981;font-size:10px;animation:pulse 1s infinite;"></i>'
-            status_text = 'RUNNING'
-            status_class = 'running'
-        else:
-            status_icon = '<i class="fas fa-stop-circle" style="color:#ef4444;font-size:12px;"></i>'
-            status_text = 'STOPPED'
-            status_class = ''
-
-        # Provider icon
-        provider_icon = '<i class="fas fa-cloud"></i>' if provider == 'runpod' else '<i class="fab fa-aws"></i>'
-        provider_label = 'RunPod' if provider == 'runpod' else 'AWS EC2'
-
-        # Determine GPU display - use actual GPU from event, fallback to extraction from name
-        if gpu:
-            # Clean up GPU name (remove "NVIDIA " prefix for brevity)
-            gpu_display = gpu.replace('NVIDIA ', '').replace('GeForce ', '')
-        elif 'RTX' in name.upper():
-            gpu_display = name.split('-')[0] if '-' in name else name[:20]
-        elif provider == 'aws':
-            gpu_display = 'g4dn.xlarge'
-        elif 'whisperx' in name.lower():
-            gpu_display = 'RTX A5000'
-        else:
-            gpu_display = 'GPU'
-
-        # Add termination reason if available
-        reason_display = ''
-        if reason and not is_running:
-            reason_display = f' ({reason})'
-
-        # Store session data for timeline at bottom
-        all_sessions.append({
-            'pod_id': pod_id,
-            'provider': provider,
-            'start_pct': start_pct,
-            'width_pct': width_pct,
-            'is_running': is_running,
-            'name': name,
-            'duration_str': duration_str
-        })
-
-        # Compact single-row session display
-        provider_color = '#7c3aed' if provider == 'runpod' else '#ea580c'
-        provider_bg = '#faf5ff' if provider == 'runpod' else '#fffbeb'
-        running_indicator = '<span style="color:#10b981;margin-left:4px;">●</span>' if is_running else ''
-
-        print(f'''
-<div class="session-row" data-session="{pod_id[:10]}" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: {provider_bg}; border-left: 4px solid {provider_color}; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+<div class="session-row" data-session="5npkpcz074" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
     <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
-        {provider_icon}
-        <span style="font-weight: 600; color: {provider_color};">{provider_label}</span>
-        {running_indicator}
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
     </div>
-    <div style="background: {provider_color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
-        {gpu_display}
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
     </div>
     <div style="color: #4b5563; font-size: 12px;">
-        <span class="tz-time" data-utc="{start_iso}">{start_display}</span> - {'now' if is_running else f'<span class="tz-time" data-utc="{end_iso}">{end_display}</span>'}
+        <span class="tz-time" data-utc="2025-12-18T20:44:59Z">20:44</span> - <span class="tz-time" data-utc="2025-12-18T21:17:35Z">21:17</span>
     </div>
-    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">{duration_str}</div>
-    <div style="font-weight: 600; color: #059669; font-size: 13px;">${cost:.2f}</div>
-    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>{pod_id[:10]}</code></div>
-</div>''')
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">32m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.09</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>5npkpcz074</code></div>
+</div>
 
-else:
-    all_sessions = []  # Empty list for no sessions case
-    print('''
-<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 24px; text-align: center;">
-    <i class="fas fa-check-circle" style="font-size: 32px; color: #10b981; margin-bottom: 12px; display: block;"></i>
-    <div style="font-size: 16px; font-weight: 600; color: #166534; margin-bottom: 4px;">No GPU Activity</div>
-    <div style="color: #4b5563; font-size: 13px;">No pods have run in the last 24 hours - $0.00 spent</div>
-</div>''')
+<div class="session-row" data-session="grf2en2o3v" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-18T23:57:16Z">23:57</span> - <span class="tz-time" data-utc="2025-12-19T00:29:10Z">00:29</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">31m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.08</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>grf2en2o3v</code></div>
+</div>
 
-# Generate Gantt-style 24h timeline at bottom
-print('''
+<div class="session-row" data-session="aws-i-03a2" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fffbeb; border-left: 4px solid #ea580c; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fab fa-aws"></i>
+        <span style="font-weight: 600; color: #ea580c;">AWS EC2</span>
+        
+    </div>
+    <div style="background: #ea580c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        g4dn.xlarge
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-19T00:14:14Z">00:14</span> - <span class="tz-time" data-utc="2025-12-19T00:24:47Z">00:24</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">10m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.09</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>aws-i-03a2</code></div>
+</div>
+
+<div class="session-row" data-session="i-03a29287" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fffbeb; border-left: 4px solid #ea580c; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fab fa-aws"></i>
+        <span style="font-weight: 600; color: #ea580c;">AWS EC2</span>
+        
+    </div>
+    <div style="background: #ea580c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        g4dn.xlarge
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-19T00:14:33Z">00:14</span> - <span class="tz-time" data-utc="2025-12-19T00:29:33Z">00:29</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">15m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.13</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>i-03a29287</code></div>
+</div>
+
+<div class="session-row" data-session="g5d0omc5vk" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #faf5ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 100px;">
+        <i class="fas fa-cloud"></i>
+        <span style="font-weight: 600; color: #7c3aed;">RunPod</span>
+        
+    </div>
+    <div style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+        RTX A5000
+    </div>
+    <div style="color: #4b5563; font-size: 12px;">
+        <span class="tz-time" data-utc="2025-12-19T04:16:27Z">04:16</span> - <span class="tz-time" data-utc="2025-12-19T06:03:56Z">06:03</span>
+    </div>
+    <div style="font-weight: 600; color: #1f2937; font-size: 13px;">1h 47m</div>
+    <div style="font-weight: 600; color: #059669; font-size: 13px;">$0.29</div>
+    <div style="margin-left: auto; font-size: 10px; color: #9ca3af;"><code>g5d0omc5vk</code></div>
+</div>
+
 <div id="gantt-timeline" style="margin-top: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
         <span style="font-size: 12px; font-weight: 600; color: #374151;">
@@ -1451,83 +836,121 @@ print('''
         <span style="flex:1;"></span>
         <span style="font-size: 10px; color: #10b981; font-weight: 600;">now →</span>
     </div>
-''')
 
-# Wrapper for time axis + gantt container
-print('<div id="gantt-wrapper" style="position: relative;">')
+<div id="gantt-wrapper" style="position: relative;">
+<div id="time-axis" style="position: relative; height: 16px; margin-bottom: 2px;">
+<div id="now-label" style="position: absolute; top: 0; transform: translateX(-50%); color: #6b7280; font-size: 9px; font-weight: 500; white-space: nowrap; display: none;">now</div>
+</div>
+<div id="gantt-container" style="position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+<div id="now-indicator" style="position: absolute; top: 0; bottom: 0; width: 1px; background: #9ca3af; z-index: 50; display: none;"></div>
+<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none;">
+<div style="position: absolute; left: 4.166666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 8.333333333333332%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 12.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 16.666666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 20.833333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 25.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 29.166666666666668%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 33.33333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 37.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 41.66666666666667%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 45.83333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 50.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 54.166666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 58.333333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 62.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 66.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 70.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 75.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 79.16666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 83.33333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 87.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 91.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 95.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+</div>
 
-# Time axis row above the chart (for "now" label)
-print('<div id="time-axis" style="position: relative; height: 16px; margin-bottom: 2px;">')
-print('<div id="now-label" style="position: absolute; top: 0; transform: translateX(-50%); color: #6b7280; font-size: 9px; font-weight: 500; white-space: nowrap; display: none;">now</div>')
-print('</div>')
-
-# Container for Gantt tracks
-print('<div id="gantt-container" style="position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">')
-# "Now" indicator vertical line only (label is above in time-axis)
-print('<div id="now-indicator" style="position: absolute; top: 0; bottom: 0; width: 1px; background: #9ca3af; z-index: 50; display: none;"></div>')
-
-# Hour grid lines (vertical)
-print('<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none;">')
-for i in range(1, 24):
-    pct = (i / 24) * 100
-    opacity = 0.3 if i % 6 == 0 else 0.1
-    width = '1px' if i % 6 == 0 else '1px'
-    print(f'<div style="position: absolute; left: {pct}%; top: 0; bottom: 0; width: {width}; background: rgba(0,0,0,{opacity});"></div>')
-print('</div>')
-
-# Each session gets its own track row
-for idx, sess in enumerate(sorted(all_sessions, key=lambda x: x['start_pct'])):
-    pod_id = sess['pod_id']
-    provider = sess['provider']
-    start_pct = sess['start_pct']
-    width_pct = max(1, sess['width_pct'])
-    is_running = sess['is_running']
-    name = sess['name']
-    duration_str = sess['duration_str']
-
-    if provider == 'runpod':
-        bar_color = '#7c3aed'
-        track_bg = '#faf5ff'
-    else:
-        bar_color = '#ea580c'
-        track_bg = '#fffbeb'
-
-    running_style = 'animation: pulse 1.5s infinite;' if is_running else ''
-    end_marker = f'<div style="position:absolute;right:-1px;top:0;bottom:0;width:3px;background:#10b981;border-radius:0 2px 2px 0;"></div>' if is_running else f'<div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>'
-
-    # Track row with thin line and thick bar for active period
-    print(f'''
-<div class="gantt-track {provider}" data-session="{pod_id[:10]}" style="position: relative; height: 20px; background: {track_bg}; border-bottom: 1px solid #e5e7eb;">
+<div class="gantt-track runpod" data-session="5npkpcz074" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
     <!-- Thin baseline -->
     <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
     <!-- Thick bar for active period -->
-    <div class="gantt-bar" style="position: absolute; left: {start_pct:.1f}%; width: {width_pct:.1f}%; top: 3px; bottom: 3px; background: {bar_color}; border-radius: 3px; {running_style} display: flex; align-items: center; justify-content: center; overflow: hidden;">
-        {end_marker}
-        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">{duration_str if width_pct > 4 else ''}</span>
+    <div class="gantt-bar" style="position: absolute; left: 62.0%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
     </div>
     <!-- Session label on left -->
-    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: {track_bg}; padding: 0 4px; z-index: 1;">
-        {name[:12]}
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        5npkpcz0
     </div>
-</div>''')
+</div>
 
-print('</div>')  # Close gantt-container
+<div class="gantt-track runpod" data-session="grf2en2o3v" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 75.4%; width: 3.0%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        grf2en2o
+    </div>
+</div>
 
-# Time axis labels below
-print('<div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; margin-top: 6px; padding: 0 2px;">')
-for i in range(0, 25, 4):  # Every 4 hours for more granularity
-    t = start_time + timedelta(hours=i)
-    iso_time = t.strftime('%Y-%m-%dT%H:%M:%SZ')
-    display_time = t.strftime('%H:%M')
-    print(f'<span class="tz-hour" data-utc="{iso_time}">{display_time}</span>')
-print('</div>')
+<div class="gantt-track aws" data-session="aws-i-03a2" style="position: relative; height: 20px; background: #fffbeb; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 76.5%; width: 3.0%; top: 3px; bottom: 3px; background: #ea580c; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #fffbeb; padding: 0 4px; z-index: 1;">
+        g4dn.xlarge
+    </div>
+</div>
 
-print('</div>')  # Close gantt-wrapper
+<div class="gantt-track aws" data-session="i-03a29287" style="position: relative; height: 20px; background: #fffbeb; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 76.6%; width: 3.0%; top: 3px; bottom: 3px; background: #ea580c; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"></span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #fffbeb; padding: 0 4px; z-index: 1;">
+        GPU-Worker
+    </div>
+</div>
 
-print('</div>')  # Close gantt-timeline
+<div class="gantt-track runpod" data-session="g5d0omc5vk" style="position: relative; height: 20px; background: #faf5ff; border-bottom: 1px solid #e5e7eb;">
+    <!-- Thin baseline -->
+    <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #d1d5db;"></div>
+    <!-- Thick bar for active period -->
+    <div class="gantt-bar" style="position: absolute; left: 93.4%; width: 6.6%; top: 3px; bottom: 3px; background: #7c3aed; border-radius: 3px;  display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div style="position:absolute;right:-1px;top:0;bottom:0;width:2px;background:#ef4444;"></div>
+        <span style="font-size: 9px; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">1h 47m</span>
+    </div>
+    <!-- Session label on left -->
+    <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: #6b7280; background: #faf5ff; padding: 0 4px; z-index: 1;">
+        g5d0omc5
+    </div>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; margin-top: 6px; padding: 0 2px;">
+<span class="tz-hour" data-utc="2025-12-18T05:52:04Z">05:52</span>
+<span class="tz-hour" data-utc="2025-12-18T09:52:04Z">09:52</span>
+<span class="tz-hour" data-utc="2025-12-18T13:52:04Z">13:52</span>
+<span class="tz-hour" data-utc="2025-12-18T17:52:04Z">17:52</span>
+<span class="tz-hour" data-utc="2025-12-18T21:52:04Z">21:52</span>
+<span class="tz-hour" data-utc="2025-12-19T01:52:04Z">01:52</span>
+<span class="tz-hour" data-utc="2025-12-19T05:52:04Z">05:52</span>
+</div>
+</div>
+</div>
 
-# Add hover interaction script
-print('''
 <script>
 document.querySelectorAll('[data-session-id]').forEach(card => {
     card.addEventListener('mouseenter', () => {
@@ -1547,76 +970,318 @@ document.querySelectorAll('[data-session-id]').forEach(card => {
     });
 });
 </script>
-''')
 
-# Legend
-print('''
+
 <div class="timeline-legend">
     <div class="legend-item"><div class="legend-dot runpod"></div> RunPod ($0.16/hr)</div>
     <div class="legend-item"><div class="legend-dot aws"></div> AWS EC2 ($0.52/hr)</div>
     <div class="legend-item"><div class="legend-dot running"></div> Currently Running</div>
-</div>''')
-TIMELINE_SCRIPT
-)
-echo "$TIMELINE_OUTPUT" >> "$OUTPUT_FILE"
-
-cat >> "$OUTPUT_FILE" << 'HTMLTIMELINEEND'
+</div>
         </div>
-HTMLTIMELINEEND
-
-# Add event log (inside Activity History section)
-cat >> "$OUTPUT_FILE" << 'HTMLEVENTS'
             <h3 style="font-size: 14px; color: #374151; margin: 20px 0 12px; display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-list-ul" style="color: #6b7280;"></i> Recent Events (24h)
             </h3>
             <div class="event-log">
-HTMLEVENTS
-
-if [ -f "$EVENT_LOG" ]; then
-    # Get last 50 events, newest first
-    tail -100 "$EVENT_LOG" 2>/dev/null | python3 -c "
-import sys
-import json
-
-events = []
-for line in sys.stdin:
-    try:
-        events.append(json.loads(line.strip()))
-    except:
-        pass
-
-# Sort by timestamp descending
-events.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-
-for event in events[:50]:
-    ts = event.get('timestamp', '')[:19].replace('T', ' ')
-    provider = event.get('provider', 'unknown')
-    action = event.get('action', 'unknown')
-    resource = event.get('resource_id', 'unknown')
-    details = event.get('details', {})
-
-    provider_class = f'provider-{provider}'
-    action_class = f'event-action-{action}'
-
-    detail_str = ''
-    if isinstance(details, dict):
-        if 'reason' in details:
-            detail_str = f\" - {details['reason']}\"
-        elif 'status' in details:
-            detail_str = f\" - {details['status']}\"
-
-    print(f'''<div class=\"event-row\">
-        <span class=\"event-time\">{ts}</span>
-        <span class=\"provider-badge {provider_class}\">{provider.upper()}</span>
-        <span class=\"{action_class}\">{action}</span>
-        <code>{resource[:12]}</code>{detail_str}
-    </div>''')
-" >> "$OUTPUT_FILE"
-else
-    echo '<div class="no-data">No events logged yet</div>' >> "$OUTPUT_FILE"
-fi
-
-cat >> "$OUTPUT_FILE" << 'HTMLSETTINGS'
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:48:56</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>g5d0omc5vkvh</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:30:04</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:15:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:00:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:30:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:16:27</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>g5d0omc5vkvh</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:14:33</span>
+        <span class="provider-badge provider-aws">AWS</span>
+        <span class="event-action-created">created</span>
+        <code>i-03a292875d</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:14:10</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>grf2en2o3v13</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:00:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>grf2en2o3v13</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 23:57:16</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>grf2en2o3v13</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 21:02:35</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>5npkpcz074rr</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 21:00:04</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>5npkpcz074rr</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 20:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>5npkpcz074rr</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 20:44:59</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>5npkpcz074rr</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:43</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>jffyy3arvbb7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jffyy3arvbb7</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:20:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jffyy3arvbb7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 20:07:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>bkmbnjajskhr</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:56:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>bkmbnjajskhr</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:46:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>enmchk3eivj1</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:16:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>enmchk3eivj1</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 16:31:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>wbhtmouj9p2e</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:36:01</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>wbhtmouj9p2e</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:24:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>e88fbu9wyy6f</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:09:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e88fbu9wyy6f</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:06:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>h3cafp4qw0mb</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>h3cafp4qw0mb</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>oq834iapcrbw</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:16:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oq834iapcrbw</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:15:45</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>y3tntwrvtxka</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:10:20</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>y3tntwrvtxka</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:08:09</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>70loinoywrv7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 03:56:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>70loinoywrv7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:44:08</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>onpuzrwt9lxi</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:24:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>onpuzrwt9lxi</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:12:58</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>4gfwokay9cri</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:02:22</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>oevr1vgk641c</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 05:55:39</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oevr1vgk641c</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:49:18</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>eyc6m78fj6hc</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:48:24</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>test-pod-id</code> - manual-test
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:45:50</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e5vdo3j2cbh9</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:20:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>x9gksf05o0m2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:41:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oyx1v1g3kkzo</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:30:05</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jpzyqfrm0kzv</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:23:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>byjrhjam6is2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:12:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>qfcznj035yfp</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:27:00</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>ci6ase4eusgy</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:15:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>ci6ase4eusgy</code>
+    </div>
             </div>
         </div>
         <!-- End Activity History Section -->
@@ -1656,9 +1321,6 @@ cat >> "$OUTPUT_FILE" << 'HTMLSETTINGS'
             <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-desktop"></i> View dashboard locally:</strong></p>
             <div class="code-block">cd artifacts && python3 -m http.server 8080</div>
         </div>
-HTMLSETTINGS
-
-cat >> "$OUTPUT_FILE" << 'HTMLFOOTER'
 
         <p class="timestamp">
             <a href="https://github.com/davidbmar/whisperlive-runpod">
@@ -1996,65 +1658,3 @@ cat >> "$OUTPUT_FILE" << 'HTMLFOOTER'
     </script>
 </body>
 </html>
-HTMLFOOTER
-
-echo "Dashboard generated: $OUTPUT_FILE"
-
-#===============================================================================
-# Upload to S3 (if configured)
-#===============================================================================
-
-# Also save a daily archive locally
-DAILY_ARCHIVE="$OUTPUT_DIR/gpu-dashboard-${TODAY}.html"
-cp "$OUTPUT_FILE" "$DAILY_ARCHIVE"
-echo "Daily archive: $DAILY_ARCHIVE"
-
-if [ -n "$S3_BUCKET" ]; then
-    echo "Uploading to S3: $S3_BUCKET"
-
-    # Upload current dashboard as index.html
-    aws s3 cp "$OUTPUT_FILE" "${S3_BUCKET}index.html" \
-        --content-type "text/html" \
-        --cache-control "max-age=60" \
-        2>/dev/null
-
-    # Also upload to legacy path (without /gpu-dashboard/ prefix)
-    # This supports the old URL: /gpu-dashboard.html
-    BUCKET_NAME=$(echo "$S3_BUCKET" | sed 's|s3://||' | cut -d'/' -f1)
-    aws s3 cp "$OUTPUT_FILE" "s3://${BUCKET_NAME}/gpu-dashboard.html" \
-        --content-type "text/html" \
-        --cache-control "max-age=60" \
-        2>/dev/null
-
-    # Also upload as today's dated archive
-    aws s3 cp "$OUTPUT_FILE" "${S3_BUCKET}${TODAY}.html" \
-        --content-type "text/html" \
-        --cache-control "max-age=3600" \
-        2>/dev/null
-
-    if [ $? -eq 0 ]; then
-        # Extract bucket name and region for URL
-        BUCKET_NAME=$(echo "$S3_BUCKET" | sed 's|s3://||' | cut -d'/' -f1)
-        echo "Dashboard URL: http://${BUCKET_NAME}.s3.amazonaws.com/index.html"
-        echo "Daily archive: http://${BUCKET_NAME}.s3.amazonaws.com/${TODAY}.html"
-
-        # Invalidate CloudFront cache for the dashboard (every 15 minutes to limit costs)
-        # Only invalidate if minute is 0, 15, 30, or 45
-        CURRENT_MINUTE=$(date +%M)
-        if [[ "$CURRENT_MINUTE" =~ ^(00|01|15|16|30|31|45|46)$ ]]; then
-            CLOUDFRONT_DIST_ID="${CLOUDFRONT_DISTRIBUTION_ID:-EWT6EFRALROLN}"
-            if [ -n "$CLOUDFRONT_DIST_ID" ]; then
-                aws cloudfront create-invalidation \
-                    --distribution-id "$CLOUDFRONT_DIST_ID" \
-                    --paths "/gpu-dashboard/index.html" "/gpu-dashboard.html" \
-                    --output text --query 'Invalidation.Id' 2>/dev/null && \
-                    echo "CloudFront cache invalidated"
-            fi
-        fi
-    else
-        echo "Warning: S3 upload failed"
-    fi
-else
-    echo "S3 bucket not configured. Set GPU_DASHBOARD_S3_BUCKET in .env to enable upload."
-    echo "View locally: file://$OUTPUT_FILE"
-fi
