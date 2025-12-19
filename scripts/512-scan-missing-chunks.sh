@@ -225,15 +225,83 @@ done
 # Re-enable error checking
 set -e
 
+log_success "Transcription scan completed"
+echo ""
+
+# ============================================================================
+# Step 2b: Scan for Re-Diarization Jobs
+# ============================================================================
+# Sessions that have raw transcription but need re-diarization
+# (metadata.json has diarization settings but transcription-diarized.json is missing)
+
+log_info "Step 2b: Scanning for re-diarization jobs..."
+
+declare -a REDIARIZE_SESSIONS=()
+REDIARIZE_COUNT=0
+
+# Temporarily disable error checking
+set +e
+
+for SESSION_PATH in $SESSIONS; do
+    SESSION_ID=$(basename "$SESSION_PATH")
+
+    # Check if metadata.json exists and has diarization settings
+    METADATA=$(aws s3 cp "s3://$S3_BUCKET/$SESSION_PATH/metadata.json" - 2>/dev/null)
+
+    if [ -n "$METADATA" ]; then
+        # Check for diarization settings in metadata
+        HAS_DIARIZATION=$(echo "$METADATA" | jq -r '.diarization // empty' 2>/dev/null)
+
+        if [ -n "$HAS_DIARIZATION" ] && [ "$HAS_DIARIZATION" != "null" ]; then
+            # Check if transcription-diarized.json exists
+            DIARIZED_EXISTS=$(aws s3 ls "s3://$S3_BUCKET/$SESSION_PATH/transcription-diarized.json" 2>/dev/null | wc -l)
+
+            if [ "$DIARIZED_EXISTS" -eq 0 ]; then
+                # This session needs re-diarization!
+                MIN_SPEAKERS=$(echo "$METADATA" | jq -r '.diarization.minSpeakers // empty' 2>/dev/null)
+                MAX_SPEAKERS=$(echo "$METADATA" | jq -r '.diarization.maxSpeakers // empty' 2>/dev/null)
+                QUEUED_AT=$(echo "$METADATA" | jq -r '.diarization.queuedAt // empty' 2>/dev/null)
+                QUEUED_BY=$(echo "$METADATA" | jq -r '.diarization.queuedBy // empty' 2>/dev/null)
+
+                log_info "  Found re-diarize job: $SESSION_ID (speakers: $MIN_SPEAKERS-$MAX_SPEAKERS)"
+
+                REDIARIZE_JSON=$(cat <<EOF
+{
+  "sessionPath": "$SESSION_PATH",
+  "sessionId": "$SESSION_ID",
+  "jobType": "rediarize",
+  "minSpeakers": ${MIN_SPEAKERS:-null},
+  "maxSpeakers": ${MAX_SPEAKERS:-null},
+  "queuedAt": "${QUEUED_AT:-}",
+  "queuedBy": "${QUEUED_BY:-}"
+}
+EOF
+)
+                REDIARIZE_SESSIONS+=("$REDIARIZE_JSON")
+                REDIARIZE_COUNT=$((REDIARIZE_COUNT + 1))
+            fi
+        fi
+    fi
+done
+
+set -e
+
+if [ "$REDIARIZE_COUNT" -gt 0 ]; then
+    log_success "Found $REDIARIZE_COUNT sessions needing re-diarization"
+else
+    log_info "No re-diarization jobs found"
+fi
+echo ""
+
 SCAN_END=$(date +%s)
 SCAN_DURATION=$((SCAN_END - SCAN_START))
 
-log_success "Analysis completed in ${SCAN_DURATION}s"
+log_success "Full scan completed in ${SCAN_DURATION}s"
 echo ""
 
 log_info "Step 3: Generating pending-jobs.json..."
 
-# Build sessions array
+# Build sessions array (missing transcription)
 SESSIONS_JSON="["
 if [ ${#MISSING_SESSIONS[@]} -gt 0 ]; then
     FIRST=true
@@ -248,6 +316,24 @@ if [ ${#MISSING_SESSIONS[@]} -gt 0 ]; then
 fi
 SESSIONS_JSON="${SESSIONS_JSON}]"
 
+# Build re-diarize sessions array
+REDIARIZE_JSON="["
+if [ ${#REDIARIZE_SESSIONS[@]} -gt 0 ]; then
+    FIRST=true
+    for SESSION_JSON in "${REDIARIZE_SESSIONS[@]}"; do
+        if [ "$FIRST" = true ]; then
+            REDIARIZE_JSON="${REDIARIZE_JSON}${SESSION_JSON}"
+            FIRST=false
+        else
+            REDIARIZE_JSON="${REDIARIZE_JSON}, ${SESSION_JSON}"
+        fi
+    done
+fi
+REDIARIZE_JSON="${REDIARIZE_JSON}]"
+
+# Calculate total pending jobs
+TOTAL_JOBS=$((TOTAL_MISSING + REDIARIZE_COUNT))
+
 # Generate final JSON report
 cat > "$OUTPUT_FILE" <<EOF
 {
@@ -256,7 +342,10 @@ cat > "$OUTPUT_FILE" <<EOF
   "sessionsScanned": $SESSION_COUNT,
   "sessionsWithMissingChunks": ${#MISSING_SESSIONS[@]},
   "totalMissingChunks": $TOTAL_MISSING,
-  "sessions": $SESSIONS_JSON
+  "sessionsNeedingRediarization": $REDIARIZE_COUNT,
+  "totalPendingJobs": $TOTAL_JOBS,
+  "sessions": $SESSIONS_JSON,
+  "rediarizeSessions": $REDIARIZE_JSON
 }
 EOF
 
@@ -268,10 +357,10 @@ echo ""
 # ============================================================================
 
 log_info "==================================================================="
-if [ "$TOTAL_MISSING" -eq 0 ]; then
-    log_success "✅ SCAN COMPLETE - NO MISSING CHUNKS"
+if [ "$TOTAL_JOBS" -eq 0 ]; then
+    log_success "✅ SCAN COMPLETE - NO PENDING JOBS"
 else
-    log_success "✅ SCAN COMPLETE - FOUND $TOTAL_MISSING MISSING CHUNKS"
+    log_success "✅ SCAN COMPLETE - FOUND $TOTAL_JOBS PENDING JOBS"
 fi
 log_info "==================================================================="
 echo ""
@@ -279,21 +368,23 @@ log_info "Scan Summary:"
 log_info "  - Sessions scanned: $SESSION_COUNT"
 log_info "  - Sessions skipped (already complete): $SKIPPED_SESSIONS"
 log_info "  - Sessions analyzed: $((SESSION_COUNT - SKIPPED_SESSIONS))"
-log_info "  - Sessions with missing chunks: ${#MISSING_SESSIONS[@]}"
-log_info "  - Total missing chunks: $TOTAL_MISSING"
+log_info "  - Sessions with missing transcription: ${#MISSING_SESSIONS[@]} ($TOTAL_MISSING chunks)"
+log_info "  - Sessions needing re-diarization: $REDIARIZE_COUNT"
+log_info "  - Total pending jobs: $TOTAL_JOBS"
 log_info "  - Scan duration: ${SCAN_DURATION}s"
 log_info "  - Report: $OUTPUT_FILE"
 echo ""
 
-if [ "$TOTAL_MISSING" -gt 0 ]; then
+if [ "$TOTAL_JOBS" -gt 0 ]; then
     log_info "Next Steps:"
     log_info "  1. View detailed report: cat $OUTPUT_FILE | jq ."
-    log_info "  2. Run batch transcription: ./scripts/515-run-batch-transcribe.sh"
-    log_info "  3. Or wait for automatic 2-hour cron"
+    log_info "  2. Run batch transcription: ./scripts/515-runpod--batch-transcribe.sh"
+    log_info "  3. Or wait for automatic scheduler"
 else
-    log_info "No action needed - all audio chunks have transcriptions!"
+    log_info "No action needed - all sessions are up to date!"
 fi
 echo ""
 
 # Output count for script chaining (515 uses this)
-echo "$TOTAL_MISSING"
+# Include both missing chunks AND re-diarize jobs
+echo "$TOTAL_JOBS"

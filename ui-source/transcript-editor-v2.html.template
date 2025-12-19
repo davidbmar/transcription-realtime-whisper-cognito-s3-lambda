@@ -39,77 +39,6 @@
             color: var(--gray-900);
         }
 
-        /* Header */
-        .header {
-            background: white;
-            border-bottom: 1px solid var(--gray-200);
-            padding: 16px 24px;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .breadcrumb-nav {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-        }
-
-        .breadcrumb-link {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--primary);
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .breadcrumb-link:hover {
-            background: var(--primary-light);
-        }
-
-        .breadcrumb-link i {
-            font-size: 16px;
-        }
-
-        .breadcrumb-separator {
-            color: var(--gray-400);
-            font-size: 12px;
-        }
-
-        .breadcrumb-current {
-            color: var(--gray-700);
-            font-weight: 600;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
         /* Two-Panel Layout */
         .main-container {
             max-width: 1400px;
@@ -2031,42 +1960,51 @@
         #ai-config-panel.hiding {
             opacity: 0;
         }
+
+        /* Toolbar below header for page-specific controls */
+        .page-toolbar {
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 8px 24px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+        }
     </style>
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
 </head>
 <body>
-    <!-- Header -->
-    <div class="header">
-        <div class="header-content">
-            <div class="breadcrumb-nav">
-                <a href="index.html" class="breadcrumb-link">
-                    <i class="fas fa-home"></i>
-                    Dashboard
-                </a>
-                <span class="breadcrumb-separator">›</span>
-                <span class="breadcrumb-current">Collaborative Transcript Editor</span>
-            </div>
-            <div class="header-actions">
-                <select id="timezone-selector" style="padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer; margin-right: 12px;">
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">Eastern (ET)</option>
-                    <option value="America/Chicago">Central (CT)</option>
-                    <option value="America/Denver">Mountain (MT)</option>
-                    <option value="America/Los_Angeles">Pacific (PT)</option>
-                    <option value="America/Phoenix">Arizona (MST)</option>
-                    <option value="America/Anchorage">Alaska (AKT)</option>
-                    <option value="Pacific/Honolulu">Hawaii (HST)</option>
-                    <option value="Europe/London">London (GMT/BST)</option>
-                    <option value="Europe/Paris">Paris (CET)</option>
-                    <option value="Europe/Berlin">Berlin (CET)</option>
-                    <option value="Asia/Tokyo">Tokyo (JST)</option>
-                    <option value="Asia/Shanghai">Shanghai (CST)</option>
-                    <option value="Asia/Dubai">Dubai (GST)</option>
-                    <option value="Australia/Sydney">Sydney (AEDT)</option>
-                </select>
-                <span id="user-email" style="color: var(--gray-600); font-size: 14px;"></span>
-                <button class="btn" id="logout-btn">Logout</button>
-            </div>
-        </div>
+    <!-- Shared Header Component -->
+    <div id="clouddrive-header"
+         data-page="Transcript Editor"
+         data-icon="file-alt"
+         data-show-user="true">
+    </div>
+    <script src="lib/clouddrive-header.js"></script>
+
+    <!-- Page-specific toolbar (timezone selector) -->
+    <div class="page-toolbar">
+        <label for="timezone-selector" style="font-size: 14px; color: var(--gray-600);">
+            <i class="fas fa-globe"></i> Timezone:
+        </label>
+        <select id="timezone-selector" style="padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">Eastern (ET)</option>
+            <option value="America/Chicago">Central (CT)</option>
+            <option value="America/Denver">Mountain (MT)</option>
+            <option value="America/Los_Angeles">Pacific (PT)</option>
+            <option value="America/Phoenix">Arizona (MST)</option>
+            <option value="America/Anchorage">Alaska (AKT)</option>
+            <option value="Pacific/Honolulu">Hawaii (HST)</option>
+            <option value="Europe/London">London (GMT/BST)</option>
+            <option value="Europe/Paris">Paris (CET)</option>
+            <option value="Europe/Berlin">Berlin (CET)</option>
+            <option value="Asia/Tokyo">Tokyo (JST)</option>
+            <option value="Asia/Shanghai">Shanghai (CST)</option>
+            <option value="Asia/Dubai">Dubai (GST)</option>
+            <option value="Australia/Sydney">Sydney (AEDT)</option>
+        </select>
     </div>
 
     <!-- Loading State -->
@@ -2141,9 +2079,14 @@
                         <span>Speakers</span>
                         <span class="speaker-count-badge" id="speaker-count-badge">0</span>
                     </div>
-                    <button id="save-speakers-btn" onclick="saveSpeakerNames()" title="Save speaker names and colors">
-                        Save
-                    </button>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="rediarize-btn" onclick="showRediarizeModal()" title="Re-run speaker diarization">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button id="save-speakers-btn" onclick="saveSpeakerNames()" title="Save speaker names and colors">
+                            Save
+                        </button>
+                    </div>
                 </div>
                 <div id="speaker-list" class="speaker-legend">
                     <!-- Dynamically populated -->
@@ -2607,6 +2550,89 @@
         </div>
     </div>
 
+    <!-- Re-Diarize Modal -->
+    <div id="rediarize-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="modal-close" onclick="closeRediarizeModal()">&times;</span>
+            <h2 class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-sync-alt" style="color: var(--primary);"></i>
+                Re-Diarize Session
+            </h2>
+            <p style="color: var(--gray-600); margin: 12px 0 20px 0; font-size: 14px;">
+                How many speakers were in this recording?
+            </p>
+            <div id="rediarize-presets" style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="rediarize-preset" onclick="selectRediarizePreset(1, 1)" data-min="1" data-max="1">
+                    <span class="preset-icon">👤</span>
+                    <span class="preset-label">Just me</span>
+                    <span class="preset-hint">1 speaker</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(2, 2)" data-min="2" data-max="2">
+                    <span class="preset-icon">👥</span>
+                    <span class="preset-label">2 people</span>
+                    <span class="preset-hint">Conversation</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(3, 6)" data-min="3" data-max="6">
+                    <span class="preset-icon">👨‍👩‍👧‍👦</span>
+                    <span class="preset-label">Group</span>
+                    <span class="preset-hint">3-6 speakers</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(null, null)" data-min="" data-max="">
+                    <span class="preset-icon">🔄</span>
+                    <span class="preset-label">Auto-detect</span>
+                    <span class="preset-hint">Let AI decide</span>
+                </button>
+            </div>
+            <div id="rediarize-status" style="margin-top: 16px; display: none;">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: var(--gray-50); border-radius: 8px;">
+                    <i class="fas fa-spinner fa-spin" style="color: var(--primary);"></i>
+                    <span style="color: var(--gray-600); font-size: 14px;">Queuing for re-diarization...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .rediarize-preset {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--gray-50);
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        .rediarize-preset:hover {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+        .rediarize-preset:active {
+            transform: scale(0.98);
+        }
+        .rediarize-preset .preset-icon {
+            font-size: 24px;
+            width: 36px;
+            text-align: center;
+        }
+        .rediarize-preset .preset-label {
+            font-weight: 600;
+            color: var(--gray-800);
+            font-size: 15px;
+            flex: 1;
+        }
+        .rediarize-preset .preset-hint {
+            color: var(--gray-500);
+            font-size: 13px;
+        }
+        .rediarize-preset.selected {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+    </style>
+
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
@@ -2744,6 +2770,10 @@
 
         // Get consistent color for a speaker (checks custom colors first)
         function getSpeakerColor(speakerIndexOrId) {
+            // v6.11.0: Return gray for UNKNOWN speaker
+            if (speakerIndexOrId === 'UNKNOWN') {
+                return '#6b7280'; // Gray-500
+            }
             // If passed a speaker ID string, check for custom color
             if (typeof speakerIndexOrId === 'string' && speakerColors[speakerIndexOrId]) {
                 return speakerColors[speakerIndexOrId];
@@ -2766,6 +2796,10 @@
 
         // Get color for speaker by ID (resolves to index if no custom color)
         function getSpeakerColorById(speakerId) {
+            // v6.11.0: Return gray for UNKNOWN speaker
+            if (speakerId === 'UNKNOWN') {
+                return '#6b7280'; // Gray-500
+            }
             if (speakerColors[speakerId]) {
                 return speakerColors[speakerId];
             }
@@ -3029,15 +3063,16 @@
                     if (!textEl) return;
 
                     const speaker = para.speaker;
-                    if (!speaker || speaker === 'UNKNOWN') return;
+                    if (!speaker) return;
 
-                    // Get speaker color
-                    const speakerColor = getSpeakerColorById(speaker);
-                    const speakerBgColor = getSpeakerBgColor(speaker);
+                    // v6.11.0: Handle UNKNOWN speaker with gray styling
+                    const isUnknown = speaker === 'UNKNOWN';
+                    const speakerColor = isUnknown ? '#6b7280' : getSpeakerColorById(speaker);
+                    const speakerBgColor = isUnknown ? 'rgba(107, 114, 128, 0.1)' : getSpeakerBgColor(speaker);
 
                     // Create wrapper
                     const speakerWrapper = document.createElement('div');
-                    speakerWrapper.className = 'segment-wrapper raw-diarization';
+                    speakerWrapper.className = 'segment-wrapper raw-diarization' + (isUnknown ? ' unknown-speaker' : '');
                     speakerWrapper.style.cssText = `
                         display: block;
                         background: ${speakerBgColor};
@@ -3049,7 +3084,7 @@
                     `;
 
                     // Create speaker label
-                    const displayName = speakerNames[speaker] || speaker;
+                    const displayName = isUnknown ? 'Unknown' : (speakerNames[speaker] || speaker);
                     const speakerLabel = document.createElement('span');
                     speakerLabel.className = 'speaker-label';
                     speakerLabel.textContent = displayName;
@@ -4637,18 +4672,19 @@
                 if (!para) return;
 
                 const speaker = para.speaker;
-                if (!speaker || speaker === 'UNKNOWN') return;
+                if (!speaker) return;
 
                 const textEl = chunkEl.querySelector('.paragraph-text');
                 if (!textEl) return;
 
-                // Get speaker color
-                const speakerColor = getSpeakerColorById(speaker);
-                const speakerBgColor = getSpeakerBgColor(speaker);
+                // v6.11.0: Handle UNKNOWN speaker with gray styling
+                const isUnknown = speaker === 'UNKNOWN';
+                const speakerColor = isUnknown ? '#6b7280' : getSpeakerColorById(speaker);
+                const speakerBgColor = isUnknown ? 'rgba(107, 114, 128, 0.1)' : getSpeakerBgColor(speaker);
 
                 // Create wrapper
                 const speakerWrapper = document.createElement('div');
-                speakerWrapper.className = 'segment-wrapper raw-diarization';
+                speakerWrapper.className = 'segment-wrapper raw-diarization' + (isUnknown ? ' unknown-speaker' : '');
                 speakerWrapper.style.cssText = `
                     display: block;
                     background: ${speakerBgColor};
@@ -4660,7 +4696,7 @@
                 `;
 
                 // Create speaker label
-                const displayName = speakerNames[speaker] || speaker;
+                const displayName = isUnknown ? 'Unknown' : (speakerNames[speaker] || speaker);
                 const speakerLabel = document.createElement('span');
                 speakerLabel.className = 'speaker-label';
                 speakerLabel.textContent = displayName;
@@ -4781,8 +4817,10 @@
                 return;
             }
 
-            document.getElementById('user-email').textContent = getUserEmail();
-            document.getElementById('logout-btn').onclick = logout;
+            const userEmailEl = document.getElementById('user-email');
+            if (userEmailEl) userEmailEl.textContent = getUserEmail();
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) logoutBtn.onclick = logout;
 
             // Initialize preprocessor and plugin manager
             console.log('Initializing TranscriptPreprocessor (boundary mode)...');
@@ -4955,8 +4993,57 @@
                 allSessions = sessionsWithTranscripts;
                 populateSessionSelector();
 
-                // Load the first session
-                currentSession = sessionsWithTranscripts[0];
+                // Check for sessionId in URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const requestedSessionId = urlParams.get('sessionId');
+
+                if (requestedSessionId) {
+                    // Find the requested session
+                    const matchingSession = sessionsWithTranscripts.find(s =>
+                        s.folder === requestedSessionId ||
+                        s.sessionId === requestedSessionId
+                    );
+                    if (matchingSession) {
+                        currentSession = matchingSession;
+                        // Update the dropdown to show the selected session
+                        const selector = document.getElementById('session-selector');
+                        if (selector) {
+                            const index = sessionsWithTranscripts.indexOf(matchingSession);
+                            selector.selectedIndex = index;
+                        }
+                        console.log('Loaded requested session from URL:', currentSession);
+                    } else {
+                        console.warn('Requested session not found:', requestedSessionId);
+                        // Show error to user - session belongs to different account or doesn't exist
+                        showToast(`Session "${requestedSessionId}" not found. It may belong to a different account or have been deleted.`, 'error', 8000);
+
+                        if (sessionsWithTranscripts.length > 0) {
+                            currentSession = sessionsWithTranscripts[0];
+                            showToast('Showing your most recent session instead.', 'info', 5000);
+                        } else {
+                            // No sessions available at all - show empty state
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('main-container').style.display = 'grid';
+                            const editorContent = document.querySelector('.editor-content');
+                            editorContent.innerHTML = `
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--gray-500);">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: var(--warning);"></i>
+                                    <h3 style="margin-bottom: 8px; color: var(--gray-700);">Session Not Found</h3>
+                                    <p style="text-align: center; max-width: 400px;">The requested session "${requestedSessionId}" could not be found.</p>
+                                    <p style="text-align: center; max-width: 400px; margin-top: 8px; font-size: 14px;">It may belong to a different account, or the transcription hasn't been processed yet.</p>
+                                    <a href="index.html" class="btn btn-primary" style="margin-top: 16px;">
+                                        <i class="fas fa-home"></i> Go to Dashboard
+                                    </a>
+                                </div>
+                            `;
+                            return;
+                        }
+                    }
+                } else {
+                    // Load the first session (default behavior)
+                    currentSession = sessionsWithTranscripts[0];
+                }
+
                 console.log('Current session:', currentSession);
                 await loadAndProcessTranscript();
             } catch (error) {
@@ -5118,18 +5205,59 @@
 
                 // Try processed first (has user edits like speaker names)
                 try {
+                    console.log('[PROGRESS] Fetching processed file:', processedKey);
                     const downloadData = await apiCall(`/api/s3/download/${encodeURIComponent(processedKey)}`);
+                    console.log('[PROGRESS] Got presigned URL, downloading...');
                     const response = await fetch(downloadData.downloadUrl);
+                    console.log('[PROGRESS] Download complete, status:', response.status);
                     if (response.ok) {
                         const savedData = await response.json();
-                        // Only use processed file if it has proper speaker data (paragraphs with speakers)
-                        const hasSpeakers = savedData.paragraphs?.some(p => p.speaker) || savedData.speakers?.length > 0;
-                        if (hasSpeakers) {
+                        console.log('[PROGRESS] Parsed JSON, keys:', Object.keys(savedData));
+                        // Check if file has proper structure (paragraphs with speakers, or segments)
+                        const hasSegments = savedData.segments?.length > 0;
+                        const hasParagraphs = savedData.paragraphs?.length > 0;
+
+                        // Only use savedData directly if it has paragraphs (proper processed format)
+                        // Don't use speakers array alone - diarized files have speakers but no paragraphs
+                        if (hasParagraphs) {
                             processedData = savedData;
                             loadedFrom = 'processed';
-                            console.log('✅ Found processed transcript with speaker data - loading with user edits!');
+                            console.log('✅ Found processed transcript with paragraphs - loading!');
+                        } else if (hasSegments) {
+                            // Convert segments format to paragraphs format
+                            console.log('⚠️ Processed file has segments format, converting to paragraphs...');
+                            const paragraphs = savedData.segments.map((seg, idx) => ({
+                                text: seg.text,
+                                start: seg.start,
+                                end: seg.end,
+                                speaker: seg.speaker || 'Speaker',
+                                words: seg.words || [],
+                                id: `p-${idx}`
+                            }));
+
+                            // Calculate stats
+                            const totalWords = paragraphs.reduce((sum, p) => sum + (p.words?.length || p.text.split(/\s+/).length), 0);
+                            const totalDuration = paragraphs.length > 0
+                                ? (paragraphs[paragraphs.length - 1].end - paragraphs[0].start)
+                                : 0;
+
+                            processedData = {
+                                paragraphs: paragraphs,
+                                speakers: [...new Set(paragraphs.map(p => p.speaker))],
+                                metadata: savedData.metadata || {},
+                                speaker_names: savedData.speaker_names || {},  // Preserve LLM-identified names
+                                speaker_identification: savedData.speaker_identification,  // Preserve identification metadata
+                                stats: {
+                                    paragraphCount: paragraphs.length,
+                                    totalWords: totalWords,
+                                    totalDuration: totalDuration,
+                                    wordsPerMinute: totalDuration > 0 ? Math.round(totalWords / (totalDuration / 60)) : 0
+                                }
+                            };
+                            loadedFrom = 'processed-converted';
+                            console.log('✅ Converted segments to paragraphs:', paragraphs.length);
                         } else {
-                            console.log('⚠️ Processed file exists but has no speaker data, will try diarized instead...');
+                            console.log('⚠️ Processed file exists but has no usable data, will try diarized instead...');
                         }
                     }
                 } catch (e) {
@@ -5191,6 +5319,8 @@
                                 paragraphs: paragraphs,
                                 speakers: diarizedData.speakers,
                                 diarization_metadata: diarizedData.diarization_metadata,
+                                speaker_names: diarizedData.speaker_names || {},  // Preserve LLM-identified names
+                                speaker_identification: diarizedData.speaker_identification,  // Preserve identification metadata
                                 stats: {
                                     paragraphCount: paragraphs.length,
                                     totalWords: totalWords,
@@ -5240,22 +5370,31 @@
 
                 if (loadedFrom) {
                     // Render
+                    console.log('[PROGRESS] Starting renderEditor...');
                     renderEditor();
+                    console.log('[PROGRESS] renderEditor complete');
 
                     // Initialize global playback controls
+                    console.log('[PROGRESS] Starting initGlobalPlayback...');
                     await initGlobalPlayback();
+                    console.log('[PROGRESS] initGlobalPlayback complete');
 
-                    // Try to load AI analysis
-                    await loadAIAnalysis();
+                    // Try to load AI analysis (non-blocking - don't wait)
+                    console.log('[PROGRESS] Starting loadAIAnalysis (non-blocking)...');
+                    loadAIAnalysis().catch(e => console.warn('AI analysis load failed:', e));
 
                     // Load annotations for this session (if any)
                     if (currentSession?.folder) {
+                        console.log('[PROGRESS] Loading layers...');
                         await layerManager.loadLayersForSession(encodeURIComponent(currentSession.folder));
+                        console.log('[PROGRESS] Loading layer edits...');
                         await layerManager.loadAllLayerEdits();  // Load file-based text edits
                         layerManager.renderAnnotations();
+                        console.log('[PROGRESS] Layers complete');
                     }
 
                     // Hide loading, show content
+                    console.log('[PROGRESS] Hiding loading spinner...');
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('main-container').style.display = 'grid';
 
@@ -5371,6 +5510,23 @@
                 showToast(`Processed ${processedData.paragraphs.length} paragraphs from ${chunks.length} chunks (slower fallback - run 518 script to speed up)`);
             } catch (error) {
                 console.error('Error loading transcript:', error);
+
+                // Hide loading spinner and show error state
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-container').style.display = 'grid';
+
+                const editorContent = document.querySelector('.editor-content');
+                editorContent.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--gray-500);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: var(--danger);"></i>
+                        <h3 style="margin-bottom: 8px; color: var(--gray-700);">Error Loading Transcript</h3>
+                        <p style="text-align: center; max-width: 400px;">${error.message || 'An unexpected error occurred'}</p>
+                        <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 16px;">
+                            <i class="fas fa-redo"></i> Try Again
+                        </button>
+                    </div>
+                `;
+
                 showToast('Failed to load transcript: ' + error.message, 'error');
             }
         }
@@ -5645,14 +5801,15 @@
                 const speaker = para.speaker;
                 const speakerIndex = speakerList.indexOf(speaker);
                 let speakerWrapper = null;
-                if (speaker && speaker !== 'UNKNOWN') {
-                    // Use speaker-based colors (check custom colors first)
-                    const speakerColor = getSpeakerColorById(speaker);
-                    const speakerBgColor = getSpeakerBgColor(speaker);
+                if (speaker) {
+                    // v6.11.0: Handle UNKNOWN speaker with gray styling (allows reassignment)
+                    const isUnknown = speaker === 'UNKNOWN';
+                    const speakerColor = isUnknown ? '#6b7280' : getSpeakerColorById(speaker);
+                    const speakerBgColor = isUnknown ? 'rgba(107, 114, 128, 0.1)' : getSpeakerBgColor(speaker);
 
                     // Create wrapper matching annotation style
                     speakerWrapper = document.createElement('div');
-                    speakerWrapper.className = 'segment-wrapper raw-diarization';
+                    speakerWrapper.className = 'segment-wrapper raw-diarization' + (isUnknown ? ' unknown-speaker' : '');
                     speakerWrapper.style.cssText = `
                         display: block;
                         background: ${speakerBgColor};
@@ -5665,10 +5822,10 @@
 
                     // Create speaker label chip
                     const speakerLabel = document.createElement('span');
-                    speakerLabel.className = 'speaker-label';
+                    speakerLabel.className = 'speaker-label' + (isUnknown ? ' unknown' : '');
                     // Only set color-specific styles inline - common styles are in CSS
                     speakerLabel.style.border = `2px solid ${speakerColor}`;
-                    const speakerDisplayName = (speakerNames[speaker] || speaker).replace(/ ▼$/, '');
+                    const speakerDisplayName = isUnknown ? 'Unknown' : (speakerNames[speaker] || speaker).replace(/ ▼$/, '');
                     speakerLabel.textContent = speakerDisplayName + ' ▼';
                     speakerLabel.title = 'Click to change speaker';
                     speakerLabel.dataset.paraIndex = index;
@@ -7701,6 +7858,13 @@
             // Generate default friendly names for speakers without custom names
             console.log('[Speaker Panel] Before default names:', JSON.stringify(speakerNames));
             speakers.forEach((speaker, index) => {
+                // v6.11.0: Special handling for UNKNOWN speaker
+                if (speaker === 'UNKNOWN') {
+                    speakerNames[speaker] = 'Unknown';
+                    console.log(`[Speaker Panel] Set UNKNOWN to "Unknown"`);
+                    return;
+                }
+
                 // Check for missing, empty, or raw ID names (SPEAKER_XX, undefined_speaker_XX)
                 const currentName = speakerNames[speaker];
                 const isRawId = !currentName ||
@@ -8253,14 +8417,14 @@
             document.getElementById('plugin-modal').classList.remove('show');
         }
 
-        function showToast(message, type = 'success') {
+        function showToast(message, type = 'success', duration = 3000) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${type} show`;
 
             setTimeout(() => {
                 toast.classList.remove('show');
-            }, 3000);
+            }, duration);
         }
 
         // Close modal on outside click
@@ -8368,6 +8532,77 @@
         document.getElementById('session-info-modal').addEventListener('click', (e) => {
             if (e.target.id === 'session-info-modal') {
                 sessionInfoModal.close();
+            }
+        });
+
+        // ====================================================================
+        // Re-Diarization Modal
+        // ====================================================================
+
+        function showRediarizeModal() {
+            if (!currentSession) {
+                showToast('No session loaded', 'error');
+                return;
+            }
+            const modal = document.getElementById('rediarize-modal');
+            modal.style.display = 'flex';
+
+            // Reset any previous selection
+            document.querySelectorAll('.rediarize-preset').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.getElementById('rediarize-status').style.display = 'none';
+        }
+
+        function closeRediarizeModal() {
+            const modal = document.getElementById('rediarize-modal');
+            modal.style.display = 'none';
+        }
+
+        async function selectRediarizePreset(minSpeakers, maxSpeakers) {
+            // Highlight selected preset
+            document.querySelectorAll('.rediarize-preset').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            // Show loading status
+            document.getElementById('rediarize-status').style.display = 'block';
+
+            try {
+                const result = await apiCall('/api/rediarize', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        sessionId: currentSession.folder,
+                        minSpeakers: minSpeakers,
+                        maxSpeakers: maxSpeakers
+                    })
+                });
+
+                console.log('Re-diarization queued:', result);
+
+                closeRediarizeModal();
+
+                // Show success toast with helpful info
+                const speakerInfo = minSpeakers === maxSpeakers
+                    ? `${minSpeakers} speaker${minSpeakers > 1 ? 's' : ''}`
+                    : minSpeakers && maxSpeakers
+                        ? `${minSpeakers}-${maxSpeakers} speakers`
+                        : 'auto-detect';
+
+                showToast(`Queued for re-diarization (${speakerInfo}). Will process in next batch run (~1 hour) or run ./scripts/515-runpod--batch-transcribe.sh manually.`, 'success', 6000);
+
+            } catch (error) {
+                console.error('Failed to queue re-diarization:', error);
+                document.getElementById('rediarize-status').style.display = 'none';
+                showToast(`Failed to queue re-diarization: ${error.message}`, 'error');
+            }
+        }
+
+        // Close rediarize modal on outside click
+        document.getElementById('rediarize-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'rediarize-modal') {
+                closeRediarizeModal();
             }
         });
 

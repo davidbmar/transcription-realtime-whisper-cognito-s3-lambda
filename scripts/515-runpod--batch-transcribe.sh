@@ -45,7 +45,9 @@ fi
 PROJECT_ROOT="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
 
 # Load environment and common functions
+set -a  # Auto-export all variables
 source "$PROJECT_ROOT/.env"
+set +a
 source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 
 echo "============================================"
@@ -80,11 +82,25 @@ BATCH_LIMIT="${BATCH_LIMIT:-0}"           # 0 = no limit
 ENABLE_DIARIZATION="${ENABLE_DIARIZATION:-true}"
 PRESIGNED_URL_EXPIRY="${PRESIGNED_URL_EXPIRY:-7200}"  # 2 hours default (generous for long audio)
 
+# Diarization speaker count hints (improves accuracy when known)
+# Set via env vars or command line: MIN_SPEAKERS=3 MAX_SPEAKERS=5 ./scripts/515-runpod--batch-transcribe.sh
+MIN_SPEAKERS="${MIN_SPEAKERS:-}"          # Minimum expected speakers (empty = auto)
+MAX_SPEAKERS="${MAX_SPEAKERS:-}"          # Maximum expected speakers (empty = auto)
+
+# Async polling config
+POLL_INTERVAL="${POLL_INTERVAL:-30}"      # Poll every 30 seconds
+MAX_POLL_TIME="${MAX_POLL_TIME:-3600}"    # Max 1 hour per transcription
+
 # Statistics
 TIMESTAMP_START=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 CHUNKS_TRANSCRIBED=0
 CHUNKS_FAILED=0
 TOTAL_AUDIO_SECONDS=0
+SPEAKERS_IDENTIFIED=0
+
+# Speaker identification config
+ENABLE_SPEAKER_ID="${ENABLE_SPEAKER_ID:-true}"
+SPEAKER_ID_SCRIPT="$PROJECT_ROOT/scripts/561-identify-speakers-llm.py"
 
 mkdir -p "$TEMP_DIR" "$REPORT_DIR"
 
@@ -96,6 +112,121 @@ cleanup() {
     rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
+
+# ============================================================================
+# Speaker Identification (Step 3: After Diarization)
+# ============================================================================
+# Pipeline: 1) Transcription -> 2) Diarization -> 3) Speaker Identification
+#
+# Uses Claude LLM to identify speakers from context clues like:
+# - Self-identification ("this is Tim speaking")
+# - Cross-references ("as Ryan mentioned")
+# - Response patterns
+#
+# Adds 'speaker_names' field to transcript that UI reads to display real names.
+
+identify_speakers() {
+    local transcript_s3_path="$1"
+
+    if [ "$ENABLE_SPEAKER_ID" != "true" ]; then
+        log_info "  Speaker identification disabled"
+        return 0
+    fi
+
+    if [ ! -f "$SPEAKER_ID_SCRIPT" ]; then
+        log_warn "  Speaker ID script not found: $SPEAKER_ID_SCRIPT"
+        return 0
+    fi
+
+    if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+        log_warn "  ANTHROPIC_API_KEY not set, skipping speaker identification"
+        return 0
+    fi
+
+    log_info "  Identifying speakers with Claude..."
+
+    # Run the LLM script to identify speakers and update the transcript
+    if python3 "$SPEAKER_ID_SCRIPT" "$transcript_s3_path" --update 2>&1 | while read line; do
+        echo "    $line"
+    done; then
+        SPEAKERS_IDENTIFIED=$((SPEAKERS_IDENTIFIED + 1))
+        log_success "  Speaker identification complete"
+        return 0
+    else
+        log_warn "  Speaker identification failed (non-critical)"
+        return 0  # Don't fail the whole transcription
+    fi
+}
+
+# ============================================================================
+# Merge Speaker Turns (Step 4: After Speaker Identification)
+# ============================================================================
+# Consolidates consecutive segments from the same speaker into paragraphs.
+# Makes transcripts more readable by grouping speech turns.
+
+MERGE_TURNS_SCRIPT="$PROJECT_ROOT/scripts/562-merge-speaker-turns.py"
+ENABLE_MERGE_TURNS="${ENABLE_MERGE_TURNS:-true}"
+
+merge_speaker_turns() {
+    local transcript_s3_path="$1"
+
+    if [ "$ENABLE_MERGE_TURNS" != "true" ]; then
+        log_info "  Speaker turn merging disabled"
+        return 0
+    fi
+
+    if [ ! -f "$MERGE_TURNS_SCRIPT" ]; then
+        log_warn "  Merge turns script not found: $MERGE_TURNS_SCRIPT"
+        return 0
+    fi
+
+    log_info "  Merging consecutive speaker turns..."
+
+    if python3 "$MERGE_TURNS_SCRIPT" "$transcript_s3_path" --update 2>&1 | while read line; do
+        echo "    $line"
+    done; then
+        log_success "  Speaker turn merging complete"
+        return 0
+    else
+        log_warn "  Speaker turn merging failed (non-critical)"
+        return 0
+    fi
+}
+
+# ============================================================================
+# Topic Segmentation (Step 5: After Speaker Turn Merging)
+# ============================================================================
+# Uses semantic embeddings to detect topic changes in the transcript.
+# Adds topic boundaries for better navigation and readability.
+
+TOPIC_SEGMENT_SCRIPT="$PROJECT_ROOT/scripts/524-segment-transcripts-by-topic.py"
+ENABLE_TOPIC_SEGMENTATION="${ENABLE_TOPIC_SEGMENTATION:-true}"
+
+segment_by_topic() {
+    local session_path="$1"
+
+    if [ "$ENABLE_TOPIC_SEGMENTATION" != "true" ]; then
+        log_info "  Topic segmentation disabled"
+        return 0
+    fi
+
+    if [ ! -f "$TOPIC_SEGMENT_SCRIPT" ]; then
+        log_warn "  Topic segmentation script not found: $TOPIC_SEGMENT_SCRIPT"
+        return 0
+    fi
+
+    log_info "  Detecting topic boundaries..."
+
+    if python3 "$TOPIC_SEGMENT_SCRIPT" --session "$session_path" 2>&1 | while read line; do
+        echo "    $line"
+    done; then
+        log_success "  Topic segmentation complete"
+        return 0
+    else
+        log_warn "  Topic segmentation failed (non-critical)"
+        return 0
+    fi
+}
 
 # ============================================================================
 # Presigned URL Generation
@@ -120,6 +251,79 @@ url = s3.generate_presigned_url(
 )
 print(url)
 PYTHON
+}
+
+# ============================================================================
+# Async Job Polling
+# ============================================================================
+
+# Poll job status until complete or failed
+# Returns 0 on success, 1 on failure
+poll_job_status() {
+    local job_id="$1"
+    local start_time=$(date +%s)
+    local poll_count=0
+
+    log_info "    Polling job $job_id..."
+
+    while true; do
+        sleep "$POLL_INTERVAL"
+        poll_count=$((poll_count + 1))
+
+        local elapsed=$(($(date +%s) - start_time))
+
+        # Check for timeout
+        if [ "$elapsed" -gt "$MAX_POLL_TIME" ]; then
+            log_error "    Job timed out after ${elapsed}s"
+            return 1
+        fi
+
+        # Query job status
+        local status_response=$(curl -s --max-time 15 "${BASE_URL}/status/${job_id}" 2>/dev/null)
+
+        if [ -z "$status_response" ]; then
+            log_warn "    [${poll_count}] No response from status endpoint"
+            continue
+        fi
+
+        local status=$(echo "$status_response" | jq -r '.status // "unknown"' 2>/dev/null)
+        local progress=$(echo "$status_response" | jq -r '.progress // 0' 2>/dev/null)
+        local message=$(echo "$status_response" | jq -r '.message // ""' 2>/dev/null)
+
+        log_info "    [${poll_count}] Status: $status (${progress}%) - $message"
+
+        case "$status" in
+            "completed")
+                # Extract result info
+                local segment_count=$(echo "$status_response" | jq -r '.segments_count // 0')
+                local speaker_count=$(echo "$status_response" | jq -r '.speakers_count // 0')
+                local duration=$(echo "$status_response" | jq -r '.duration_seconds // 0')
+                local proc_time=$(echo "$status_response" | jq -r '.processing_time_seconds // 0')
+
+                log_success "    Job completed in ${elapsed}s"
+                log_info "    Segments: $segment_count | Speakers: $speaker_count | Duration: ${duration}s | GPU time: ${proc_time}s"
+
+                # Set global vars for stats
+                JOB_SEGMENTS=$segment_count
+                JOB_SPEAKERS=$speaker_count
+                JOB_DURATION=$duration
+                JOB_PROC_TIME=$proc_time
+
+                return 0
+                ;;
+            "failed")
+                local error=$(echo "$status_response" | jq -r '.error // "unknown error"')
+                log_error "    Job failed: $error"
+                return 1
+                ;;
+            "queued"|"downloading"|"processing"|"uploading")
+                # Still running, continue polling
+                ;;
+            *)
+                log_warn "    Unknown status: $status"
+                ;;
+        esac
+    done
 }
 
 # ============================================================================
@@ -164,7 +368,9 @@ validate_runpod() {
 # ============================================================================
 
 find_missing_transcriptions() {
-    log_info "Scanning S3 for sessions missing transcription..."
+    # NOTE: All log output goes to stderr since stdout is captured by caller
+    log_info "Scanning S3 for sessions missing transcription..." >&2
+    log_info "  S3 bucket: ${S3_BUCKET}" >&2
 
     # List all audio sessions
     local sessions=$(aws s3 ls "s3://${S3_BUCKET}/users/" --recursive \
@@ -172,6 +378,9 @@ find_missing_transcriptions() {
         | awk '{print $4}' \
         | sed 's|/metadata.json||' \
         | sort -u)
+
+    local total_sessions=$(echo "$sessions" | grep -c . || echo "0")
+    log_info "  Found $total_sessions sessions with metadata.json" >&2
 
     local missing_count=0
     local sessions_to_process=()
@@ -181,19 +390,26 @@ find_missing_transcriptions() {
             continue
         fi
 
-        # Check if transcription.json exists
-        if ! aws s3 ls "s3://${S3_BUCKET}/${session_path}/transcription.json" &>/dev/null; then
+        # Check if diarized transcription already exists (check both filenames)
+        if aws s3 ls "s3://${S3_BUCKET}/${session_path}/transcription-diarized.json" &>/dev/null; then
+            log_info "  [SKIPPED] $session_path (has transcription-diarized.json)" >&2
+        elif aws s3 ls "s3://${S3_BUCKET}/${session_path}/transcription.json" &>/dev/null; then
+            log_info "  [SKIPPED] $session_path (has transcription.json)" >&2
+        else
             sessions_to_process+=("$session_path")
             missing_count=$((missing_count + 1))
+            log_info "  [MISSING] $session_path" >&2
 
             # Apply limit if set
             if [ "$BATCH_LIMIT" -gt 0 ] && [ "$missing_count" -ge "$BATCH_LIMIT" ]; then
+                log_info "  Limit reached ($BATCH_LIMIT)" >&2
                 break
             fi
         fi
     done <<< "$sessions"
 
-    log_info "Found $missing_count sessions missing transcription"
+    log_info "Found $missing_count sessions missing transcription" >&2
+    # Output only session paths to stdout (one per line)
     printf '%s\n' "${sessions_to_process[@]}"
 }
 
@@ -206,6 +422,28 @@ transcribe_session() {
     local session_id=$(basename "$session_path")
 
     log_info "Processing session: $session_id"
+
+    # Check for session-specific speaker hints in metadata.json
+    # These are set by the re-diarization UI feature
+    local session_min_speakers="${MIN_SPEAKERS:-}"
+    local session_max_speakers="${MAX_SPEAKERS:-}"
+
+    local metadata_key="${session_path}/metadata.json"
+    local metadata_json=$(aws s3 cp "s3://${S3_BUCKET}/${metadata_key}" - 2>/dev/null || echo "{}")
+
+    if [ -n "$metadata_json" ] && [ "$metadata_json" != "{}" ]; then
+        local meta_min=$(echo "$metadata_json" | jq -r '.diarization.minSpeakers // empty' 2>/dev/null)
+        local meta_max=$(echo "$metadata_json" | jq -r '.diarization.maxSpeakers // empty' 2>/dev/null)
+
+        if [ -n "$meta_min" ] && [ "$meta_min" != "null" ]; then
+            session_min_speakers="$meta_min"
+            log_info "  Using metadata speaker hint: minSpeakers=$meta_min"
+        fi
+        if [ -n "$meta_max" ] && [ "$meta_max" != "null" ]; then
+            session_max_speakers="$meta_max"
+            log_info "  Using metadata speaker hint: maxSpeakers=$meta_max"
+        fi
+    fi
 
     local audio_dir="$TEMP_DIR/$session_id"
     mkdir -p "$audio_dir"
@@ -232,7 +470,7 @@ transcribe_session() {
         log_info "  Generating presigned URLs (${PRESIGNED_URL_EXPIRY}s expiry)..."
 
         local audio_s3_key="${session_path}/audio.wav"
-        local result_s3_key="${session_path}/transcription.json"
+        local result_s3_key="${session_path}/transcription-diarized.json"
 
         # GET URL for audio (using aws s3 presign)
         local audio_url=$(aws s3 presign "s3://${S3_BUCKET}/${audio_s3_key}" --expires-in "$PRESIGNED_URL_EXPIRY")
@@ -245,42 +483,69 @@ transcribe_session() {
             return 1
         fi
 
-        log_info "  Sending to RunPod (presigned URL mode)..."
+        log_info "  Submitting job to RunPod (async mode)..."
 
-        local start_time=$(date +%s)
+        # Build JSON payload with optional speaker count hints
+        # Use session-specific hints from metadata.json if available, otherwise global env vars
+        local json_payload=$(jq -n \
+            --arg audio_url "$audio_url" \
+            --arg result_url "$result_url" \
+            --argjson diarize "$ENABLE_DIARIZATION" \
+            --argjson async true \
+            --argjson min_speakers "${session_min_speakers:-null}" \
+            --argjson max_speakers "${session_max_speakers:-null}" \
+            '{
+                audio_url: $audio_url,
+                result_url: $result_url,
+                diarize: $diarize,
+                async_mode: $async
+            } + (if $min_speakers then {min_speakers: $min_speakers} else {} end)
+              + (if $max_speakers then {max_speakers: $max_speakers} else {} end)'
+        )
 
-        # POST tiny JSON with URLs (bypasses proxy size/time limits)
-        local response=$(curl -s --max-time 7200 \
+        if [ -n "$session_min_speakers" ] || [ -n "$session_max_speakers" ]; then
+            log_info "  Speaker hints: min=${session_min_speakers:-auto} max=${session_max_speakers:-auto}"
+        fi
+
+        # POST tiny JSON with URLs - returns job_id immediately
+        local submit_response=$(curl -s --max-time 30 \
             -X POST "${BASE_URL}/transcribe" \
             -H "Content-Type: application/json" \
-            -d "{
-                \"audio_url\": $(echo "$audio_url" | jq -Rs .),
-                \"result_url\": $(echo "$result_url" | jq -Rs .),
-                \"diarize\": ${ENABLE_DIARIZATION}
-            }" \
+            -d "$json_payload" \
             2>&1)
 
-        local end_time=$(date +%s)
-        local processing_time=$((end_time - start_time))
+        # Extract job_id
+        local job_id=$(echo "$submit_response" | jq -r '.job_id // empty' 2>/dev/null)
 
-        # Check for success
-        local status=$(echo "$response" | jq -r '.status // "error"' 2>/dev/null)
+        if [ -z "$job_id" ]; then
+            log_error "  Failed to submit job"
+            echo "$submit_response" | jq . 2>/dev/null || echo "$submit_response"
+            return 1
+        fi
 
-        if [ "$status" = "ok" ]; then
-            local segment_count=$(echo "$response" | jq -r '.segments_count // 0')
-            local speaker_count=$(echo "$response" | jq -r '.speakers_count // 0')
-            local duration=$(echo "$response" | jq -r '.duration_seconds // 0')
-            local proc_time=$(echo "$response" | jq -r '.processing_time_seconds // 0')
+        log_info "  Job submitted: $job_id"
 
-            log_success "  Transcription complete (presigned URL mode)"
-            log_info "    Segments: $segment_count | Speakers: $speaker_count | Duration: ${duration}s | GPU time: ${proc_time}s"
-
+        # Poll for completion (handles Cloudflare timeout by using short polling requests)
+        if poll_job_status "$job_id"; then
             # Result already uploaded to S3 by RunPod - verify
             if aws s3 ls "s3://${S3_BUCKET}/${result_s3_key}" &>/dev/null; then
                 log_success "  Result verified in S3"
             else
                 log_warn "  Result not found in S3 - may still be uploading"
+                sleep 5
+                if aws s3 ls "s3://${S3_BUCKET}/${result_s3_key}" &>/dev/null; then
+                    log_success "  Result now in S3"
+                fi
             fi
+
+            # Step 3: Speaker Identification (after diarization)
+            identify_speakers "s3://${S3_BUCKET}/${result_s3_key}"
+
+            # Step 4: Merge consecutive speaker turns into paragraphs
+            merge_speaker_turns "s3://${S3_BUCKET}/${result_s3_key}"
+
+            # Step 5: Topic segmentation (detect topic boundaries)
+            segment_by_topic "${session_path}"
 
             # Update stats
             CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
@@ -288,8 +553,7 @@ transcribe_session() {
 
             return 0
         else
-            log_error "  Transcription failed"
-            echo "$response" | jq . 2>/dev/null || echo "$response"
+            log_error "  Transcription job failed"
             return 1
         fi
     else
@@ -298,15 +562,28 @@ transcribe_session() {
         # WebM is a container format - CANNOT be concatenated with 'cat'
         # ====================================================================
         log_info "  No pre-merged audio found, downloading chunks..."
+        log_info "  S3 path: s3://${S3_BUCKET}/${session_path}/"
+        log_info "  Local dir: $audio_dir"
+
+        # Show what files exist in S3
+        log_info "  Files in S3:"
+        aws s3 ls "s3://${S3_BUCKET}/${session_path}/" 2>&1 | while read line; do
+            log_info "    $line"
+        done
+
         aws s3 sync "s3://${S3_BUCKET}/${session_path}/" "$audio_dir/" \
-            --exclude "*" --include "chunk-*.webm" --include "chunk-*.wav" \
-            --quiet
+            --exclude "*" --include "chunk-*.webm" --include "chunk-*.wav" --include "chunk-*.m4a" \
+            2>&1 | while read line; do log_info "    sync: $line"; done
 
         # Find audio files
+        log_info "  Local files after sync:"
+        ls -la "$audio_dir/" 2>&1 | while read line; do log_info "    $line"; done
+
         local audio_files=($(find "$audio_dir" -name "chunk-*" -type f | sort -V))
 
         if [ ${#audio_files[@]} -eq 0 ]; then
             log_warn "  No audio chunks found, skipping"
+            log_warn "  Expected: chunk-*.webm, chunk-*.wav, or chunk-*.m4a"
             return 1
         fi
 
@@ -354,12 +631,20 @@ transcribe_session() {
     # POST to RunPod WhisperX API
     log_info "  Sending to RunPod for transcription..."
 
+    if [ -n "$session_min_speakers" ] || [ -n "$session_max_speakers" ]; then
+        log_info "  Speaker hints: min=${session_min_speakers:-auto} max=${session_max_speakers:-auto}"
+    fi
+
     local start_time=$(date +%s)
-    local response=$(curl -s --max-time 600 \
-        -X POST "${BASE_URL}/transcribe/upload" \
-        -F "file=@${audio_file}" \
-        -F "diarize=${ENABLE_DIARIZATION}" \
-        2>&1)
+    local curl_args=("-s" "--max-time" "600" "-X" "POST" "${BASE_URL}/transcribe/upload"
+        "-F" "file=@${audio_file}"
+        "-F" "diarize=${ENABLE_DIARIZATION}")
+
+    # Add optional speaker count hints (from session metadata or global env vars)
+    [ -n "$session_min_speakers" ] && curl_args+=("-F" "min_speakers=${session_min_speakers}")
+    [ -n "$session_max_speakers" ] && curl_args+=("-F" "max_speakers=${session_max_speakers}")
+
+    local response=$(curl "${curl_args[@]}" 2>&1)
     local end_time=$(date +%s)
     local processing_time=$((end_time - start_time))
 
@@ -383,12 +668,20 @@ transcribe_session() {
     log_success "  Transcription complete: $segment_count segments, $speaker_count speakers, ${processing_time}s"
 
     # Save transcription to S3
-    echo "$response" | jq '.' > "$audio_dir/transcription.json"
+    echo "$response" | jq '.' > "$audio_dir/transcription-diarized.json"
 
     log_info "  Uploading transcription to S3..."
-    aws s3 cp "$audio_dir/transcription.json" \
-        "s3://${S3_BUCKET}/${session_path}/transcription.json" \
-        --quiet
+    local result_s3_path="s3://${S3_BUCKET}/${session_path}/transcription-diarized.json"
+    aws s3 cp "$audio_dir/transcription-diarized.json" "$result_s3_path" --quiet
+
+    # Step 3: Speaker Identification (after diarization)
+    identify_speakers "$result_s3_path"
+
+    # Step 4: Merge consecutive speaker turns into paragraphs
+    merge_speaker_turns "$result_s3_path"
+
+    # Step 5: Topic segmentation (detect topic boundaries)
+    segment_by_topic "${session_path}"
 
     # Update stats
     CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
@@ -416,8 +709,10 @@ generate_report() {
     "gpu": "${RUNPOD_GPU_SELECTED:-unknown}",
     "sessions_transcribed": $CHUNKS_TRANSCRIBED,
     "sessions_failed": $CHUNKS_FAILED,
+    "speakers_identified": $SPEAKERS_IDENTIFIED,
     "total_audio_seconds": $TOTAL_AUDIO_SECONDS,
     "diarization_enabled": $ENABLE_DIARIZATION,
+    "speaker_id_enabled": $ENABLE_SPEAKER_ID,
     "endpoint": "$BASE_URL"
 }
 EOF
@@ -461,7 +756,9 @@ main() {
     echo ""
 
     # Process each session
-    while IFS= read -r session_path; do
+    # Note: The `|| [[ -n "$session_path" ]]` ensures the last line is processed
+    # even if the input doesn't end with a newline (bash read quirk)
+    while IFS= read -r session_path || [[ -n "$session_path" ]]; do
         if [ -z "$session_path" ]; then
             continue
         fi
@@ -477,6 +774,20 @@ main() {
 
     # Generate report
     generate_report
+
+    # Run postprocessing to convert segments → paragraphs format
+    # This creates transcription-processed.json files for fast editor loading
+    if [ "$CHUNKS_TRANSCRIBED" -gt 0 ]; then
+        echo ""
+        log_info "Running postprocessing to create editor-ready files..."
+        if [ -f "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh" ]; then
+            "$PROJECT_ROOT/scripts/518-postprocess-transcripts.sh" || {
+                log_warn "Postprocessing had errors (transcription still complete)"
+            }
+        else
+            log_warn "Postprocessing script not found: 518-postprocess-transcripts.sh"
+        fi
+    fi
 
     # Summary
     echo ""

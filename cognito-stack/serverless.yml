@@ -376,6 +376,22 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # Re-Diarization Queue Function
+  queueRediarize:
+    handler: api/rediarize.queueRediarize
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/rediarize
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
   # Public Viewer Functions (No Authentication Required)
   getPublicTranscript:
     handler: api/viewer-public.getPublicTranscript
