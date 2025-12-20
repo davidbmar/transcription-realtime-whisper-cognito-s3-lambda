@@ -142,7 +142,7 @@ function login() {
     const queryParams = new URLSearchParams({
         client_id: config.userPoolClientId,
         response_type: 'token', // Use token for implicit flow
-        scope: 'email openid profile',
+        scope: 'email openid profile aws.cognito.signin.user.admin',
         redirect_uri: redirectUri,
     });
     

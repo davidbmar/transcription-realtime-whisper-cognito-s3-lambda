@@ -700,6 +700,7 @@ resources:
           - email
           - openid
           - profile
+          - aws.cognito.signin.user.admin
         CallbackURLs:
           - 'http://localhost:8080/callback.html'
         LogoutURLs:

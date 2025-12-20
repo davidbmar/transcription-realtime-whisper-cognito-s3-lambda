@@ -418,6 +418,58 @@
                                 </button>
                             </div>
                             <div id="email-status" class="status-message"></div>
+
+                            <!-- Change Email Form (hidden by default) -->
+                            <div id="email-form" style="display: none; margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                <!-- Step 1: New Email Input -->
+                                <div id="email-step-1">
+                                    <div class="profile-field" style="margin-bottom: 1rem;">
+                                        <label class="profile-field-label">New Email Address</label>
+                                        <input type="email" id="new-email" class="password-input" placeholder="Enter new email address">
+                                        <div id="email-validation-hint" style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;"></div>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-primary btn-sm" id="submit-email-btn">
+                                            <i class="fas fa-paper-plane"></i> Send Verification Code
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" id="cancel-email-btn">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2: Verification Code Input -->
+                                <div id="email-step-2" style="display: none;">
+                                    <div class="security-note" style="margin-bottom: 1rem; background: #dbeafe; border-color: #93c5fd;">
+                                        <i class="fas fa-envelope" style="color: #1e40af;"></i>
+                                        <div class="security-note-text" style="color: #1e40af;">
+                                            Verification code sent to <strong id="pending-email"></strong>
+                                        </div>
+                                    </div>
+                                    <div class="profile-field" style="margin-bottom: 1rem;">
+                                        <label class="profile-field-label">Verification Code</label>
+                                        <input type="text" id="verification-code" class="password-input" placeholder="Enter 6-digit code" maxlength="6" autocomplete="one-time-code">
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-primary btn-sm" id="verify-email-btn">
+                                            <i class="fas fa-check"></i> Verify & Update Email
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" id="back-email-btn">
+                                            <i class="fas fa-arrow-left"></i> Back
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" id="resend-code-btn">
+                                            <i class="fas fa-redo"></i> Resend Code
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="security-note" style="margin-top: 1rem;">
+                                    <i class="fas fa-info-circle"></i>
+                                    <div class="security-note-text">
+                                        A verification code will be sent to your new email address. You must enter this code to complete the change.
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="profile-field">
@@ -546,8 +598,16 @@
                 copyToClipboard(userId, this);
             });
 
-            // Setup change email button
-            document.getElementById('change-email-btn').addEventListener('click', handleChangeEmail);
+            // Setup change email form
+            document.getElementById('change-email-btn').addEventListener('click', toggleEmailForm);
+            document.getElementById('submit-email-btn').addEventListener('click', handleSendVerificationCode);
+            document.getElementById('cancel-email-btn').addEventListener('click', hideEmailForm);
+            document.getElementById('verify-email-btn').addEventListener('click', handleVerifyEmail);
+            document.getElementById('back-email-btn').addEventListener('click', goBackToEmailStep1);
+            document.getElementById('resend-code-btn').addEventListener('click', handleResendCode);
+
+            // Real-time email validation
+            document.getElementById('new-email').addEventListener('input', validateEmailInput);
 
             // Setup change password button
             document.getElementById('change-password-btn').addEventListener('click', togglePasswordForm);
@@ -596,6 +656,50 @@
             return userPool.getCurrentUser();
         }
 
+        // Get a refreshed session - this ensures tokens are valid
+        async function getRefreshedSession(cognitoUser) {
+            return new Promise((resolve, reject) => {
+                console.log('[getRefreshedSession] Getting session for user:', cognitoUser.getUsername());
+                cognitoUser.getSession((err, session) => {
+                    if (err) {
+                        console.error('[getRefreshedSession] getSession error:', err);
+                        reject(err);
+                        return;
+                    }
+
+                    console.log('[getRefreshedSession] Session retrieved, valid:', session.isValid());
+
+                    // Log the access token scopes (for debugging)
+                    try {
+                        const accessToken = session.getAccessToken().getJwtToken();
+                        const payload = JSON.parse(atob(accessToken.split('.')[1]));
+                        console.log('[getRefreshedSession] Access token scopes:', payload.scope);
+                        console.log('[getRefreshedSession] Token exp:', new Date(payload.exp * 1000));
+                    } catch (e) {
+                        console.warn('[getRefreshedSession] Could not parse access token:', e);
+                    }
+
+                    // Check if session is valid
+                    if (!session.isValid()) {
+                        // Try to refresh
+                        console.log('[getRefreshedSession] Session invalid, refreshing...');
+                        const refreshToken = session.getRefreshToken();
+                        cognitoUser.refreshSession(refreshToken, (refreshErr, newSession) => {
+                            if (refreshErr) {
+                                console.error('[getRefreshedSession] Refresh error:', refreshErr);
+                                reject(refreshErr);
+                            } else {
+                                console.log('[getRefreshedSession] Session refreshed successfully');
+                                resolve(newSession);
+                            }
+                        });
+                    } else {
+                        resolve(session);
+                    }
+                });
+            });
+        }
+
         function showEmailStatus(message, type) {
             const statusEl = document.getElementById('email-status');
             statusEl.textContent = message;
@@ -608,31 +712,121 @@
             statusEl.textContent = '';
         }
 
-        async function handleChangeEmail() {
+        // ============== Email Change Functions ==============
+
+        // State for pending email change
+        let pendingNewEmail = '';
+
+        function toggleEmailForm() {
+            const form = document.getElementById('email-form');
             const btn = document.getElementById('change-email-btn');
+
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+                document.getElementById('new-email').focus();
+                // Reset to step 1
+                document.getElementById('email-step-1').style.display = 'block';
+                document.getElementById('email-step-2').style.display = 'none';
+            } else {
+                hideEmailForm();
+            }
+        }
+
+        function hideEmailForm() {
+            const form = document.getElementById('email-form');
+            const btn = document.getElementById('change-email-btn');
+
+            form.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-edit"></i> Change';
+
+            // Clear inputs and reset state
+            document.getElementById('new-email').value = '';
+            document.getElementById('verification-code').value = '';
+            document.getElementById('email-validation-hint').textContent = '';
+            document.getElementById('email-validation-hint').className = '';
+            pendingNewEmail = '';
+            hideEmailStatus();
+
+            // Reset to step 1
+            document.getElementById('email-step-1').style.display = 'block';
+            document.getElementById('email-step-2').style.display = 'none';
+        }
+
+        function goBackToEmailStep1() {
+            document.getElementById('email-step-1').style.display = 'block';
+            document.getElementById('email-step-2').style.display = 'none';
+            document.getElementById('verification-code').value = '';
+            hideEmailStatus();
+        }
+
+        function validateEmailInput() {
+            const emailInput = document.getElementById('new-email');
+            const hint = document.getElementById('email-validation-hint');
+            const email = emailInput.value.trim();
             const currentEmail = document.getElementById('user-email').textContent;
 
-            // Step 1: Ask for new email
-            const newEmail = prompt('Enter your new email address:', '');
-
-            if (!newEmail) {
-                return; // User cancelled
+            if (!email) {
+                hint.textContent = '';
+                hint.style.color = '#6b7280';
+                return { valid: false, message: '' };
             }
 
-            // Basic email validation
-            if (!newEmail.includes('@') || !newEmail.includes('.')) {
-                showEmailStatus('Please enter a valid email address.', 'error');
-                return;
+            // Comprehensive email validation regex
+            const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+            if (!emailRegex.test(email)) {
+                hint.textContent = 'Please enter a valid email address';
+                hint.style.color = '#dc2626';
+                return { valid: false, message: 'Please enter a valid email address.' };
             }
 
-            if (newEmail === currentEmail) {
-                showEmailStatus('New email is the same as current email.', 'error');
+            if (email.toLowerCase() === currentEmail.toLowerCase()) {
+                hint.textContent = 'This is your current email address';
+                hint.style.color = '#dc2626';
+                return { valid: false, message: 'New email is the same as current email.' };
+            }
+
+            // Check for common typos in domain
+            const domain = email.split('@')[1].toLowerCase();
+            const commonDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'];
+            const similarDomains = {
+                'gmial.com': 'gmail.com',
+                'gmal.com': 'gmail.com',
+                'gmail.co': 'gmail.com',
+                'gamil.com': 'gmail.com',
+                'yaho.com': 'yahoo.com',
+                'yahooo.com': 'yahoo.com',
+                'hotmal.com': 'hotmail.com',
+                'outlok.com': 'outlook.com'
+            };
+
+            if (similarDomains[domain]) {
+                hint.textContent = `Did you mean ${email.split('@')[0]}@${similarDomains[domain]}?`;
+                hint.style.color = '#d97706';
+                return { valid: true, message: '', warning: true };
+            }
+
+            hint.innerHTML = '<i class="fas fa-check" style="margin-right: 4px;"></i>Valid email format';
+            hint.style.color = '#059669';
+            return { valid: true, message: '' };
+        }
+
+        async function handleSendVerificationCode() {
+            const emailInput = document.getElementById('new-email');
+            const submitBtn = document.getElementById('submit-email-btn');
+            const newEmail = emailInput.value.trim();
+
+            // Validate email
+            const validation = validateEmailInput();
+            if (!validation.valid) {
+                showEmailStatus(validation.message || 'Please enter a valid email address.', 'error');
                 return;
             }
 
             // Disable button during process
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
             hideEmailStatus();
 
             try {
@@ -642,7 +836,201 @@
                     throw new Error('No authenticated user found. Please sign in again.');
                 }
 
-                // Get session to ensure we're authenticated
+                // Get refreshed session to ensure tokens are valid
+                console.log('[ChangeEmail] Getting refreshed session...');
+                const session = await getRefreshedSession(cognitoUser);
+                console.log('[ChangeEmail] Session valid:', session.isValid());
+
+                // Update email attribute (this triggers verification code)
+                const attributeList = [
+                    new AmazonCognitoIdentity.CognitoUserAttribute({
+                        Name: 'email',
+                        Value: newEmail
+                    })
+                ];
+
+                await new Promise((resolve, reject) => {
+                    cognitoUser.updateAttributes(attributeList, (err, result) => {
+                        if (err) {
+                            console.error('[ChangeEmail] updateAttributes error:', err);
+                            reject(err);
+                        } else {
+                            console.log('[ChangeEmail] updateAttributes success:', result);
+                            resolve(result);
+                        }
+                    });
+                });
+
+                // Store pending email and move to step 2
+                pendingNewEmail = newEmail;
+                document.getElementById('pending-email').textContent = newEmail;
+                document.getElementById('email-step-1').style.display = 'none';
+                document.getElementById('email-step-2').style.display = 'block';
+                document.getElementById('verification-code').focus();
+
+                showEmailStatus('Verification code sent! Check your inbox.', 'success');
+
+            } catch (error) {
+                console.error('Send verification code error:', error);
+                console.error('Error code:', error.code);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+
+                let errorMessage = 'Failed to send verification code. ';
+
+                if (error.code === 'LimitExceededException') {
+                    errorMessage = 'Too many attempts. Please try again later.';
+                } else if (error.code === 'AliasExistsException') {
+                    errorMessage = 'This email is already associated with another account.';
+                } else if (error.code === 'InvalidParameterException') {
+                    errorMessage = 'Invalid email address format.';
+                } else if (error.code === 'NotAuthorizedException') {
+                    // Show the actual error message for debugging
+                    errorMessage = 'Authorization error: ' + (error.message || 'Please sign out and sign in again.');
+                } else if (error.message && error.message.includes('scope')) {
+                    // This is a Cognito App Client configuration issue
+                    errorMessage = 'Email change is not enabled for this account. Please contact support.';
+                    console.error('[ChangeEmail] Scope error - Cognito App Client may need aws.cognito.signin.user.admin scope');
+                } else if (error.message) {
+                    errorMessage += error.message;
+                }
+
+                showEmailStatus(errorMessage, 'error');
+            }
+
+            // Re-enable button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Verification Code';
+        }
+
+        async function handleVerifyEmail() {
+            const verifyBtn = document.getElementById('verify-email-btn');
+            const codeInput = document.getElementById('verification-code');
+            const code = codeInput.value.trim();
+
+            if (!code) {
+                showEmailStatus('Please enter the verification code.', 'error');
+                return;
+            }
+
+            if (!/^\d{6}$/.test(code)) {
+                showEmailStatus('Verification code must be 6 digits.', 'error');
+                return;
+            }
+
+            // Disable button during process
+            verifyBtn.disabled = true;
+            verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            hideEmailStatus();
+
+            try {
+                const cognitoUser = getCognitoUser();
+
+                if (!cognitoUser) {
+                    throw new Error('No authenticated user found. Please sign in again.');
+                }
+
+                // Get refreshed session first - required for verifyAttribute
+                console.log('[VerifyEmail] Getting refreshed session...');
+                await getRefreshedSession(cognitoUser);
+                console.log('[VerifyEmail] Session obtained, verifying code...');
+
+                // Verify the email with the code
+                await new Promise((resolve, reject) => {
+                    cognitoUser.verifyAttribute('email', code, {
+                        onSuccess: () => {
+                            console.log('[VerifyEmail] Verification successful!');
+                            resolve();
+                        },
+                        onFailure: (err) => {
+                            console.error('[VerifyEmail] Verification failed:', err);
+                            reject(err);
+                        }
+                    });
+                });
+
+                // Success! Update the display
+                document.getElementById('user-email').textContent = pendingNewEmail;
+                showEmailStatus('Email changed to ' + pendingNewEmail + '! Signing you out...', 'success');
+
+                // Sign out after brief delay so user sees the success message
+                // Use globalSignOut to invalidate all tokens on server side too
+                setTimeout(async () => {
+                    try {
+                        // Global sign out invalidates all refresh tokens server-side
+                        await new Promise((resolve, reject) => {
+                            cognitoUser.globalSignOut({
+                                onSuccess: () => resolve(),
+                                onFailure: (err) => {
+                                    console.warn('[VerifyEmail] globalSignOut failed:', err);
+                                    resolve(); // Continue anyway
+                                }
+                            });
+                        });
+                    } catch (e) {
+                        console.warn('[VerifyEmail] Error during signout:', e);
+                    }
+
+                    // Clear all local auth tokens as backup
+                    const keys = Object.keys(localStorage);
+                    for (const key of keys) {
+                        if (key.includes('CognitoIdentityServiceProvider') ||
+                            key.includes('amplify') ||
+                            key.includes('aws') ||
+                            key === 'id_token' ||
+                            key === 'access_token' ||
+                            key === 'refresh_token') {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                    // Redirect to login
+                    window.location.href = 'index.html';
+                }, 2500);
+
+            } catch (error) {
+                console.error('Verify email error:', error);
+                let errorMessage = 'Verification failed. ';
+
+                if (error.code === 'CodeMismatchException') {
+                    errorMessage = 'Invalid verification code. Please check and try again.';
+                } else if (error.code === 'ExpiredCodeException') {
+                    errorMessage = 'Verification code has expired. Click "Resend Code" to get a new one.';
+                } else if (error.code === 'LimitExceededException') {
+                    errorMessage = 'Too many attempts. Please try again later.';
+                } else if (error.message) {
+                    errorMessage += error.message;
+                }
+
+                showEmailStatus(errorMessage, 'error');
+            }
+
+            // Re-enable button
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="fas fa-check"></i> Verify & Update Email';
+        }
+
+        async function handleResendCode() {
+            const resendBtn = document.getElementById('resend-code-btn');
+
+            if (!pendingNewEmail) {
+                showEmailStatus('No pending email change. Please start over.', 'error');
+                goBackToEmailStep1();
+                return;
+            }
+
+            // Disable button during process
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            hideEmailStatus();
+
+            try {
+                const cognitoUser = getCognitoUser();
+
+                if (!cognitoUser) {
+                    throw new Error('No authenticated user found. Please sign in again.');
+                }
+
+                // Get session
                 await new Promise((resolve, reject) => {
                     cognitoUser.getSession((err, session) => {
                         if (err) reject(err);
@@ -650,11 +1038,11 @@
                     });
                 });
 
-                // Update email attribute
+                // Re-send by updating the attribute again
                 const attributeList = [
                     new AmazonCognitoIdentity.CognitoUserAttribute({
                         Name: 'email',
-                        Value: newEmail
+                        Value: pendingNewEmail
                     })
                 ];
 
@@ -665,46 +1053,16 @@
                     });
                 });
 
-                showEmailStatus('Verification code sent to ' + newEmail + '. Please check your inbox.', 'info');
-
-                // Step 2: Ask for verification code
-                const verificationCode = prompt('Enter the verification code sent to ' + newEmail + ':');
-
-                if (!verificationCode) {
-                    showEmailStatus('Email change cancelled. Your email was not changed.', 'error');
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-edit"></i> Change';
-                    return;
-                }
-
-                // Verify the email with the code
-                await new Promise((resolve, reject) => {
-                    cognitoUser.verifyAttribute('email', verificationCode, {
-                        onSuccess: resolve,
-                        onFailure: reject
-                    });
-                });
-
-                // Success! Update the display
-                document.getElementById('user-email').textContent = newEmail;
-                showEmailStatus('Email successfully changed to ' + newEmail + '!', 'success');
-
-                // Update header if it exists
-                if (window.cloudDriveHeader) {
-                    window.cloudDriveHeader.render();
-                    window.cloudDriveHeader.setupEventListeners();
-                }
+                showEmailStatus('New verification code sent to ' + pendingNewEmail, 'success');
+                document.getElementById('verification-code').value = '';
+                document.getElementById('verification-code').focus();
 
             } catch (error) {
-                console.error('Email change error:', error);
-                let errorMessage = 'Failed to change email. ';
+                console.error('Resend code error:', error);
+                let errorMessage = 'Failed to resend code. ';
 
-                if (error.code === 'CodeMismatchException') {
-                    errorMessage = 'Invalid verification code. Please try again.';
-                } else if (error.code === 'LimitExceededException') {
-                    errorMessage = 'Too many attempts. Please try again later.';
-                } else if (error.code === 'AliasExistsException') {
-                    errorMessage = 'This email is already associated with another account.';
+                if (error.code === 'LimitExceededException') {
+                    errorMessage = 'Too many attempts. Please wait a few minutes before trying again.';
                 } else if (error.message) {
                     errorMessage += error.message;
                 }
@@ -713,8 +1071,8 @@
             }
 
             // Re-enable button
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-edit"></i> Change';
+            resendBtn.disabled = false;
+            resendBtn.innerHTML = '<i class="fas fa-redo"></i> Resend Code';
         }
 
         function copyToClipboard(text, button) {
