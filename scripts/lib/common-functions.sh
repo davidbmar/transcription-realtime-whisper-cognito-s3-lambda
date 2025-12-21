@@ -59,7 +59,10 @@ load_environment() {
         log_error ".env file not found. Please create one from .env.example first"
         exit 1
     fi
+    # Use set -a to export all variables so serverless can see them
+    set -a
     source .env
+    set +a
     log_info "Environment loaded from .env"
 }
 
