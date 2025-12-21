@@ -141,6 +141,7 @@ if [[ ! "$CONFIRM" =~ ^[Yy] ]]; then
 fi
 
 # Remove existing Cognito variables if present
+sed -i '/^SERVICE_NAME=/d' "$ENV_FILE" 2>/dev/null || true
 sed -i '/^COGNITO_APP_NAME=/d' "$ENV_FILE" 2>/dev/null || true
 sed -i '/^COGNITO_STAGE=/d' "$ENV_FILE" 2>/dev/null || true
 sed -i '/^COGNITO_S3_BUCKET=/d' "$ENV_FILE" 2>/dev/null || true
@@ -149,11 +150,14 @@ sed -i '/^COGNITO_CLOUDFRONT_URL=https:\/\/placeholder/d' "$ENV_FILE" 2>/dev/nul
 sed -i '/^GOOGLE_CREDENTIALS_BASE64=$/d' "$ENV_FILE" 2>/dev/null || true
 sed -i '/^# Cognito Configuration (set by 410/d' "$ENV_FILE" 2>/dev/null || true
 sed -i '/^# Placeholders for first deployment/d' "$ENV_FILE" 2>/dev/null || true
+sed -i '/^# SERVICE_NAME is used by/d' "$ENV_FILE" 2>/dev/null || true
 
 # Add new values
 cat >> "$ENV_FILE" << EOF
 
 # Cognito Configuration (set by 410-configure-cognito-variables.sh)
+# SERVICE_NAME is used by serverless.yml for the stack name
+SERVICE_NAME=$APP_NAME
 COGNITO_APP_NAME=$APP_NAME
 COGNITO_STAGE=$STAGE
 COGNITO_S3_BUCKET=$BUCKET_NAME

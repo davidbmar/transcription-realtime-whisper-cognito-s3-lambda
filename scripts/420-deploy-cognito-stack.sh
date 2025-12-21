@@ -105,7 +105,9 @@ echo ""
 
 log_info "Step 4: Retrieving deployment outputs"
 export AWS_PAGER=""
-STACK_NAME="${COGNITO_APP_NAME}-${COGNITO_STAGE}"
+# Use SERVICE_NAME if set, otherwise fall back to COGNITO_APP_NAME, then default
+STACK_SERVICE="${SERVICE_NAME:-${COGNITO_APP_NAME:-clouddrive-app}}"
+STACK_NAME="${STACK_SERVICE}-${COGNITO_STAGE}"
 
 USER_POOL_ID=$(aws cloudformation describe-stacks \
     --stack-name "$STACK_NAME" \
