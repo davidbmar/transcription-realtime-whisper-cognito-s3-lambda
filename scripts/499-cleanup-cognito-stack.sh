@@ -74,8 +74,12 @@ echo ""
 # Main Implementation
 # ============================================================================
 
-STACK_NAME="${COGNITO_APP_NAME}-${COGNITO_STAGE}"
+# Use SERVICE_NAME if set (matches serverless.yml), otherwise fall back to COGNITO_APP_NAME
+STACK_SERVICE="${SERVICE_NAME:-${COGNITO_APP_NAME:-clouddrive-app}}"
+STACK_NAME="${STACK_SERVICE}-${COGNITO_STAGE}"
 export AWS_PAGER=""
+
+log_info "Stack name: $STACK_NAME"
 
 log_info "Step 1: Deleting Lambda log groups"
 # List and delete log groups with our app name prefix
