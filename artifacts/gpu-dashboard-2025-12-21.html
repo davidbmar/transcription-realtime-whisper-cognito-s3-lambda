@@ -6,7 +6,7 @@
     <title>GPU Cost Guardian</title>
     <meta http-equiv="refresh" content="120">
     <meta name="dashboard-date" content="2025-12-21">
-    <meta name="dashboard-generated" content="2025-12-21T21:58:04Z">
+    <meta name="dashboard-generated" content="2025-12-21T22:00:16Z">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -662,11 +662,779 @@
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div style="text-align: right; font-size: 12px; color: #6b7280;">
-                    <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="2025-12-21T21:58:04Z">2025-12-21 21:58:04 UTC</span>
+                    <i class="fas fa-clock"></i> Updated: <span class="local-time" data-utc="2025-12-21T22:00:16Z">2025-12-21 22:00:16 UTC</span>
                     <span id="live-indicator"></span>
                 </div>
             </div>
         </div>
+
+<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 24px; text-align: center;">
+    <i class="fas fa-check-circle" style="font-size: 32px; color: #10b981; margin-bottom: 12px; display: block;"></i>
+    <div style="font-size: 16px; font-weight: 600; color: #166534; margin-bottom: 4px;">No GPU Activity</div>
+    <div style="color: #4b5563; font-size: 13px;">No pods have run in the last 24 hours - $0.00 spent</div>
+</div>
+
+<div id="gantt-timeline" style="margin-top: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <span style="font-size: 12px; font-weight: 600; color: #374151;">
+            <i class="fas fa-chart-gantt" style="color: #6b7280;"></i> 24h Timeline
+        </span>
+        <span style="font-size: 10px; color: #9ca3af;">← 24 hours ago</span>
+        <span style="flex:1;"></span>
+        <span style="font-size: 10px; color: #10b981; font-weight: 600;">now →</span>
+    </div>
+
+<div id="gantt-wrapper" style="position: relative;">
+<div id="time-axis" style="position: relative; height: 16px; margin-bottom: 2px;">
+<div id="now-label" style="position: absolute; top: 0; transform: translateX(-50%); color: #6b7280; font-size: 9px; font-weight: 500; white-space: nowrap; display: none;">now</div>
+</div>
+<div id="gantt-container" style="position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+<div id="now-indicator" style="position: absolute; top: 0; bottom: 0; width: 1px; background: #9ca3af; z-index: 50; display: none;"></div>
+<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none;">
+<div style="position: absolute; left: 4.166666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 8.333333333333332%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 12.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 16.666666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 20.833333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 25.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 29.166666666666668%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 33.33333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 37.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 41.66666666666667%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 45.83333333333333%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 50.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 54.166666666666664%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 58.333333333333336%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 62.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 66.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 70.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 75.0%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3);"></div>
+<div style="position: absolute; left: 79.16666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 83.33333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 87.5%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 91.66666666666666%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+<div style="position: absolute; left: 95.83333333333334%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.1);"></div>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; margin-top: 6px; padding: 0 2px;">
+<span class="tz-hour" data-utc="2025-12-20T22:00:12Z">22:00</span>
+<span class="tz-hour" data-utc="2025-12-21T02:00:12Z">02:00</span>
+<span class="tz-hour" data-utc="2025-12-21T06:00:12Z">06:00</span>
+<span class="tz-hour" data-utc="2025-12-21T10:00:12Z">10:00</span>
+<span class="tz-hour" data-utc="2025-12-21T14:00:12Z">14:00</span>
+<span class="tz-hour" data-utc="2025-12-21T18:00:12Z">18:00</span>
+<span class="tz-hour" data-utc="2025-12-21T22:00:12Z">22:00</span>
+</div>
+</div>
+</div>
+
+<script>
+document.querySelectorAll('[data-session-id]').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+        const sessionId = card.dataset.sessionId;
+        document.querySelectorAll('.gantt-track').forEach(track => {
+            if (track.dataset.session === sessionId) {
+                track.style.background = '#fef3c7';
+                track.style.boxShadow = 'inset 0 0 0 2px #f59e0b';
+            }
+        });
+    });
+    card.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.gantt-track').forEach(track => {
+            track.style.background = '';
+            track.style.boxShadow = '';
+        });
+    });
+});
+</script>
+
+
+<div class="timeline-legend">
+    <div class="legend-item"><div class="legend-dot runpod"></div> RunPod ($0.16/hr)</div>
+    <div class="legend-item"><div class="legend-dot aws"></div> AWS EC2 ($0.52/hr)</div>
+    <div class="legend-item"><div class="legend-dot running"></div> Currently Running</div>
+</div>
+        </div>
+            <h3 style="font-size: 14px; color: #374151; margin: 20px 0 12px; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-list-ul" style="color: #6b7280;"></i> Recent Events (24h)
+            </h3>
+            <div class="event-log">
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:48:56</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>g5d0omc5vkvh</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:30:04</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:15:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 05:00:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - ok
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:30:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>g5d0omc5vkvh</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 04:16:27</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>g5d0omc5vkvh</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:14:33</span>
+        <span class="provider-badge provider-aws">AWS</span>
+        <span class="event-action-created">created</span>
+        <code>i-03a292875d</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:14:10</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>grf2en2o3v13</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-19 00:00:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>grf2en2o3v13</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 23:57:16</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>grf2en2o3v13</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 21:02:35</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>5npkpcz074rr</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 21:00:04</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>5npkpcz074rr</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 20:45:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>5npkpcz074rr</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-18 20:44:59</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>5npkpcz074rr</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:43</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>jffyy3arvbb7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:30:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>jffyy3arvbb7</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 22:20:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jffyy3arvbb7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 20:07:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>bkmbnjajskhr</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:56:26</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>bkmbnjajskhr</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:46:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>enmchk3eivj1</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 19:16:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>enmchk3eivj1</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 16:31:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>wbhtmouj9p2e</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:36:01</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>wbhtmouj9p2e</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:24:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>e88fbu9wyy6f</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:09:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e88fbu9wyy6f</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 06:06:11</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>h3cafp4qw0mb</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>h3cafp4qw0mb</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:43:03</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>oq834iapcrbw</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:16:13</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oq834iapcrbw</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 05:15:45</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>y3tntwrvtxka</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:10:20</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>y3tntwrvtxka</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 04:08:09</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>70loinoywrv7</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-17 03:56:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>70loinoywrv7</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:44:08</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>onpuzrwt9lxi</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:24:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>onpuzrwt9lxi</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:12:58</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>4gfwokay9cri</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 06:02:22</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-checked">checked</span>
+        <code>oevr1vgk641c</code> - starting
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-16 05:55:39</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oevr1vgk641c</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:49:18</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>eyc6m78fj6hc</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 21:48:24</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>test-pod-id</code> - manual-test
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:45:50</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>e5vdo3j2cbh9</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 20:20:02</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>x9gksf05o0m2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:41:37</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>oyx1v1g3kkzo</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:30:05</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>jpzyqfrm0kzv</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:23:41</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>byjrhjam6is2</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 19:12:25</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>qfcznj035yfp</code>
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:27:00</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-terminated">terminated</span>
+        <code>ci6ase4eusgy</code> - user-terminated
+    </div>
+<div class="event-row">
+        <span class="event-time">2025-12-15 18:15:28</span>
+        <span class="provider-badge provider-runpod">RUNPOD</span>
+        <span class="event-action-created">created</span>
+        <code>ci6ase4eusgy</code>
+    </div>
+            </div>
+        </div>
+        <!-- End Activity History Section -->
+
+        <h2><i class="fas fa-cog"></i> Watchdog Settings</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <table class="settings-table" style="width: 100%; font-size: 14px;">
+                <tr><td><i class="fas fa-clock"></i> Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
+                <tr><td><i class="fas fa-hourglass-half"></i> Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
+                <tr><td><i class="fas fa-stopwatch"></i> Max Runtime:</td><td>2 hours (safety cap)</td></tr>
+                <tr><td><i class="fas fa-tachometer-alt"></i> GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
+            </table>
+        </div>
+
+        <h2><i class="fas fa-gavel"></i> Decision Rules</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: 'Monaco', 'Menlo', monospace;">
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-shield-alt"></i> Rule 1:</span> runtime &lt; 20 min → <strong>PROTECTED</strong> (boot window)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-skull"></i> Rule 2:</span> runtime &gt; 2 hours → <strong>KILL</strong> (safety cap)</div>
+            <div style="padding: 6px 0;"><span class="rule-warn"><i class="fas fa-exclamation-triangle"></i> Rule 3:</span> boot stage 0 or 1 → <strong>WARN</strong> (still allocating/pulling)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-times-circle"></i> Rule 4:</span> container crashed &gt; 30 min → <strong>KILL</strong></div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-bolt"></i> Rule 5:</span> GPU &gt; 5% → <strong>ACTIVE</strong> (don't kill)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-bed"></i> Rule 6:</span> idle &gt; 30 min → <strong>KILL</strong> (forgotten)</div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-check-circle"></i> Rule 7:</span> otherwise → <strong>OK</strong> (grace period)</div>
+        </div>
+
+        <h2><i class="fas fa-terminal"></i> Setup &amp; Access</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px;">
+            <p style="margin-bottom: 8px;"><strong><i class="fas fa-play"></i> Run watchdog manually:</strong></p>
+            <div class="code-block">./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-clock"></i> Setup cron (every 15 min):</strong></p>
+            <div class="code-block" style="font-size: 11px;">*/15 * * * * /home/ubuntu/event-b/transcription-realtime-whisper-cognito-s3-lambda-ver4/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fab fa-aws"></i> Enable S3 upload (add to .env):</strong></p>
+            <div class="code-block">GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/</div>
+
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-desktop"></i> View dashboard locally:</strong></p>
+            <div class="code-block">cd artifacts && python3 -m http.server 8080</div>
+        </div>
+
+        <p class="timestamp">
+            <a href="https://github.com/davidbmar/whisperlive-runpod">
+                <i class="fab fa-github"></i> GitHub: whisperlive-runpod
+            </a>
+        </p>
+    </div>
+
+    <script>
+    (function() {
+        // Dashboard date (UTC) from meta tag
+        const dashboardDate = document.querySelector('meta[name="dashboard-date"]')?.content || new Date().toISOString().split('T')[0];
+        const todayUTC = new Date().toISOString().split('T')[0];
+        const pathname = window.location.pathname;
+        const isLive = (dashboardDate === todayUTC) && (pathname.endsWith('index.html') || pathname.endsWith('/') || pathname.endsWith('/gpu-dashboard/') || pathname.endsWith('/gpu-dashboard.html'));
+
+        // Timezone handling
+        const tzSelect = document.getElementById('timezone');
+        const savedTz = localStorage.getItem('gpu-dashboard-tz') || 'America/Chicago';
+        tzSelect.value = savedTz;
+
+        tzSelect.addEventListener('change', function() {
+            localStorage.setItem('gpu-dashboard-tz', this.value);
+            updateAllTimes(this.value);
+        });
+
+        // Format date for display
+        function formatDateForTz(dateStr, tz) {
+            try {
+                const date = new Date(dateStr + 'T12:00:00Z');
+                return date.toLocaleDateString('en-US', {
+                    timeZone: tz,
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Format full datetime for display
+        function formatDateTimeForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleString('en-US', {
+                    timeZone: tz,
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Format just time (HH:MM) for timeline
+        function formatTimeOnlyForTz(isoString, tz) {
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleTimeString('en-US', {
+                    timeZone: tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // Get timezone abbreviation
+        function getTzAbbr(tz) {
+            try {
+                const date = new Date();
+                const parts = date.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'short' }).split(' ');
+                return parts[parts.length - 1];
+            } catch (e) {
+                return tz;
+            }
+        }
+
+        // Update all displayed times
+        function updateAllTimes(tz) {
+            // Update header timestamp (full datetime)
+            document.querySelectorAll('.local-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatDateTimeForTz(utc, tz);
+                }
+            });
+
+            // Update timeline hour markers (just HH:MM)
+            document.querySelectorAll('.tz-hour').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update timeline event times (just HH:MM)
+            document.querySelectorAll('.tz-time').forEach(el => {
+                const utc = el.dataset.utc;
+                if (utc) {
+                    el.textContent = formatTimeOnlyForTz(utc, tz);
+                }
+            });
+
+            // Update date display
+            document.getElementById('display-date').textContent = formatDateForTz(dashboardDate, tz);
+            document.getElementById('display-date-label').textContent = getTzAbbr(tz);
+        }
+
+        // Date navigation
+        function getAdjacentDate(dateStr, days) {
+            const date = new Date(dateStr + 'T12:00:00Z');
+            date.setUTCDate(date.getUTCDate() + days);
+            return date.toISOString().split('T')[0];
+        }
+
+        const prevBtn = document.getElementById('prev-day');
+        const nextBtn = document.getElementById('next-day');
+        const prevDate = getAdjacentDate(dashboardDate, -1);
+        const nextDate = getAdjacentDate(dashboardDate, 1);
+
+        // Use absolute paths for navigation to work from any access URL
+        // Archives are at /gpu-dashboard/YYYY-MM-DD.html
+        const baseUrl = '/gpu-dashboard/';
+
+        // Previous day - always enabled (archives may exist)
+        prevBtn.href = baseUrl + prevDate + '.html';
+        prevBtn.title = 'Previous day: ' + prevDate;
+
+        // Next day - link to next date file, or index.html if next is today
+        if (dashboardDate >= todayUTC) {
+            // Viewing today or future - disable next
+            nextBtn.classList.add('disabled');
+            nextBtn.removeAttribute('href');
+            nextBtn.title = 'No future data';
+        } else if (nextDate === todayUTC) {
+            // Next day is today - link to live dashboard
+            nextBtn.href = baseUrl + 'index.html';
+            nextBtn.title = 'Today (Live)';
+        } else {
+            // Next day is in the past - link to archive
+            nextBtn.href = baseUrl + nextDate + '.html';
+            nextBtn.title = 'Next day: ' + nextDate;
+        }
+
+        // Show live indicator
+        const liveIndicator = document.getElementById('live-indicator');
+        if (isLive) {
+            liveIndicator.innerHTML = ' <span class="live-badge"><i class="fas fa-circle"></i> LIVE</span>';
+        } else {
+            liveIndicator.innerHTML = ' <span class="archive-badge"><i class="fas fa-archive"></i> Archive</span>';
+        }
+
+        // Initial time update
+        updateAllTimes(savedTz);
+
+        // "Now" indicator positioning
+        // The timeline shows 24 hours ending at dashboard generation time
+        // Position the "now" line based on current time vs generation time
+        function updateNowIndicator() {
+            const nowIndicator = document.getElementById('now-indicator');
+            const nowLabel = document.getElementById('now-label');
+            if (!nowIndicator) return;
+
+            // Get dashboard generation timestamp from meta tag
+            const generatedAt = document.querySelector('meta[name="dashboard-generated"]')?.content;
+            if (!generatedAt) {
+                nowIndicator.style.display = 'none';
+                if (nowLabel) nowLabel.style.display = 'none';
+                return;
+            }
+
+            const generatedTime = new Date(generatedAt).getTime();
+            const currentTime = Date.now();
+            const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+            // The timeline spans from (generatedTime - 24h) to generatedTime
+            // Calculate where "now" falls on that timeline
+            const timelineStart = generatedTime - twentyFourHoursMs;
+            const timelineEnd = generatedTime;
+
+            if (currentTime < timelineStart || currentTime > timelineEnd + (2 * 60 * 60 * 1000)) {
+                // Current time is outside the 24h window (plus 2hr grace period)
+                nowIndicator.style.display = 'none';
+                if (nowLabel) nowLabel.style.display = 'none';
+                return;
+            }
+
+            // Calculate position as percentage
+            let position;
+            if (currentTime > timelineEnd) {
+                // Past the generation time - clamp to right edge
+                position = 100;
+            } else {
+                position = ((currentTime - timelineStart) / twentyFourHoursMs) * 100;
+            }
+
+            // Position the vertical line
+            nowIndicator.style.display = 'block';
+            nowIndicator.style.left = position + '%';
+
+            // Position the label above the chart
+            if (nowLabel) {
+                const tz = tzSelect.value || 'America/Chicago';
+                const timeStr = new Date().toLocaleTimeString('en-US', {
+                    timeZone: tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+                nowLabel.textContent = timeStr;
+                nowLabel.style.display = 'block';
+                nowLabel.style.left = position + '%';
+
+                // Shift label left when near the right edge to prevent clipping
+                if (position > 92) {
+                    nowLabel.style.transform = 'translateX(-100%)';
+                } else if (position < 8) {
+                    nowLabel.style.transform = 'translateX(0)';
+                } else {
+                    nowLabel.style.transform = 'translateX(-50%)';
+                }
+            }
+        }
+
+        // Update now indicator immediately and every minute
+        updateNowIndicator();
+        setInterval(updateNowIndicator, 60000);
+
+        // Session row <-> Timeline hover interaction
+        const sessionRows = document.querySelectorAll('.session-row');
+        const ganttTracks = document.querySelectorAll('.gantt-track');
+
+        sessionRows.forEach(row => {
+            const sessionId = row.dataset.session;
+            const matchingTrack = document.querySelector(`.gantt-track[data-session="${sessionId}"]`);
+
+            row.addEventListener('mouseenter', () => {
+                // Highlight row
+                row.style.transform = 'translateX(4px)';
+                row.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+
+                // Highlight matching timeline track
+                if (matchingTrack) {
+                    matchingTrack.style.background = '#fef3c7';
+                    matchingTrack.style.transform = 'scaleY(1.3)';
+                    matchingTrack.style.zIndex = '10';
+                    const bar = matchingTrack.querySelector('.gantt-bar');
+                    if (bar) {
+                        bar.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+                    }
+                }
+
+                // Dim other tracks
+                ganttTracks.forEach(track => {
+                    if (track !== matchingTrack) {
+                        track.style.opacity = '0.4';
+                    }
+                });
+            });
+
+            row.addEventListener('mouseleave', () => {
+                // Reset row
+                row.style.transform = '';
+                row.style.boxShadow = '';
+
+                // Reset matching track
+                if (matchingTrack) {
+                    const provider = matchingTrack.classList.contains('runpod') ? 'runpod' : 'aws';
+                    matchingTrack.style.background = provider === 'runpod' ? '#faf5ff' : '#fffbeb';
+                    matchingTrack.style.transform = '';
+                    matchingTrack.style.zIndex = '';
+                    const bar = matchingTrack.querySelector('.gantt-bar');
+                    if (bar) {
+                        bar.style.boxShadow = '';
+                    }
+                }
+
+                // Reset all tracks opacity
+                ganttTracks.forEach(track => {
+                    track.style.opacity = '';
+                });
+            });
+        });
+
+        // Also enable hover on timeline tracks to highlight corresponding session row
+        ganttTracks.forEach(track => {
+            const sessionId = track.dataset.session;
+            const matchingRow = document.querySelector(`.session-row[data-session="${sessionId}"]`);
+
+            track.addEventListener('mouseenter', () => {
+                track.style.transform = 'scaleY(1.3)';
+                track.style.zIndex = '10';
+                const bar = track.querySelector('.gantt-bar');
+                if (bar) {
+                    bar.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+                }
+
+                if (matchingRow) {
+                    matchingRow.style.transform = 'translateX(4px)';
+                    matchingRow.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                }
+
+                // Dim other tracks
+                ganttTracks.forEach(t => {
+                    if (t !== track) t.style.opacity = '0.4';
+                });
+            });
+
+            track.addEventListener('mouseleave', () => {
+                track.style.transform = '';
+                track.style.zIndex = '';
+                const bar = track.querySelector('.gantt-bar');
+                if (bar) {
+                    bar.style.boxShadow = '';
+                }
+
+                if (matchingRow) {
+                    matchingRow.style.transform = '';
+                    matchingRow.style.boxShadow = '';
+                }
+
+                ganttTracks.forEach(t => {
+                    t.style.opacity = '';
+                });
+            });
+        });
+    })();
+    </script>
+</body>
+</html>
         <!-- Live Status Section -->
         <div class="section-container live-status">
             <div class="section-header">
@@ -786,13 +1554,13 @@
 </div>
 </div>
 <div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; margin-top: 6px; padding: 0 2px;">
-<span class="tz-hour" data-utc="2025-12-20T21:58:05Z">21:58</span>
-<span class="tz-hour" data-utc="2025-12-21T01:58:05Z">01:58</span>
-<span class="tz-hour" data-utc="2025-12-21T05:58:05Z">05:58</span>
-<span class="tz-hour" data-utc="2025-12-21T09:58:05Z">09:58</span>
-<span class="tz-hour" data-utc="2025-12-21T13:58:05Z">13:58</span>
-<span class="tz-hour" data-utc="2025-12-21T17:58:05Z">17:58</span>
-<span class="tz-hour" data-utc="2025-12-21T21:58:05Z">21:58</span>
+<span class="tz-hour" data-utc="2025-12-20T22:00:17Z">22:00</span>
+<span class="tz-hour" data-utc="2025-12-21T02:00:17Z">02:00</span>
+<span class="tz-hour" data-utc="2025-12-21T06:00:17Z">06:00</span>
+<span class="tz-hour" data-utc="2025-12-21T10:00:17Z">10:00</span>
+<span class="tz-hour" data-utc="2025-12-21T14:00:17Z">14:00</span>
+<span class="tz-hour" data-utc="2025-12-21T18:00:17Z">18:00</span>
+<span class="tz-hour" data-utc="2025-12-21T22:00:17Z">22:00</span>
 </div>
 </div>
 </div>

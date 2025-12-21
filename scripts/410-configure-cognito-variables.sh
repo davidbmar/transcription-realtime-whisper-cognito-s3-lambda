@@ -63,7 +63,8 @@ else
     DEFAULT_BUCKET_NAME="${DEFAULT_APP_NAME}-bucket-${TIMESTAMP}"
 fi
 
-if [ -n "${COGNITO_DOMAIN:-}" ]; then
+# Only use existing COGNITO_DOMAIN if it's a real value, not a placeholder
+if [ -n "${COGNITO_DOMAIN:-}" ] && [[ ! "$COGNITO_DOMAIN" =~ ^TO_BE ]]; then
     DEFAULT_DOMAIN="$COGNITO_DOMAIN"
 else
     DEFAULT_DOMAIN="${DEFAULT_APP_NAME}-${TIMESTAMP}"
@@ -107,6 +108,15 @@ read -p "S3 bucket name [${DEFAULT_BUCKET_NAME}]: " BUCKET_NAME
 BUCKET_NAME="${BUCKET_NAME:-$DEFAULT_BUCKET_NAME}"
 
 # Cognito Domain
+echo ""
+echo -e "${CYAN}Cognito Domain Prefix:${NC}"
+echo "  This creates your hosted login URL:"
+echo "  https://<prefix>.auth.${AWS_REGION:-us-east-2}.amazoncognito.com"
+echo ""
+echo "  Requirements: lowercase, numbers, hyphens only (1-63 chars)"
+echo "  Must be globally unique across all AWS accounts"
+echo "  Example: myapp-prod-2025, transcription-davidmar"
+echo ""
 read -p "Cognito domain prefix [${DEFAULT_DOMAIN}]: " COGNITO_DOMAIN_INPUT
 COGNITO_DOMAIN_INPUT="${COGNITO_DOMAIN_INPUT:-$DEFAULT_DOMAIN}"
 
