@@ -44,9 +44,11 @@ USERNAME=$(whoami | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 TIMESTAMP=$(date +%Y%m%d)
 
 # Build smart defaults from existing .env
-# Priority: existing COGNITO_* > SERVICE_NAME > username-based
+# Priority: existing COGNITO_* > APP_NAME > SERVICE_NAME > username-based
 if [ -n "${COGNITO_APP_NAME:-}" ]; then
     DEFAULT_APP_NAME="$COGNITO_APP_NAME"
+elif [ -n "${APP_NAME:-}" ]; then
+    DEFAULT_APP_NAME="$APP_NAME"
 elif [ -n "${SERVICE_NAME:-}" ]; then
     DEFAULT_APP_NAME="$SERVICE_NAME"
 else
