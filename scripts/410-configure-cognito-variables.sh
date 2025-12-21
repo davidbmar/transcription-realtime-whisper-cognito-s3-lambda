@@ -17,6 +17,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$REPO_ROOT/.env"
 
+# Create logs directory if it doesn't exist
+mkdir -p "$REPO_ROOT/logs"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'

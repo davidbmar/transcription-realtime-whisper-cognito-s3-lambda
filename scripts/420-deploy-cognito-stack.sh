@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
+mkdir -p "$(dirname "$0")/../logs"
+exec > >(tee -a "$(dirname "$0")/../logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
 # Script 420: Deploy Cognito/S3/Lambda Stack

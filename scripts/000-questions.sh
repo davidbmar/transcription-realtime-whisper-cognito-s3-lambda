@@ -7,6 +7,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 TEMPLATE_FILE=".env.template"
 ENV_FILE=".env"
 BACKUP_FILE=".env.backup-$(date +%Y%m%d-%H%M%S)"
