@@ -57,6 +57,8 @@ fi
 
 if [ -n "${COGNITO_S3_BUCKET:-}" ]; then
     DEFAULT_BUCKET_NAME="$COGNITO_S3_BUCKET"
+elif [ -n "${S3_BUCKET_NAME:-}" ]; then
+    DEFAULT_BUCKET_NAME="$S3_BUCKET_NAME"
 else
     DEFAULT_BUCKET_NAME="${DEFAULT_APP_NAME}-bucket-${TIMESTAMP}"
 fi
