@@ -60,7 +60,7 @@ log_info "Step 1: Validating prerequisites"
 # Validate required .env variables
 if [ -z "${COGNITO_APP_NAME:-}" ] || [ -z "${COGNITO_STAGE:-}" ] || [ -z "${COGNITO_S3_BUCKET:-}" ] || [ -z "${COGNITO_DOMAIN:-}" ]; then
     log_error "❌ Missing required Cognito variables in .env"
-    log_error "Please run ./scripts/410-questions-setup-cognito-s3-lambda.sh first"
+    log_error "Please run ./scripts/410-configure-cognito-variables.sh first"
     exit 1
 fi
 
@@ -68,7 +68,7 @@ fi
 COGNITO_DIR="$REPO_ROOT/cognito-stack"
 if [ ! -d "$COGNITO_DIR" ]; then
     log_error "❌ cognito-stack directory not found"
-    log_error "Please run ./scripts/410-questions-setup-cognito-s3-lambda.sh first"
+    log_error "Please run ./scripts/410-configure-cognito-variables.sh first"
     exit 1
 fi
 
