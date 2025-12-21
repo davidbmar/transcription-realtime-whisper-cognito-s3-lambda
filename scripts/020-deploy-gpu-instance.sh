@@ -30,7 +30,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 if [ ! -f "$PROJECT_ROOT/.env" ]; then
     echo "❌ Configuration file not found: $PROJECT_ROOT/.env"
     echo ""
-    echo "Please run: ./scripts/005-setup-configuration.sh"
+    echo "Please run: ./scripts/005-setup-configuration--realtime-riva.sh"
     exit 1
 fi
 
@@ -58,7 +58,7 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
         echo "  • $var"
     done
     echo ""
-    echo "Please update your .env file or re-run: ./scripts/005-setup-configuration.sh"
+    echo "Please update your .env file or re-run: ./scripts/005-setup-configuration--realtime-riva.sh"
     exit 1
 fi
 

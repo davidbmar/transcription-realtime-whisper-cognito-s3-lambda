@@ -159,7 +159,7 @@ load_env_or_fail() {
     if [ ! -f "$ENV_FILE" ]; then
         json_log "${SCRIPT_NAME:-common}" "load_env" "error" "Configuration file not found: $ENV_FILE"
         echo -e "${RED}❌ Configuration file not found: $ENV_FILE${NC}"
-        echo "Run: ./scripts/005-setup-configuration.sh"
+        echo "Run: ./scripts/005-setup-configuration--realtime-riva.sh"
         return 1
     fi
 

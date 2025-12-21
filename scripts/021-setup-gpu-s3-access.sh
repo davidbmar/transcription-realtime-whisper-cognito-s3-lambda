@@ -29,7 +29,7 @@ ENV_FILE="$PROJECT_ROOT/.env"
 # Check if .env exists
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ Configuration file not found: $ENV_FILE"
-    echo "Please run: ./scripts/005-setup-configuration.sh"
+    echo "Please run: ./scripts/005-setup-configuration--realtime-riva.sh"
     exit 1
 fi
 
