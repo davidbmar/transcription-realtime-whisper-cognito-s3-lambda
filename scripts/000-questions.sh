@@ -66,6 +66,17 @@ detect_aws_account() {
     aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "UNKNOWN"
 }
 
+sanitize_aws_account_id() {
+    local account_id=$1
+    # Remove dashes (AWS console displays as 1234-5678-9012 but API needs 123456789012)
+    account_id=$(echo "$account_id" | tr -d '-')
+    # Validate: should be 12 digits
+    if [[ ! "$account_id" =~ ^[0-9]{12}$ ]]; then
+        echo -e "${RED}⚠️  Warning: AWS Account ID should be 12 digits${NC}" >&2
+    fi
+    echo "$account_id"
+}
+
 detect_aws_region() {
     aws configure get region 2>/dev/null || echo "us-east-2"
 }
@@ -96,10 +107,13 @@ echo "==========================================================================
 # Detect AWS account
 AWS_ACCOUNT_ID=$(detect_aws_account)
 if [ "$AWS_ACCOUNT_ID" != "UNKNOWN" ]; then
+    AWS_ACCOUNT_ID=$(sanitize_aws_account_id "$AWS_ACCOUNT_ID")
     echo -e "${GREEN}✅ Detected AWS Account ID: $AWS_ACCOUNT_ID${NC}"
     update_env_var "AWS_ACCOUNT_ID" "$AWS_ACCOUNT_ID"
 else
-    AWS_ACCOUNT_ID=$(ask_question "AWS_ACCOUNT_ID" "Enter AWS Account ID")
+    AWS_ACCOUNT_ID=$(ask_question "AWS_ACCOUNT_ID" "Enter AWS Account ID (dashes ok, will be removed)")
+    AWS_ACCOUNT_ID=$(sanitize_aws_account_id "$AWS_ACCOUNT_ID")
+    echo -e "${GREEN}✅ Using AWS Account ID: $AWS_ACCOUNT_ID${NC}"
     update_env_var "AWS_ACCOUNT_ID" "$AWS_ACCOUNT_ID"
 fi
 
