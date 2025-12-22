@@ -79,6 +79,14 @@ if ! aws sts get-caller-identity &> /dev/null; then
     exit 1
 fi
 
+# Check Node.js/npm installed
+if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+    log_error "❌ Node.js/npm not found"
+    log_error "Run ./scripts/400-install-prerequisites.sh first"
+    exit 1
+fi
+log_info "Node.js $(node --version) found"
+
 log_success "Prerequisites validated"
 echo ""
 
@@ -235,11 +243,19 @@ echo ""
 log_info "Step 9: Creating app.js with deployment configuration"
 cd "$COGNITO_DIR"
 
+# Save deployment values before reloading environment
+SAVED_CLOUDFRONT_URL="$CLOUDFRONT_URL"
+SAVED_WEBSITE_URL="$WEBSITE_URL"
+
 # Load WHISPERLIVE_WS_URL from .env (in repo root)
 cd "$REPO_ROOT"
 source "$REPO_ROOT/scripts/lib/common-functions.sh"
 load_environment
 WHISPERLIVE_WS_URL="${WHISPERLIVE_WS_URL:-wss://your-edge-box.com/ws}"
+
+# Restore deployment values (load_environment may have overwritten them)
+CLOUDFRONT_URL="$SAVED_CLOUDFRONT_URL"
+WEBSITE_URL="$SAVED_WEBSITE_URL"
 
 # Copy app.js from template and replace placeholders
 cd "$COGNITO_DIR"
@@ -368,9 +384,9 @@ log_info "  - Cognito domain DNS propagation may take 15-30 minutes"
 log_info "  - You must create a user before testing authentication"
 echo ""
 log_info "Next Steps:"
-log_info "  1. Create a test user: ./scripts/430-create-cognito-user.sh"
-log_info "  2. Test the application: Open $CLOUDFRONT_URL in your browser"
-log_info "  3. (Optional) Update web files: ./scripts/425-update-web-files.sh"
+log_info "  1. Deploy the full UI: ./scripts/425-deploy-recorder-ui.sh"
+log_info "  2. Create a test user: ./scripts/430-create-cognito-user.sh"
+log_info "  3. Test the application: Open $CLOUDFRONT_URL in your browser"
 echo ""
 log_info "⚠️  DO NOT commit web/app.js to version control (contains environment-specific values)"
 echo ""
