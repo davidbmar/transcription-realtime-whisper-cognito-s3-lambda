@@ -275,12 +275,116 @@ fi
 echo ""
 
 # ============================================================================
+# Verification - Check that resources are actually deleted
+# ============================================================================
+
+echo ""
+log_info "Step 8: Verifying resources are deleted"
+echo ""
+
+RESOURCES_REMAINING=0
+
+# Check CloudFormation stack
+log_info "Checking CloudFormation stack..."
+if aws cloudformation describe-stacks --stack-name "$STACK_NAME" &>/dev/null; then
+    STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+        --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "UNKNOWN")
+    log_warn "  ⚠️  Stack still exists (status: $STACK_STATUS)"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ CloudFormation stack deleted"
+fi
+
+# Check S3 buckets
+log_info "Checking S3 buckets..."
+REMAINING_BUCKETS=$(aws s3 ls 2>/dev/null | awk '{print $3}' | grep -E "^(${STACK_SERVICE}|${COGNITO_APP_NAME:-notset})" || true)
+if [ -n "$REMAINING_BUCKETS" ]; then
+    log_warn "  ⚠️  S3 buckets still exist:"
+    echo "$REMAINING_BUCKETS" | while read bucket; do
+        echo "      - $bucket"
+    done
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ S3 buckets deleted"
+fi
+
+# Check Cognito User Pools
+log_info "Checking Cognito User Pools..."
+REMAINING_POOLS=$(aws cognito-idp list-user-pools --max-results 20 \
+    --query "UserPools[?contains(Name, '${COGNITO_APP_NAME:-notset}') || contains(Name, '${STACK_SERVICE}')].Name" \
+    --output text 2>/dev/null || echo "")
+if [ -n "$REMAINING_POOLS" ] && [ "$REMAINING_POOLS" != "None" ]; then
+    log_warn "  ⚠️  Cognito User Pools still exist: $REMAINING_POOLS"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ Cognito User Pools deleted"
+fi
+
+# Check Lambda functions
+log_info "Checking Lambda functions..."
+REMAINING_LAMBDAS=$(aws lambda list-functions \
+    --query "Functions[?contains(FunctionName, '${STACK_SERVICE}-${COGNITO_STAGE}')].FunctionName" \
+    --output text 2>/dev/null || echo "")
+if [ -n "$REMAINING_LAMBDAS" ] && [ "$REMAINING_LAMBDAS" != "None" ]; then
+    LAMBDA_COUNT=$(echo "$REMAINING_LAMBDAS" | wc -w)
+    log_warn "  ⚠️  Lambda functions still exist: $LAMBDA_COUNT functions"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ Lambda functions deleted"
+fi
+
+# Check API Gateway
+log_info "Checking API Gateway..."
+REMAINING_APIS=$(aws apigateway get-rest-apis \
+    --query "items[?contains(name, '${STACK_SERVICE}') || contains(name, '${COGNITO_APP_NAME:-notset}')].name" \
+    --output text 2>/dev/null || echo "")
+if [ -n "$REMAINING_APIS" ] && [ "$REMAINING_APIS" != "None" ]; then
+    log_warn "  ⚠️  API Gateway still exists: $REMAINING_APIS"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ API Gateway deleted"
+fi
+
+# Check CloudFront distributions
+log_info "Checking CloudFront distributions..."
+REMAINING_CF=$(aws cloudfront list-distributions \
+    --query "DistributionList.Items[?contains(Comment, '${STACK_SERVICE}') || contains(Comment, '${COGNITO_APP_NAME:-notset}')].Id" \
+    --output text 2>/dev/null || echo "")
+if [ -n "$REMAINING_CF" ] && [ "$REMAINING_CF" != "None" ]; then
+    log_warn "  ⚠️  CloudFront distributions still exist: $REMAINING_CF"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ CloudFront distributions deleted"
+fi
+
+# Check CloudWatch log groups
+log_info "Checking CloudWatch log groups..."
+REMAINING_LOGS=$(aws logs describe-log-groups \
+    --log-group-name-prefix "/aws/lambda/${STACK_SERVICE}-${COGNITO_STAGE}" \
+    --query "logGroups[].logGroupName" --output text 2>/dev/null || echo "")
+if [ -n "$REMAINING_LOGS" ] && [ "$REMAINING_LOGS" != "None" ]; then
+    LOG_COUNT=$(echo "$REMAINING_LOGS" | wc -w)
+    log_warn "  ⚠️  CloudWatch log groups still exist: $LOG_COUNT groups"
+    RESOURCES_REMAINING=$((RESOURCES_REMAINING + 1))
+else
+    log_success "  ✅ CloudWatch log groups deleted"
+fi
+
+echo ""
+
+# ============================================================================
 # Success Reporting
 # ============================================================================
 
 echo ""
 log_info "==================================================================="
-log_success "✅ CLEANUP COMPLETED"
+if [ $RESOURCES_REMAINING -eq 0 ]; then
+    log_success "✅ CLEANUP COMPLETED - ALL RESOURCES DELETED"
+else
+    log_warn "⚠️  CLEANUP COMPLETED - $RESOURCES_REMAINING RESOURCE TYPE(S) REMAINING"
+    log_info "Some resources may still be deleting or require manual cleanup."
+    log_info "Run this script again in a few minutes to re-check."
+fi
 log_info "==================================================================="
 echo ""
 log_info "Summary:"
@@ -291,6 +395,6 @@ log_info "  - CloudFormation stack deleted"
 log_info "  - .env variables commented out"
 echo ""
 log_info "To redeploy, run:"
-log_info "  1. ./scripts/410-questions-setup-cognito-s3-lambda.sh (if config changed)"
+log_info "  1. ./scripts/410-configure-cognito-variables.sh"
 log_info "  2. ./scripts/420-deploy-cognito-stack.sh"
 echo ""
