@@ -100,7 +100,7 @@ fi
 echo ""
 
 log_info "Step 2: Finding serverless deployment buckets"
-# Check if stack exists and find deployment buckets
+# Check if stack exists and find deployment buckets from CloudFormation
 DEPLOYMENT_BUCKETS=""
 if aws cloudformation describe-stacks --stack-name "$STACK_NAME" &>/dev/null; then
     DEPLOYMENT_BUCKETS=$(aws cloudformation describe-stack-resources \
@@ -109,21 +109,47 @@ if aws cloudformation describe-stacks --stack-name "$STACK_NAME" &>/dev/null; th
         --output text 2>/dev/null || echo "")
 fi
 
-# Also look for deployment buckets by name pattern
-if [ -z "$DEPLOYMENT_BUCKETS" ]; then
-    DEPLOYMENT_BUCKETS=$(aws s3api list-buckets \
-        --query "Buckets[?starts_with(Name, '${COGNITO_APP_NAME}-${COGNITO_STAGE}-serverlessdeployment') || starts_with(Name, '${COGNITO_APP_NAME}-serverlessdeploymentbucket')].Name" \
-        --output text 2>/dev/null || echo "")
-fi
+# Also search for deployment buckets by name patterns (matches both SERVICE_NAME and COGNITO_APP_NAME patterns)
+BUCKET_PATTERNS=(
+    "${STACK_SERVICE}-${COGNITO_STAGE}-serverlessdeployment"
+    "${STACK_SERVICE}-serverlessdeploymentbucket"
+    "${COGNITO_APP_NAME:-notset}-${COGNITO_STAGE}-serverlessdeployment"
+    "${COGNITO_APP_NAME:-notset}-serverlessdeploymentbucket"
+)
+
+# Search for buckets matching any pattern
+ALL_BUCKETS=$(aws s3 ls 2>/dev/null | awk '{print $3}')
+for pattern in "${BUCKET_PATTERNS[@]}"; do
+    MATCHING=$(echo "$ALL_BUCKETS" | grep "^${pattern}" 2>/dev/null || true)
+    if [ -n "$MATCHING" ]; then
+        DEPLOYMENT_BUCKETS="$DEPLOYMENT_BUCKETS $MATCHING"
+    fi
+done
+
+# Remove duplicates
+DEPLOYMENT_BUCKETS=$(echo "$DEPLOYMENT_BUCKETS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
 if [ -n "$DEPLOYMENT_BUCKETS" ]; then
+    echo ""
+    log_warn "Found deployment buckets to delete:"
     for bucket in $DEPLOYMENT_BUCKETS; do
-        log_info "Emptying deployment bucket: $bucket"
-        aws s3 rm "s3://$bucket" --recursive 2>/dev/null || log_warn "⚠️  Failed to empty bucket"
-        log_info "Deleting deployment bucket: $bucket"
-        aws s3 rb "s3://$bucket" --force 2>/dev/null || log_warn "⚠️  Failed to delete bucket"
+        echo "  - $bucket"
     done
-    log_success "Deployment buckets cleaned up"
+    echo ""
+    read -p "Empty and delete these buckets? [Y/n]: " CONFIRM_BUCKETS
+    CONFIRM_BUCKETS="${CONFIRM_BUCKETS:-Y}"
+
+    if [[ "$CONFIRM_BUCKETS" =~ ^[Yy] ]]; then
+        for bucket in $DEPLOYMENT_BUCKETS; do
+            log_info "Emptying bucket: $bucket"
+            aws s3 rm "s3://$bucket" --recursive 2>/dev/null || log_warn "⚠️  Failed to empty bucket"
+            log_info "Deleting bucket: $bucket"
+            aws s3 rb "s3://$bucket" --force 2>/dev/null || log_warn "⚠️  Failed to delete bucket"
+        done
+        log_success "Deployment buckets cleaned up"
+    else
+        log_warn "Skipping bucket deletion - stack deletion may fail"
+    fi
 else
     log_info "No deployment buckets found"
 fi
