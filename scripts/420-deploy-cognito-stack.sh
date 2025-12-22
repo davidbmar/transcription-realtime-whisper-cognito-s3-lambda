@@ -164,7 +164,7 @@ aws cognito-idp update-user-pool-client \
     --callback-urls "${CLOUDFRONT_URL}/callback.html" \
     --logout-urls "${CLOUDFRONT_URL}/index.html" \
     --allowed-o-auth-flows "code" "implicit" \
-    --allowed-o-auth-scopes "email" "openid" "profile" \
+    --allowed-o-auth-scopes "email" "openid" "profile" "aws.cognito.signin.user.admin" \
     --supported-identity-providers "COGNITO" \
     --allowed-o-auth-flows-user-pool-client &> /dev/null
 
