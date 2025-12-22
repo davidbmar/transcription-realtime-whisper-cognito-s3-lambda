@@ -169,8 +169,11 @@ fi
 echo ""
 echo -e "${CYAN}🌐 Application Settings${NC}"
 echo "============================================================================"
+echo -e "${YELLOW}Custom domain for CloudFront/API Gateway (e.g., app.yourdomain.com).${NC}"
+echo -e "${YELLOW}Skip to use auto-generated AWS URLs - works fine for testing.${NC}"
+echo ""
 
-APP_DOMAIN=$(ask_question "APP_DOMAIN" "Application Domain (optional, press Enter to skip)" "NOT_CONFIGURED" || echo "NOT_CONFIGURED")
+APP_DOMAIN=$(ask_question "APP_DOMAIN" "Custom Domain (optional, press Enter to skip)" "NOT_CONFIGURED" || echo "NOT_CONFIGURED")
 if [ "$APP_DOMAIN" = "NOT_CONFIGURED" ] || [ -z "$APP_DOMAIN" ]; then
     update_env_var "APP_DOMAIN" "NOT_CONFIGURED"
 else
