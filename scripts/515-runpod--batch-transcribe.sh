@@ -556,9 +556,163 @@ transcribe_session() {
             log_error "  Transcription job failed"
             return 1
         fi
+    # ========================================================================
+    # Priority 2: Check for single MP3/MP4 file (legacy uploads)
+    # Uses PRESIGNED URLs to bypass Cloudflare proxy timeout
+    # ========================================================================
+    elif aws s3 ls "s3://${S3_BUCKET}/${session_path}/chunk-001.mp3" &>/dev/null; then
+        log_info "  Found chunk-001.mp3 - using PRESIGNED URL mode"
+
+        local file_info=$(aws s3 ls "s3://${S3_BUCKET}/${session_path}/chunk-001.mp3" | head -1)
+        local file_size=$(echo "$file_info" | awk '{print $3}')
+        estimated_seconds=$((file_size / 16000))  # Rough estimate for MP3
+        log_info "  Audio: ~$((file_size / 1024 / 1024))MB (~${estimated_seconds}s / ~$((estimated_seconds / 60))min)"
+
+        log_info "  Generating presigned URLs (${PRESIGNED_URL_EXPIRY}s expiry)..."
+
+        local audio_s3_key="${session_path}/chunk-001.mp3"
+        local result_s3_key="${session_path}/transcription-diarized.json"
+
+        local audio_url=$(aws s3 presign "s3://${S3_BUCKET}/${audio_s3_key}" --expires-in "$PRESIGNED_URL_EXPIRY")
+        local result_url=$(generate_put_url "$result_s3_key" "$PRESIGNED_URL_EXPIRY")
+
+        if [ -z "$audio_url" ] || [ -z "$result_url" ]; then
+            log_error "  Failed to generate presigned URLs"
+            return 1
+        fi
+
+        log_info "  Submitting job to RunPod (async mode)..."
+
+        local json_payload=$(jq -n \
+            --arg audio_url "$audio_url" \
+            --arg result_url "$result_url" \
+            --argjson diarize "$ENABLE_DIARIZATION" \
+            --argjson async true \
+            --argjson min_speakers "${session_min_speakers:-null}" \
+            --argjson max_speakers "${session_max_speakers:-null}" \
+            '{
+                audio_url: $audio_url,
+                result_url: $result_url,
+                diarize: $diarize,
+                async_mode: $async
+            } + (if $min_speakers then {min_speakers: $min_speakers} else {} end)
+              + (if $max_speakers then {max_speakers: $max_speakers} else {} end)'
+        )
+
+        if [ -n "$session_min_speakers" ] || [ -n "$session_max_speakers" ]; then
+            log_info "  Speaker hints: min=${session_min_speakers:-auto} max=${session_max_speakers:-auto}"
+        fi
+
+        local submit_response=$(curl -s --max-time 30 \
+            -X POST "${BASE_URL}/transcribe" \
+            -H "Content-Type: application/json" \
+            -d "$json_payload" \
+            2>&1)
+
+        local job_id=$(echo "$submit_response" | jq -r '.job_id // empty' 2>/dev/null)
+
+        if [ -z "$job_id" ]; then
+            log_error "  Failed to submit job"
+            echo "$submit_response" | jq . 2>/dev/null || echo "$submit_response"
+            return 1
+        fi
+
+        log_info "  Job submitted: $job_id"
+
+        if poll_job_status "$job_id"; then
+            log_success "Transcription complete!"
+
+            # Post-processing steps (same as audio.wav path)
+            local result_s3_key="${session_path}/transcription-diarized.json"
+            merge_speaker_turns "s3://${S3_BUCKET}/${result_s3_key}"
+            segment_by_topic "${session_path}"
+
+            CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
+            TOTAL_AUDIO_SECONDS=$((TOTAL_AUDIO_SECONDS + estimated_seconds))
+            return 0
+        else
+            log_error "  Transcription job failed"
+            return 1
+        fi
+
+    elif aws s3 ls "s3://${S3_BUCKET}/${session_path}/chunk-001.mp4" &>/dev/null; then
+        log_info "  Found chunk-001.mp4 - using PRESIGNED URL mode"
+
+        local file_info=$(aws s3 ls "s3://${S3_BUCKET}/${session_path}/chunk-001.mp4" | head -1)
+        local file_size=$(echo "$file_info" | awk '{print $3}')
+        estimated_seconds=$((file_size / 16000))  # Rough estimate for MP4
+        log_info "  Audio: ~$((file_size / 1024 / 1024))MB (~${estimated_seconds}s / ~$((estimated_seconds / 60))min)"
+
+        log_info "  Generating presigned URLs (${PRESIGNED_URL_EXPIRY}s expiry)..."
+
+        local audio_s3_key="${session_path}/chunk-001.mp4"
+        local result_s3_key="${session_path}/transcription-diarized.json"
+
+        local audio_url=$(aws s3 presign "s3://${S3_BUCKET}/${audio_s3_key}" --expires-in "$PRESIGNED_URL_EXPIRY")
+        local result_url=$(generate_put_url "$result_s3_key" "$PRESIGNED_URL_EXPIRY")
+
+        if [ -z "$audio_url" ] || [ -z "$result_url" ]; then
+            log_error "  Failed to generate presigned URLs"
+            return 1
+        fi
+
+        log_info "  Submitting job to RunPod (async mode)..."
+
+        local json_payload=$(jq -n \
+            --arg audio_url "$audio_url" \
+            --arg result_url "$result_url" \
+            --argjson diarize "$ENABLE_DIARIZATION" \
+            --argjson async true \
+            --argjson min_speakers "${session_min_speakers:-null}" \
+            --argjson max_speakers "${session_max_speakers:-null}" \
+            '{
+                audio_url: $audio_url,
+                result_url: $result_url,
+                diarize: $diarize,
+                async_mode: $async
+            } + (if $min_speakers then {min_speakers: $min_speakers} else {} end)
+              + (if $max_speakers then {max_speakers: $max_speakers} else {} end)'
+        )
+
+        if [ -n "$session_min_speakers" ] || [ -n "$session_max_speakers" ]; then
+            log_info "  Speaker hints: min=${session_min_speakers:-auto} max=${session_max_speakers:-auto}"
+        fi
+
+        local submit_response=$(curl -s --max-time 30 \
+            -X POST "${BASE_URL}/transcribe" \
+            -H "Content-Type: application/json" \
+            -d "$json_payload" \
+            2>&1)
+
+        local job_id=$(echo "$submit_response" | jq -r '.job_id // empty' 2>/dev/null)
+
+        if [ -z "$job_id" ]; then
+            log_error "  Failed to submit job"
+            echo "$submit_response" | jq . 2>/dev/null || echo "$submit_response"
+            return 1
+        fi
+
+        log_info "  Job submitted: $job_id"
+
+        if poll_job_status "$job_id"; then
+            log_success "Transcription complete!"
+
+            # Post-processing steps (same as audio.wav path)
+            local result_s3_key="${session_path}/transcription-diarized.json"
+            merge_speaker_turns "s3://${S3_BUCKET}/${result_s3_key}"
+            segment_by_topic "${session_path}"
+
+            CHUNKS_TRANSCRIBED=$((CHUNKS_TRANSCRIBED + 1))
+            TOTAL_AUDIO_SECONDS=$((TOTAL_AUDIO_SECONDS + estimated_seconds))
+            return 0
+        else
+            log_error "  Transcription job failed"
+            return 1
+        fi
+
     else
         # ====================================================================
-        # Priority 2: Download and merge chunks with ffmpeg
+        # Priority 3: Download and merge chunks with ffmpeg
         # WebM is a container format - CANNOT be concatenated with 'cat'
         # ====================================================================
         log_info "  No pre-merged audio found, downloading chunks..."
