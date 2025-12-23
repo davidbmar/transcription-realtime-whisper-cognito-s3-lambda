@@ -572,7 +572,7 @@ transcribe_session() {
         done
 
         aws s3 sync "s3://${S3_BUCKET}/${session_path}/" "$audio_dir/" \
-            --exclude "*" --include "chunk-*.webm" --include "chunk-*.wav" --include "chunk-*.m4a" \
+            --exclude "*" --include "chunk-*.webm" --include "chunk-*.wav" --include "chunk-*.m4a" --include "chunk-*.mp3" --include "chunk-*.mp4" \
             2>&1 | while read line; do log_info "    sync: $line"; done
 
         # Find audio files
@@ -583,7 +583,7 @@ transcribe_session() {
 
         if [ ${#audio_files[@]} -eq 0 ]; then
             log_warn "  No audio chunks found, skipping"
-            log_warn "  Expected: chunk-*.webm, chunk-*.wav, or chunk-*.m4a"
+            log_warn "  Expected: chunk-*.webm, chunk-*.wav, chunk-*.m4a, chunk-*.mp3, or chunk-*.mp4"
             return 1
         fi
 
