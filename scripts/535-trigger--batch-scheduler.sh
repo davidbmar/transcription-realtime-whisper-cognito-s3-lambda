@@ -2,9 +2,11 @@
 set -euo pipefail
 
 # ============================================================================
+# ROLE: TRIGGER
 # Script 535: Smart Batch Transcription Scheduler
 # ============================================================================
 # Intelligent scheduler with RunPod-first strategy and AWS fallback.
+# This is a TRIGGER - it initiates batch processing on a schedule (cron).
 #
 # STRATEGY:
 #   1. Check queue size against threshold
@@ -206,7 +208,7 @@ get_missing_chunks() {
     # Log to stderr so it doesn't mix with the count output
     log_info "Scanning S3 for missing transcriptions..." >&2
 
-    if ! "$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh" >/dev/null 2>&1; then
+    if ! "$PROJECT_ROOT/scripts/512-queue--scan-pending-jobs.sh" >/dev/null 2>&1; then
         log_error "Failed to scan for missing chunks" >&2
         echo "0"
         return 1
@@ -246,11 +248,11 @@ run_runpod_transcription() {
     log_event "RUNPOD TRANSCRIPTION" "Processing batch via RunPod WhisperX API..."
 
     if [ "$DRY_RUN" = true ]; then
-        log_info "[DRY RUN] Would execute: ./scripts/515-runpod--batch-transcribe.sh"
+        log_info "[DRY RUN] Would execute: ./scripts/515-executor--runpod-batch.sh"
         return 0
     fi
 
-    if "$PROJECT_ROOT/scripts/515-runpod--batch-transcribe.sh"; then
+    if "$PROJECT_ROOT/scripts/515-executor--runpod-batch.sh"; then
         log_success "RunPod transcription completed"
         return 0
     else

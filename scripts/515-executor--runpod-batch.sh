@@ -3,9 +3,11 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
+# ROLE: EXECUTOR
 # Script 515-runpod: Run Batch Transcription via RunPod GPU
 # ============================================================================
 # Batch transcription using RunPod's WhisperX API with speaker diarization.
+# This is an EXECUTOR - it runs the actual GPU work.
 #
 # PRESIGNED URL MODE (default for pre-merged audio.wav):
 # 1. Generates presigned GET URL for audio.wav
@@ -97,6 +99,7 @@ CHUNKS_TRANSCRIBED=0
 CHUNKS_FAILED=0
 TOTAL_AUDIO_SECONDS=0
 SPEAKERS_IDENTIFIED=0
+PROCESSED_SESSIONS=()  # Track successfully processed sessions for AI actions
 
 # Speaker identification config
 ENABLE_SPEAKER_ID="${ENABLE_SPEAKER_ID:-true}"
@@ -919,6 +922,7 @@ main() {
 
         if transcribe_session "$session_path"; then
             log_success "Session complete"
+            PROCESSED_SESSIONS+=("$session_path")
         else
             CHUNKS_FAILED=$((CHUNKS_FAILED + 1))
             log_error "Session failed"
@@ -941,6 +945,17 @@ main() {
         else
             log_warn "Postprocessing script not found: 518-postprocess-transcripts.sh"
         fi
+
+        # Run AI actions (Claude API + Bedrock) on successfully transcribed sessions
+        echo ""
+        log_info "Running AI actions on transcribed sessions..."
+        for session in "${PROCESSED_SESSIONS[@]}"; do
+            log_info "  AI Analysis: $session"
+            "$PROJECT_ROOT/scripts/run-action.sh" ai-analysis --session "$session" 2>&1 | grep -E "(Success|Error|skipped)" || true
+
+            log_info "  Topic Detection: $session"
+            "$PROJECT_ROOT/scripts/run-action.sh" topics --session "$session" 2>&1 | grep -E "(Success|Error|skipped)" || true
+        done
     fi
 
     # Summary

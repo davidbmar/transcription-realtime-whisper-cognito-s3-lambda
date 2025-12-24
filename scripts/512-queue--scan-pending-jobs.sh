@@ -3,11 +3,14 @@ set -euo pipefail
 exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 
 # ============================================================================
-# Script 512: Scan S3 for Missing Transcription Chunks
+# ROLE: QUEUE
+# Script 512: Scan S3 for Pending Jobs
 # ============================================================================
-# Scans all user sessions in S3 to identify audio chunks that are missing
-# their corresponding transcription files. This is a fast, read-only operation
-# that does NOT require GPU access.
+# Scans all user sessions in S3 to identify work that needs processing:
+# - Audio chunks missing transcription files
+# - Jobs queued in metadata.json
+#
+# This is a fast, read-only operation that does NOT require GPU access.
 #
 # What this does:
 # 1. Lists all user sessions in S3
@@ -42,7 +45,7 @@ source "$PROJECT_ROOT/scripts/lib/common-functions.sh"
 source "$PROJECT_ROOT/scripts/lib/layer-functions.sh"
 
 echo "============================================"
-echo "512: Scan S3 for Missing Transcription Chunks"
+echo "512: Scan S3 for Pending Jobs"
 echo "============================================"
 echo ""
 
