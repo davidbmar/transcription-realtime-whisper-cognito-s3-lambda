@@ -217,7 +217,8 @@ get_missing_chunks() {
         return 0
     fi
 
-    jq -r '.totalMissingChunks // 0' "$PENDING_JOBS_FILE" 2>/dev/null || echo "0"
+    # Use totalPendingJobs which includes both missing transcriptions AND re-diarization jobs
+    jq -r '.totalPendingJobs // 0' "$PENDING_JOBS_FILE" 2>/dev/null || echo "0"
 }
 
 # ============================================================================
@@ -401,12 +402,12 @@ main() {
     MISSING_CHUNKS=$(get_missing_chunks)
 
     echo ""
-    status_line "📦" "Missing chunks:" "$MISSING_CHUNKS"
+    status_line "📦" "Pending jobs:" "$MISSING_CHUNKS"
     status_line "🎯" "Threshold:" "$BATCH_THRESHOLD"
     echo ""
 
     if [ "$MISSING_CHUNKS" -lt "$BATCH_THRESHOLD" ]; then
-        log_event "QUEUE BELOW THRESHOLD" "Found $MISSING_CHUNKS chunks, need $BATCH_THRESHOLD to trigger processing"
+        log_event "QUEUE BELOW THRESHOLD" "Found $MISSING_CHUNKS pending jobs, need $BATCH_THRESHOLD to trigger processing"
 
         log_queue_event "SKIPPED" "none" "$MISSING_CHUNKS" "Below threshold ($BATCH_THRESHOLD)"
 
@@ -419,7 +420,7 @@ main() {
         exit 0
     fi
 
-    log_success "Queue threshold met! Processing $MISSING_CHUNKS chunks..."
+    log_success "Queue threshold met! Processing $MISSING_CHUNKS pending jobs..."
 
     # ========================================================================
     # Step 3: Check for RunPod fallback
