@@ -564,6 +564,57 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # Actions API - Run and monitor session processing actions
+  listActions:
+    handler: api/actions.listActions
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+      SERVICE_NAME: ${self:service}
+      STAGE: ${sls:stage}
+    events:
+      - http:
+          path: api/actions
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  runAction:
+    handler: api/actions.runAction
+    timeout: 30
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+      SERVICE_NAME: ${self:service}
+      STAGE: ${sls:stage}
+    events:
+      - http:
+          path: api/actions/{actionName}
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
+  actionStatus:
+    handler: api/actions.actionStatus
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/actions/status
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
   # Layer Text Edits API - Simple file-based layer edits
   getLayerEdits:
     handler: api/annotations.getLayerEdits
@@ -703,8 +754,10 @@ resources:
           - aws.cognito.signin.user.admin
         CallbackURLs:
           - 'http://localhost:8080/callback.html'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/callback.html'
         LogoutURLs:
           - 'http://localhost:8080/index.html'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/index.html'
         SupportedIdentityProviders:
           - COGNITO
 

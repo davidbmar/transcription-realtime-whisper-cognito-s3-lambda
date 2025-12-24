@@ -5113,6 +5113,11 @@
                     currentSession = allSessions[selectedIndex];
                     console.log('Switched to session:', currentSession);
 
+                    // Update URL with sessionId for bookmarking/sharing
+                    const newUrl = new URL(window.location);
+                    newUrl.searchParams.set('sessionId', currentSession.folder);
+                    history.replaceState({}, '', newUrl);
+
                     // Stop any playing audio from previous session
                     stopAudio();
 
