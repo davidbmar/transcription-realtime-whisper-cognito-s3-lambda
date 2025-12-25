@@ -2506,7 +2506,22 @@ async function uploadFileDirect(file, folderPath) {
 // Copy Filename to Clipboard
 // ============================================================
 function copyFilename(filename, buttonElement) {
-    navigator.clipboard.writeText(filename).then(() => {
+    // Get userId from token for reference
+    let userId = 'unknown';
+    try {
+        const idToken = localStorage.getItem('id_token');
+        if (idToken) {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            userId = payload.sub || 'unknown';
+        }
+    } catch (e) {
+        console.error('Error parsing token for userId:', e);
+    }
+
+    // Format: userId:filename
+    const copyText = `${userId}:${filename}`;
+
+    navigator.clipboard.writeText(copyText).then(() => {
         // Show success feedback
         const icon = buttonElement.querySelector('i');
         icon.className = 'fas fa-check';
@@ -2519,7 +2534,7 @@ function copyFilename(filename, buttonElement) {
         }, 1500);
 
         // Show toast
-        showUploadToast(`Copied: ${filename}`);
+        showUploadToast(`Copied: ${copyText}`);
     }).catch(err => {
         console.error('Failed to copy filename:', err);
         alert('Failed to copy filename to clipboard');
