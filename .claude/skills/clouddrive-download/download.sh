@@ -4,11 +4,13 @@
 # Downloads files from CloudDrive S3 storage
 #
 # Usage: ./download.sh <search-pattern> [options]
+#        ./download.sh <user_id>:<filename>       # Download from specific user
 #
 # Options:
 #   --all           Search ALL users (not just default user)
 #   --folder <name> Search in specific folder (default: images)
 #   --list          List recent files instead of downloading
+#   --user <id>     Specify user ID to search
 #
 # Examples:
 #   ./download.sh "Screenshot"                    # Download screenshots from default user
@@ -16,6 +18,7 @@
 #   ./download.sh "recording" --folder audio      # Download from audio folder
 #   ./download.sh --list                          # List recent images
 #   ./download.sh --list --all                    # List all files across all users
+#   ./download.sh "512b3590...:Screenshot.png"    # Download from specific user (user:file format)
 
 set -euo pipefail
 
@@ -169,12 +172,66 @@ SEE ALSO:
 EOF
 }
 
+# Download from specific user
+download_from_user() {
+    local user_id="$1"
+    local pattern="$2"
+    local folder="${3:-}"
+
+    echo -e "${BLUE}Downloading from user: $user_id${NC}"
+    echo -e "${BLUE}Pattern: *$pattern*${NC}"
+
+    local prefix="users/$user_id/"
+    [[ -n "$folder" ]] && prefix="${prefix}${folder}/"
+
+    # Use s3 sync which handles filenames with spaces better
+    local result=$(aws s3 sync \
+        "s3://$BUCKET/$prefix" \
+        "$DOWNLOAD_DIR/$user_id/" \
+        --exclude "*" \
+        --include "*$pattern*" \
+        --region "$REGION" 2>&1)
+
+    if [[ "$result" == *"download:"* ]]; then
+        echo "$result"
+        echo -e "${GREEN}Download complete!${NC}"
+        echo -e "${BLUE}Files saved to: $DOWNLOAD_DIR/$user_id/${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}No files downloaded via sync. Trying direct download...${NC}"
+
+        # Try listing and downloading individually
+        local files=$(aws s3 ls "s3://$BUCKET/$prefix" --recursive 2>/dev/null | grep -i "$pattern" | awk '{$1=$2=$3=""; print substr($0,4)}')
+
+        if [[ -z "$files" ]]; then
+            echo -e "${RED}No files found matching: $pattern${NC}"
+            return 1
+        fi
+
+        echo -e "${BLUE}Found files:${NC}"
+        echo "$files"
+
+        # Download each file
+        while IFS= read -r key; do
+            [[ -z "$key" ]] && continue
+            local filename=$(basename "$key")
+            local target_dir="$DOWNLOAD_DIR/$user_id/$(dirname "$key" | sed "s|users/$user_id/||")"
+            mkdir -p "$target_dir"
+            echo -e "${YELLOW}Downloading: $filename${NC}"
+            aws s3 cp "s3://$BUCKET/$key" "$target_dir/" --region "$REGION" 2>&1 || true
+        done <<< "$files"
+
+        echo -e "${GREEN}Download complete!${NC}"
+    fi
+}
+
 # Main
 main() {
     local pattern=""
     local search_all="false"
     local folder=""
     local list_mode="false"
+    local specific_user=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -190,6 +247,10 @@ main() {
             --list)
                 list_mode="true"
                 shift
+                ;;
+            --user)
+                specific_user="$2"
+                shift 2
                 ;;
             --help|-h)
                 show_help
@@ -214,7 +275,21 @@ main() {
         exit 1
     fi
 
-    download_files "$pattern" "$search_all" "$folder"
+    # Check for user:filename format
+    if [[ "$pattern" == *":"* ]]; then
+        specific_user="${pattern%%:*}"
+        pattern="${pattern#*:}"
+        echo -e "${BLUE}Parsed user:file format${NC}"
+        echo -e "${BLUE}  User: $specific_user${NC}"
+        echo -e "${BLUE}  Pattern: $pattern${NC}"
+    fi
+
+    # Use specific user if provided
+    if [[ -n "$specific_user" ]]; then
+        download_from_user "$specific_user" "$pattern" "$folder"
+    else
+        download_files "$pattern" "$search_all" "$folder"
+    fi
 
     # Show downloaded files
     echo ""

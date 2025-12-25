@@ -94,6 +94,17 @@ module.exports.queueRediarize = async (event) => {
       queuedBy: email
     };
 
+    // Also add to jobs structure for /api/actions/status compatibility
+    metadata.jobs = metadata.jobs || {};
+    metadata.jobs.diarize = {
+      status: 'queued',
+      queuedAt: new Date().toISOString(),
+      params: {
+        minSpeakers: minSpeakers || null,
+        maxSpeakers: maxSpeakers || null
+      }
+    };
+
     // Save updated metadata
     await s3.putObject({
       Bucket: BUCKET_NAME,
@@ -103,6 +114,24 @@ module.exports.queueRediarize = async (event) => {
     }).promise();
 
     console.log(`Saved diarization settings: min=${minSpeakers}, max=${maxSpeakers}`);
+
+    // Create a marker file so Pipeline Status can detect queued state
+    const markerContent = {
+      status: 'queued',
+      queuedAt: new Date().toISOString(),
+      queuedBy: email,
+      minSpeakers: minSpeakers || null,
+      maxSpeakers: maxSpeakers || null
+    };
+
+    await s3.putObject({
+      Bucket: BUCKET_NAME,
+      Key: `${sessionPath}/diarize-queued.json`,
+      Body: JSON.stringify(markerContent, null, 2),
+      ContentType: 'application/json'
+    }).promise();
+
+    console.log(`Created diarize-queued.json marker file`);
 
     // Delete existing diarization files so batch processor will re-process
     const filesToDelete = [

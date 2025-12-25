@@ -2093,6 +2093,72 @@
                 </div>
             </div>
 
+            <!-- Pipeline Status Mini Card -->
+            <div class="sidebar-section" id="pipeline-section">
+                <div class="sidebar-title" style="cursor: pointer;" onclick="openPipelineStatus()">
+                    <span>Pipeline</span>
+                    <i class="fas fa-external-link-alt" style="font-size: 11px; opacity: 0.6;" title="View full pipeline status"></i>
+                </div>
+                <div class="pipeline-mini" id="pipeline-mini">
+                    <!-- Rendered by renderPipelineMini() -->
+                    <div style="padding: 12px; color: var(--gray-400); font-size: 12px;">Loading...</div>
+                </div>
+            </div>
+            <style>
+                #pipeline-section {
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid var(--gray-200);
+                    margin-bottom: 12px;
+                    overflow: hidden;
+                }
+                #pipeline-section .sidebar-title {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 12px;
+                    background: var(--gray-50);
+                    border-bottom: 1px solid var(--gray-200);
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: var(--gray-700);
+                }
+                #pipeline-section .sidebar-title:hover {
+                    background: var(--gray-100);
+                }
+                .pipeline-mini {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 12px 8px;
+                    gap: 2px;
+                }
+                .pipeline-stage {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 4px;
+                    flex: 1;
+                }
+                .pipeline-stage .stage-icon {
+                    font-size: 16px;
+                    line-height: 1;
+                }
+                .pipeline-stage .stage-label {
+                    font-size: 9px;
+                    color: var(--gray-500);
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .pipeline-arrow {
+                    color: var(--gray-300);
+                    font-size: 8px;
+                }
+                .pipeline-arrow.completed {
+                    color: var(--success);
+                }
+            </style>
+
             <!-- Annotation Layers -->
             <!-- Photoshop-Style Layer Panel -->
             <div class="sidebar-section layer-panel" id="layers-section">
@@ -5764,6 +5830,9 @@
             // Populate speaker legend in sidebar
             populateSpeakerList(speakerList);
 
+            // Load pipeline status mini card
+            loadPipelineMiniStatus();
+
             // Track previous speaker to detect changes
             let previousSpeaker = null;
 
@@ -8543,6 +8612,168 @@
                 sessionInfoModal.close();
             }
         });
+
+        // ====================================================================
+        // Pipeline Status Mini Card
+        // ====================================================================
+
+        async function loadPipelineMiniStatus() {
+            if (!currentSession) return;
+
+            try {
+                const token = localStorage.getItem('id_token');
+                const sessionPrefix = `audio/sessions/${currentSession.folder}/`;
+
+                const response = await fetch(
+                    `${config.apiUrl}/api/s3/list?prefix=${encodeURIComponent(sessionPrefix)}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+
+                if (!response.ok) {
+                    console.warn('Failed to load pipeline status');
+                    return;
+                }
+
+                const data = await response.json();
+                const files = data.files || data || [];
+
+                // Determine status from files
+                const status = determinePipelineStatus(files);
+                renderPipelineMini(status);
+            } catch (error) {
+                console.error('Error loading pipeline status:', error);
+                const container = document.getElementById('pipeline-mini');
+                if (container) {
+                    container.innerHTML = '<div style="padding: 12px; color: var(--gray-400); font-size: 11px;">Unable to load status</div>';
+                }
+            }
+        }
+
+        function determinePipelineStatus(files) {
+            // Helper to check if a file exists
+            const hasFile = (pattern) => files.some(f => {
+                const key = f.key || f.displayKey || '';
+                return key.includes(pattern);
+            });
+
+            // Helper to check for marker files (queued status)
+            const hasMarker = (name) => hasFile(`${name}-queued.json`);
+
+            // Upload: check for audio files
+            const hasAudio = files.some(f => {
+                const key = f.key || f.displayKey || '';
+                return key.match(/\.(wav|webm|m4a|mp3|mp4|aac|ogg)$/i) ||
+                       key.includes('chunk-') ||
+                       key.includes('audio.');
+            });
+
+            // Transcribe: check for transcription files (both new and legacy formats)
+            const hasTranscript = hasFile('transcription-processed.json') ||
+                                  hasFile('transcription-diarized.json') ||
+                                  hasFile('layer-0-raw-transcription/data.json');
+
+            // Diarize: check for marker or output
+            let diarizeStatus = 'not_started';
+            if (hasMarker('diarize')) {
+                diarizeStatus = 'queued';
+            } else if (hasFile('transcription-diarized.json') || hasFile('layer-1-diarization/data.json')) {
+                diarizeStatus = 'completed';
+            } else if (hasTranscript) {
+                // Has transcript but no diarization yet - could be embedded in layer-0
+                if (hasFile('layer-0-raw-transcription/data.json')) {
+                    diarizeStatus = 'completed'; // Legacy format has embedded speakers
+                }
+            }
+
+            // AI Analysis: check for marker or output
+            let aiStatus = 'not_started';
+            if (hasMarker('ai-analysis')) {
+                aiStatus = 'queued';
+            } else if (hasFile('transcription-ai-analysis.json')) {
+                aiStatus = 'completed';
+            }
+
+            // Topics: check for marker or output
+            let topicsStatus = 'not_started';
+            if (hasMarker('topics')) {
+                topicsStatus = 'queued';
+            } else if (hasFile('transcription-topic-segmented.json') || hasFile('layer-3-topic-segments/data.json')) {
+                topicsStatus = 'completed';
+            }
+
+            return {
+                upload: hasAudio ? 'completed' : 'not_started',
+                transcribe: hasTranscript ? 'completed' : 'not_started',
+                diarize: diarizeStatus,
+                ai: aiStatus,
+                topics: topicsStatus
+            };
+        }
+
+        function renderPipelineMini(status) {
+            const container = document.getElementById('pipeline-mini');
+            if (!container) return;
+
+            const stages = [
+                { id: 'upload', label: 'Upload' },
+                { id: 'transcribe', label: 'Trans' },
+                { id: 'diarize', label: 'Diarize' },
+                { id: 'ai', label: 'AI' },
+                { id: 'topics', label: 'Topics' }
+            ];
+
+            let html = '';
+            stages.forEach((stage, i) => {
+                const stageStatus = status[stage.id] || 'not_started';
+                const icon = getPipelineStatusIcon(stageStatus);
+                const tooltip = getPipelineStatusTooltip(stageStatus);
+
+                // Arrow between stages (colored if previous stage completed)
+                if (i > 0) {
+                    const prevStatus = status[stages[i-1].id];
+                    const arrowClass = prevStatus === 'completed' ? 'completed' : '';
+                    html += `<span class="pipeline-arrow ${arrowClass}">▶</span>`;
+                }
+
+                html += `
+                    <div class="pipeline-stage" title="${tooltip}">
+                        <span class="stage-icon">${icon}</span>
+                        <span class="stage-label">${stage.label}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function getPipelineStatusIcon(status) {
+            switch (status) {
+                case 'completed': return '✅';
+                case 'queued': return '🟡';
+                case 'processing': return '🔄';
+                case 'failed': return '❌';
+                default: return '⚪';
+            }
+        }
+
+        function getPipelineStatusTooltip(status) {
+            switch (status) {
+                case 'completed': return 'Completed';
+                case 'queued': return 'Queued for processing';
+                case 'processing': return 'Processing...';
+                case 'failed': return 'Failed';
+                default: return 'Not started';
+            }
+        }
+
+        function openPipelineStatus() {
+            if (!currentSession) {
+                showToast('No session loaded', 'error');
+                return;
+            }
+            const sessionId = currentSession.folder || currentSession.sessionId;
+            window.open(`pipeline-status.html?sessionId=${encodeURIComponent(sessionId)}`, '_blank');
+        }
 
         // ====================================================================
         // Re-Diarization Modal

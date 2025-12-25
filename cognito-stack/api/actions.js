@@ -150,21 +150,41 @@ module.exports.runAction = async (event) => {
     }
 
     // Check if required input files exist
+    // Support both new format and legacy upload format
     const action = ACTIONS[actionName];
     for (const requiredFile of action.requires) {
+      let fileExists = false;
+
+      // Check primary location
       try {
         await s3.headObject({
           Bucket: BUCKET,
           Key: `${sessionPath}/${requiredFile}`
         }).promise();
+        fileExists = true;
       } catch (err) {
-        if (err.code === 'NotFound') {
-          return response(400, {
-            error: `Missing required file: ${requiredFile}`,
-            hint: 'Ensure the session has been transcribed and processed first.'
-          }, event);
+        if (err.code !== 'NotFound') throw err;
+      }
+
+      // Check legacy format for upload sessions (layers/layer-0-raw-transcription/data.json)
+      if (!fileExists && requiredFile === 'transcription-processed.json') {
+        try {
+          await s3.headObject({
+            Bucket: BUCKET,
+            Key: `${sessionPath}/layers/layer-0-raw-transcription/data.json`
+          }).promise();
+          fileExists = true;
+          console.log(`Using legacy format: layers/layer-0-raw-transcription/data.json`);
+        } catch (err) {
+          if (err.code !== 'NotFound') throw err;
         }
-        throw err;
+      }
+
+      if (!fileExists) {
+        return response(400, {
+          error: `Missing required file: ${requiredFile}`,
+          hint: 'Ensure the session has been transcribed and processed first.'
+        }, event);
       }
     }
 
@@ -180,10 +200,13 @@ module.exports.runAction = async (event) => {
       // Metadata might not exist yet
     }
 
+    const queuedAt = new Date().toISOString();
+    const userEmail = event.requestContext?.authorizer?.claims?.email || 'Unknown';
+
     metadata.jobs = metadata.jobs || {};
     metadata.jobs[actionName] = {
       status: 'queued',
-      queuedAt: new Date().toISOString(),
+      queuedAt,
       params
     };
 
@@ -194,7 +217,24 @@ module.exports.runAction = async (event) => {
       ContentType: 'application/json'
     }).promise();
 
-    console.log(`Action queued: ${actionName} for session ${sessionPath}`);
+    // Create marker file so Pipeline Status can detect queued state
+    // This is the S3-as-database pattern - status is determined by files in session directory
+    const markerContent = {
+      status: 'queued',
+      queuedAt,
+      queuedBy: userEmail,
+      action: actionName,
+      params
+    };
+
+    await s3.putObject({
+      Bucket: BUCKET,
+      Key: `${sessionPath}/${actionName}-queued.json`,
+      Body: JSON.stringify(markerContent, null, 2),
+      ContentType: 'application/json'
+    }).promise();
+
+    console.log(`Action queued: ${actionName} for session ${sessionPath} (marker file created)`);
 
     return response(202, {
       status: 'queued',
@@ -256,7 +296,26 @@ module.exports.actionStatus = async (event) => {
         }, event);
       } catch (err) {
         if (err.code === 'NotFound') {
-          // Check job status in metadata
+          // Check for marker file first (S3-as-database pattern)
+          try {
+            const markerResult = await s3.getObject({
+              Bucket: BUCKET,
+              Key: `${sessionPath}/${actionName}-queued.json`
+            }).promise();
+            const markerData = JSON.parse(markerResult.Body.toString());
+
+            return response(200, {
+              action: actionName,
+              status: 'queued',
+              queuedAt: markerData.queuedAt,
+              queuedBy: markerData.queuedBy,
+              params: markerData.params
+            }, event);
+          } catch (markerErr) {
+            // No marker file, check job status in metadata
+          }
+
+          // Fallback: Check job status in metadata
           try {
             const metadataResult = await s3.getObject({
               Bucket: BUCKET,
@@ -310,7 +369,30 @@ module.exports.actionStatus = async (event) => {
       }
     }
 
-    // Overlay with job metadata if available
+    // Check for marker files (S3-as-database pattern)
+    // Marker files take precedence for queued status
+    for (const name of Object.keys(ACTIONS)) {
+      if (statuses[name].status !== 'completed') {
+        try {
+          const markerResult = await s3.getObject({
+            Bucket: BUCKET,
+            Key: `${sessionPath}/${name}-queued.json`
+          }).promise();
+          const markerData = JSON.parse(markerResult.Body.toString());
+
+          statuses[name] = {
+            status: 'queued',
+            queuedAt: markerData.queuedAt,
+            queuedBy: markerData.queuedBy,
+            params: markerData.params
+          };
+        } catch (markerErr) {
+          // No marker file for this action
+        }
+      }
+    }
+
+    // Fallback: Overlay with job metadata if available
     try {
       const metadataResult = await s3.getObject({
         Bucket: BUCKET,
@@ -319,7 +401,7 @@ module.exports.actionStatus = async (event) => {
       const metadata = JSON.parse(metadataResult.Body.toString());
 
       for (const [name, job] of Object.entries(metadata.jobs || {})) {
-        if (statuses[name] && statuses[name].status !== 'completed') {
+        if (statuses[name] && statuses[name].status === 'not_started') {
           statuses[name] = {
             ...statuses[name],
             status: job.status,

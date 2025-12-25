@@ -356,6 +356,46 @@ s3://{BUCKET}/
 └── (CloudFront static assets)
 ```
 
+### S3 as Database Pattern (Marker Files)
+
+CloudDrive uses S3 as its "database" - all state is determined by files in the session directory. When actions are queued (diarize, AI analysis, topics), a marker file is created to indicate pending status.
+
+**Marker File Pattern:**
+```
+users/{userId}/audio/sessions/{sessionId}/
+├── metadata.json                     # Session metadata
+├── chunk-001.webm                    # Audio file
+├── transcription-processed.json      # Transcription output
+├── diarize-queued.json               # ← Marker: diarization queued
+├── ai-analysis-queued.json           # ← Marker: AI analysis queued
+├── topics-queued.json                # ← Marker: topics analysis queued
+└── ...
+```
+
+**Marker File Format:**
+```json
+{
+  "status": "queued",
+  "queuedAt": "2025-12-25T04:38:16.973Z",
+  "queuedBy": "user@example.com",
+  "action": "ai-analysis",
+  "params": {}
+}
+```
+
+**How It Works:**
+1. **Queue action** → API creates `{action}-queued.json` marker file
+2. **Pipeline Status** → Checks for marker files to show "queued" (🟡) status
+3. **Batch processor** → Reads marker files to find queued work
+4. **On completion** → Processor deletes marker file, creates output file
+5. **Pipeline Status** → Sees output file, shows "completed" (✅) status
+
+**Benefits:**
+- No database required - all state visible via S3 file listing
+- Atomic operations - file exists or doesn't
+- Easy debugging - just look at session directory
+- Works with any GPU provider (AWS, RunPod)
+
 ### Lambda Function Reference
 
 1. **listS3Files** - List files in user's S3 path
@@ -369,6 +409,10 @@ s3://{BUCKET}/
 9. **batchLock** - Batch transcription locking mechanism
 10. **googleDocs** - Google Docs integration API
 11. **viewerPublic** - Public transcript viewer (no auth)
+12. **listActions** - List available actions (GET /api/actions)
+13. **runAction** - Queue an action for processing (POST /api/actions/{actionName})
+14. **actionStatus** - Check action status (GET /api/actions/status)
+15. **queueRediarize** - Queue re-diarization with speaker hints (POST /api/rediarize)
 
 ## Script Numbering Convention
 
