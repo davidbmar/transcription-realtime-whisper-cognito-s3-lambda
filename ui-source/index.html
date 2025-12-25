@@ -560,6 +560,20 @@
             overflow: hidden;
         }
 
+        /* New file indicator (uploaded in last hour) */
+        .file-list-name.new-file {
+            font-style: italic;
+        }
+
+        .new-badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #10b981;
+            text-transform: uppercase;
+            margin-right: 4px;
+            font-style: italic;
+        }
+
         /* File name with copy button */
         .file-list-name-row {
             display: flex;
@@ -1763,6 +1777,24 @@
                         <div class="dashboard-card-action">
                             <i class="fas fa-arrow-right"></i>
                             View Dashboard
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Status Card -->
+                    <div class="dashboard-card" onclick="window.location.href='pipeline-status.html'">
+                        <div class="dashboard-card-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <h3>Pipeline Status</h3>
+                        <p>Monitor transcription and AI processing stages</p>
+                        <ul class="dashboard-features">
+                            <li><i class="fas fa-check"></i> Visual pipeline walkthrough</li>
+                            <li><i class="fas fa-check"></i> Real-time status updates</li>
+                            <li><i class="fas fa-check"></i> Run AI analysis & topics</li>
+                        </ul>
+                        <div class="dashboard-card-action">
+                            <i class="fas fa-arrow-right"></i>
+                            View Pipeline
                         </div>
                     </div>
                 </div>

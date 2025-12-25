@@ -482,6 +482,9 @@ async function listS3Files() {
                 const fileDate = new Date(item.lastModified).toLocaleDateString();
                 const fileTypeInfo = getFileIcon(displayName, isFolder);
 
+                // Check if file was uploaded in the last hour
+                const isNew = !isFolder && (Date.now() - new Date(item.lastModified).getTime()) < 3600000;
+
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-list-item';
                 fileItem.dataset.key = fullKey;
@@ -492,11 +495,12 @@ async function listS3Files() {
                         <input type="checkbox" class="file-checkbox" data-key="${fullKey}" data-name="${displayName}" data-folder="${isFolder}">
                     </div>
                     <div class="file-list-icon">
+                        ${isNew ? '<span class="new-badge">new</span>' : ''}
                         <i class="${fileTypeInfo.icon}" style="color: ${fileTypeInfo.color};"></i>
                     </div>
                     <div class="file-list-info">
                         <div class="file-list-name-row">
-                            <div class="file-list-name" title="${displayName}">${displayName}</div>
+                            <div class="file-list-name${isNew ? ' new-file' : ''}" title="${displayName}">${displayName}</div>
                             <button class="copy-filename-btn" title="Copy filename" data-filename="${displayName}">
                                 <i class="fas fa-copy"></i>
                             </button>
