@@ -439,6 +439,15 @@ async function listS3Files() {
             // Extract folders and files for current directory
             const items = extractFolders(data.files);
 
+            // Sort: folders first, then files by lastModified (newest first)
+            items.sort((a, b) => {
+                // Folders always come first
+                if (a.isFolder && !b.isFolder) return -1;
+                if (!a.isFolder && b.isFolder) return 1;
+                // Within same type, sort by lastModified descending (newest first)
+                return new Date(b.lastModified) - new Date(a.lastModified);
+            });
+
             // Clear selection when navigating
             selectedFiles.clear();
             updateBatchToolbar();
