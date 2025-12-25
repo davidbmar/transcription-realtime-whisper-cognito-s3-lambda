@@ -65,7 +65,7 @@ After=network.target
 Type=oneshot
 User=$USER
 WorkingDirectory=$PROJECT_ROOT
-ExecStart=$PROJECT_ROOT/scripts/535-smart-batch-scheduler.sh
+ExecStart=$PROJECT_ROOT/scripts/535-trigger--batch-scheduler.sh
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=batch-transcribe
@@ -150,7 +150,7 @@ log_info "  - Status: $TIMER_STATUS"
 log_info "  - Cost savings: ~93% vs 5-minute intervals"
 echo ""
 log_info "How it Works:"
-log_info "  1. Timer triggers 535-smart-batch-scheduler.sh"
+log_info "  1. Timer triggers 535-trigger--batch-scheduler.sh"
 log_info "  2. Script scans S3 for missing chunks"
 log_info "  3. If below threshold: Skip (no GPU costs)"
 log_info "  4. If threshold met: Try RunPod first (\$0.13-0.20/hr)"
@@ -166,8 +166,8 @@ log_info "  - Disable timer: sudo systemctl disable batch-transcribe.timer"
 log_info "  - List timers: systemctl list-timers batch-transcribe*"
 echo ""
 log_info "Next Steps:"
-log_info "  1. Test dry-run: ./scripts/535-smart-batch-scheduler.sh --dry-run"
-log_info "  2. Test manually: ./scripts/535-smart-batch-scheduler.sh"
+log_info "  1. Test dry-run: ./scripts/535-trigger--batch-scheduler.sh --dry-run"
+log_info "  2. Test manually: ./scripts/535-trigger--batch-scheduler.sh"
 log_info "  3. Monitor: sudo journalctl -u batch-transcribe -f"
 log_info "  4. View logs: ls -lart logs/535-scheduler-*.log"
 echo ""

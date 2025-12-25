@@ -67,7 +67,7 @@ SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 CRON_JOBS=(
     "*/2 * * * *|998-DASHBOARD--generate-gpu-status.sh|/var/log/gpu-dashboard.log|GPU dashboard generator"
     "*/15 * * * *|999-WATCHDOG--gpu-cost-guardian.sh --kill --cron|/var/log/gpu-watchdog.log|GPU cost watchdog"
-    "0 * * * *|535-smart-batch-scheduler.sh|/var/log/batch-scheduler.log|Batch transcription scheduler"
+    "0 * * * *|535-trigger--batch-scheduler.sh|/var/log/batch-scheduler.log|Batch transcription scheduler"
 )
 
 # Marker to identify our cron entries
