@@ -615,6 +615,21 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  activityHistory:
+    handler: api/actions.activityHistory
+    environment:
+      S3_BUCKET_NAME: ${self:custom.s3Bucket}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/actions/history
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+
   # Layer Text Edits API - Simple file-based layer edits
   getLayerEdits:
     handler: api/annotations.getLayerEdits

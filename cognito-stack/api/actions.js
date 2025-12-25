@@ -421,3 +421,119 @@ module.exports.actionStatus = async (event) => {
     return response(500, { error: 'Internal server error' }, event);
   }
 };
+
+/**
+ * GET /api/actions/history
+ * Get recent GPU batch processing activity.
+ *
+ * Returns a list of recent batch transcription/diarization jobs
+ * with user-friendly summaries.
+ *
+ * Query params:
+ * - limit: Maximum number of results (default 20, max 100)
+ */
+module.exports.activityHistory = async (event) => {
+  try {
+    const userId = event.requestContext?.authorizer?.claims?.sub;
+    if (!userId) {
+      return response(401, { error: 'Unauthorized' }, event);
+    }
+
+    const limit = Math.min(parseInt(event.queryStringParameters?.limit || '20', 10), 100);
+
+    // List batch reports from S3
+    const listResult = await s3.listObjectsV2({
+      Bucket: BUCKET,
+      Prefix: 'batch-reports/',
+      MaxKeys: 200
+    }).promise();
+
+    if (!listResult.Contents || listResult.Contents.length === 0) {
+      return response(200, { jobs: [] }, event);
+    }
+
+    // Sort by last modified (newest first)
+    const sortedReports = listResult.Contents
+      .filter(obj => obj.Key.endsWith('.json'))
+      .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))
+      .slice(0, limit);
+
+    // Fetch and parse each report
+    const jobs = [];
+    for (const obj of sortedReports) {
+      try {
+        const reportResult = await s3.getObject({
+          Bucket: BUCKET,
+          Key: obj.Key
+        }).promise();
+        const report = JSON.parse(reportResult.Body.toString());
+
+        // Calculate duration and cost estimate
+        const startTime = new Date(report.timestamp_start || obj.LastModified);
+        const endTime = new Date(report.timestamp_end || obj.LastModified);
+        const durationSeconds = Math.round((endTime - startTime) / 1000);
+
+        // Cost estimate based on provider
+        // RunPod: ~$0.20/hr, AWS EC2: ~$0.52/hr
+        const hourlyRate = report.provider === 'runpod' ? 0.20 : 0.52;
+        const costEstimate = (durationSeconds / 3600) * hourlyRate;
+
+        // Generate user-friendly summary
+        const audioMinutes = Math.round((report.total_audio_seconds || 0) / 60);
+        const audioHours = Math.floor(audioMinutes / 60);
+        const audioRemainingMinutes = audioMinutes % 60;
+        const audioDisplay = audioHours > 0
+          ? `${audioHours}h ${audioRemainingMinutes}min`
+          : `${audioMinutes}min`;
+
+        let summary;
+        const sessionsProcessed = report.sessions_transcribed || report.chunks_transcribed || 0;
+        const sessionsFailed = report.sessions_failed || report.chunks_failed || 0;
+
+        if (sessionsProcessed === 0 && sessionsFailed === 0) {
+          summary = 'No sessions needed processing';
+        } else if (report.diarization_enabled || report.type?.includes('diarization')) {
+          summary = `${sessionsProcessed} session(s) diarized (${audioDisplay} audio)`;
+        } else {
+          summary = `${sessionsProcessed} session(s) transcribed (${audioDisplay} audio)`;
+        }
+
+        if (sessionsFailed > 0) {
+          summary += ` - ${sessionsFailed} failed`;
+        }
+
+        // Extract GPU name (clean up NVIDIA prefix)
+        let gpuName = report.gpu || 'Unknown GPU';
+        gpuName = gpuName.replace('NVIDIA ', '').replace('GeForce ', '');
+
+        jobs.push({
+          timestamp: report.timestamp_end || report.timestamp_start || obj.LastModified.toISOString(),
+          type: report.type || 'batch-transcription',
+          provider: report.provider || 'aws',
+          gpu: gpuName,
+          durationSeconds,
+          durationDisplay: durationSeconds > 120
+            ? `${Math.round(durationSeconds / 60)} min`
+            : `${durationSeconds}s`,
+          sessionsProcessed,
+          sessionsFailed,
+          audioSeconds: report.total_audio_seconds || 0,
+          audioDisplay,
+          costEstimate: Math.round(costEstimate * 100) / 100,
+          summary,
+          diarizationEnabled: report.diarization_enabled || false,
+          speakersIdentified: report.speakers_identified || 0,
+          reportFile: obj.Key.split('/').pop()
+        });
+      } catch (parseErr) {
+        console.warn(`Failed to parse report ${obj.Key}:`, parseErr.message);
+      }
+    }
+
+    return response(200, { jobs }, event);
+
+  } catch (error) {
+    console.error('Error fetching activity history:', error);
+    return response(500, { error: 'Internal server error' }, event);
+  }
+};

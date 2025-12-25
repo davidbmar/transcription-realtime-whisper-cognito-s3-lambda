@@ -875,6 +875,14 @@ generate_report() {
 EOF
 
     log_success "Report saved: $REPORT_FILE"
+
+    # Upload report to S3 for Activity History on pipeline-status page
+    local report_name=$(basename "$REPORT_FILE")
+    if aws s3 cp "$REPORT_FILE" "s3://$S3_BUCKET/batch-reports/$report_name" --quiet; then
+        log_success "Report uploaded to S3: batch-reports/$report_name"
+    else
+        log_warn "Failed to upload report to S3 (non-critical)"
+    fi
 }
 
 # ============================================================================
