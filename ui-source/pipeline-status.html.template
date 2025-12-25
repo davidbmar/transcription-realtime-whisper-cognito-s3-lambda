@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Status - CloudDrive</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!--
+    Template placeholders (replaced by 425-deploy-recorder-ui.sh):
+    - TO_BE_REPLACED_USER_POOL_ID
+    - TO_BE_REPLACED_USER_POOL_CLIENT_ID
+    - TO_BE_REPLACED_REGION
+    - TO_BE_REPLACED_AUDIO_API_URL
+    - TO_BE_REPLACED_APP_URL
+    -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-900);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-left a {
+            color: var(--gray-500);
+            text-decoration: none;
+        }
+
+        .header-left a:hover {
+            color: var(--primary);
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-title i {
+            color: var(--primary);
+        }
+
+        /* Main container */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Controls bar */
+        .controls-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .session-select {
+            flex: 1;
+            min-width: 300px;
+            padding: 10px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: var(--gray-100);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .view-toggle button {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--gray-600);
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: white;
+            color: var(--gray-900);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .view-toggle button:hover:not(.active) {
+            color: var(--gray-900);
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .auto-refresh input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+
+        /* Session info */
+        .session-info {
+            background: var(--gray-100);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+
+        .session-info strong {
+            color: var(--gray-900);
+        }
+
+        /* Pipeline Views */
+        .pipeline-view {
+            display: none;
+        }
+
+        .pipeline-view.active {
+            display: block;
+        }
+
+        /* Linear View */
+        .linear-view {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .linear-stages {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 16px 0;
+        }
+
+        .linear-stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+        }
+
+        .stage-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.3s;
+        }
+
+        .stage-icon.not-started {
+            background: var(--gray-100);
+            color: var(--gray-400);
+        }
+
+        .stage-icon.queued {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .stage-icon.processing {
+            background: var(--primary-light);
+            color: var(--primary);
+            animation: pulse 1.5s infinite;
+        }
+
+        .stage-icon.completed {
+            background: #d1fae5;
+            color: var(--success);
+        }
+
+        .stage-icon.error {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        .stage-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-700);
+            text-align: center;
+        }
+
+        .stage-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .stage-badge.retry {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .stage-arrow {
+            color: var(--gray-300);
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .stage-arrow.completed {
+            color: var(--success);
+        }
+
+        /* Timeline View */
+        .timeline-view {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .timeline-container {
+            position: relative;
+            padding-left: 140px;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding: 16px 0;
+            padding-left: 24px;
+            border-left: 2px solid var(--gray-200);
+        }
+
+        .timeline-item:last-child {
+            border-left-color: transparent;
+        }
+
+        .timeline-item.completed {
+            border-left-color: var(--success);
+        }
+
+        .timeline-item.processing {
+            border-left-color: var(--primary);
+        }
+
+        .timeline-date {
+            position: absolute;
+            left: -140px;
+            width: 120px;
+            text-align: right;
+            font-size: 12px;
+            color: var(--gray-500);
+            top: 16px;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -9px;
+            top: 20px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--gray-300);
+        }
+
+        .timeline-dot.completed {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .timeline-dot.processing {
+            background: var(--primary);
+            border-color: var(--primary);
+            animation: pulse 1.5s infinite;
+        }
+
+        .timeline-dot.error {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .timeline-content {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-details {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .timeline-duration {
+            display: inline-block;
+            background: var(--gray-200);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        /* Compact View */
+        .compact-view {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .compact-stages {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .compact-stage {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--gray-50);
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .compact-stage.completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .compact-stage.processing {
+            background: var(--primary-light);
+            color: var(--primary-dark);
+        }
+
+        .compact-stage.queued {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .compact-stage.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* Stage Details */
+        .stage-details {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .detail-card {
+            border-bottom: 1px solid var(--gray-100);
+            padding: 16px 20px;
+        }
+
+        .detail-card:last-child {
+            border-bottom: none;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .detail-title {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .detail-time {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .detail-body {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .detail-body p {
+            margin: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .detail-body p::before {
+            content: "└─";
+            color: var(--gray-400);
+            font-family: monospace;
+        }
+
+        /* Action buttons */
+        .actions-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .action-btn.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .action-btn.secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .action-btn.secondary:hover {
+            background: var(--gray-200);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: var(--gray-500);
+        }
+
+        .loading i {
+            font-size: 32px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--gray-500);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: var(--gray-300);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .controls-bar {
+                flex-direction: column;
+            }
+
+            .session-select {
+                width: 100%;
+            }
+
+            .linear-stages {
+                flex-direction: column;
+            }
+
+            .stage-arrow {
+                transform: rotate(90deg);
+            }
+
+            .timeline-container {
+                padding-left: 20px;
+            }
+
+            .timeline-date {
+                position: static;
+                width: auto;
+                text-align: left;
+                margin-bottom: 4px;
+            }
+        }
+
+        /* Page toolbar for timezone selector */
+        .page-toolbar {
+            background: #f9fafb;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            padding: 8px 24px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+        }
+    </style>
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
+</head>
+<body>
+    <!-- Shared Header Component -->
+    <div id="clouddrive-header"
+         data-page="Pipeline Status"
+         data-icon="tasks"
+         data-show-user="true">
+    </div>
+    <script src="lib/clouddrive-header.js"></script>
+
+    <!-- Page-specific toolbar (timezone selector) -->
+    <div class="page-toolbar">
+        <label for="timezone-selector" style="font-size: 14px; color: var(--gray-600);">
+            <i class="fas fa-globe"></i> Timezone:
+        </label>
+        <select id="timezone-selector" style="padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">Eastern (ET)</option>
+            <option value="America/Chicago">Central (CT)</option>
+            <option value="America/Denver">Mountain (MT)</option>
+            <option value="America/Los_Angeles">Pacific (PT)</option>
+            <option value="America/Phoenix">Arizona (MST)</option>
+            <option value="Pacific/Honolulu">Hawaii (HST)</option>
+            <option value="America/Anchorage">Alaska (AKT)</option>
+        </select>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Controls -->
+        <div class="controls-bar">
+            <select class="session-select" id="session-select">
+                <option value="">Select a session...</option>
+            </select>
+            <div class="view-toggle">
+                <button class="active" data-view="linear">Linear</button>
+                <button data-view="timeline">Timeline</button>
+                <button data-view="compact">Compact</button>
+            </div>
+            <label class="auto-refresh">
+                <input type="checkbox" id="auto-refresh" checked>
+                Auto-refresh (5m)
+            </label>
+        </div>
+
+        <!-- Session Info -->
+        <div class="session-info" id="session-info" style="display: none;">
+            <strong id="session-name">Session Name</strong>
+            <span id="session-meta"></span>
+            <div id="session-path" style="font-size: 11px; color: #888; font-family: monospace; margin-top: 4px;"></div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loading-state" style="display: none;">
+            <i class="fas fa-spinner"></i>
+            Loading pipeline status...
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>Select a session to view its pipeline status</p>
+        </div>
+
+        <!-- Pipeline Content -->
+        <div id="pipeline-content" style="display: none;">
+            <!-- Linear View -->
+            <div class="pipeline-view active" id="linear-view">
+                <div class="linear-view">
+                    <div class="linear-stages" id="linear-stages"></div>
+                </div>
+            </div>
+
+            <!-- Timeline View -->
+            <div class="pipeline-view" id="timeline-view">
+                <div class="timeline-view">
+                    <div class="timeline-container" id="timeline-stages"></div>
+                </div>
+            </div>
+
+            <!-- Compact View -->
+            <div class="pipeline-view" id="compact-view">
+                <div class="compact-view">
+                    <div class="compact-stages" id="compact-stages"></div>
+                </div>
+            </div>
+
+            <!-- Stage Details -->
+            <div class="stage-details" id="stage-details"></div>
+
+            <!-- Actions -->
+            <div class="actions-bar" id="actions-bar" style="margin-top: 24px;"></div>
+        </div>
+    </div>
+
+    <!-- Re-Diarize Modal -->
+    <div id="rediarize-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 420px;">
+            <span class="modal-close" onclick="closeRediarizeModal()">&times;</span>
+            <h3 style="margin-top: 0; margin-bottom: 8px;">
+                <i class="fas fa-users" style="color: var(--primary);"></i>
+                Re-diarize Recording
+            </h3>
+            <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+                How many speakers were in this recording?
+            </p>
+            <div id="rediarize-presets" style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="rediarize-preset" onclick="selectRediarizePreset(1, 1)">
+                    <span class="preset-icon">👤</span>
+                    <span class="preset-label">Just me</span>
+                    <span class="preset-hint">1 speaker</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(2, 2)">
+                    <span class="preset-icon">👥</span>
+                    <span class="preset-label">2 people</span>
+                    <span class="preset-hint">Conversation</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(3, 6)">
+                    <span class="preset-icon">👨‍👩‍👧‍👦</span>
+                    <span class="preset-label">Small group</span>
+                    <span class="preset-hint">3-6 speakers</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(6, 12)">
+                    <span class="preset-icon">🏢</span>
+                    <span class="preset-label">Large group</span>
+                    <span class="preset-hint">6-12 speakers</span>
+                </button>
+                <button class="rediarize-preset" onclick="selectRediarizePreset(null, null)">
+                    <span class="preset-icon">🔄</span>
+                    <span class="preset-label">Auto-detect</span>
+                    <span class="preset-hint">Let AI decide</span>
+                </button>
+            </div>
+
+            <!-- Custom speaker range -->
+            <div id="custom-range-section" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
+                <p style="color: #666; font-size: 13px; margin-bottom: 10px;">Or specify a custom range:</p>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 12px; color: #888;">Min speakers</label>
+                        <input type="number" id="custom-min-speakers" min="1" max="20" placeholder="1"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 12px; color: #888;">Max speakers</label>
+                        <input type="number" id="custom-max-speakers" min="1" max="20" placeholder="10"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    <button class="action-btn primary" onclick="submitCustomSpeakers()" style="margin-top: 16px;">
+                        Go
+                    </button>
+                </div>
+            </div>
+
+            <div id="rediarize-status" style="display: none; margin-top: 16px; text-align: center;">
+                <i class="fas fa-spinner fa-spin"></i> Queueing re-diarization...
+            </div>
+
+            <div id="rediarize-success" style="display: none; margin-top: 16px; padding: 16px; background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px;">
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <i class="fas fa-check-circle" style="color: #10b981; font-size: 24px; margin-top: 2px;"></i>
+                    <div>
+                        <p style="margin: 0 0 8px 0; font-weight: 600; color: #065f46;" id="rediarize-success-title">Re-diarization queued!</p>
+                        <p style="margin: 0; font-size: 13px; color: #047857;" id="rediarize-success-message"></p>
+                    </div>
+                </div>
+                <button onclick="closeRediarizeModal()" class="action-btn primary" style="width: 100%; margin-top: 16px;">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Modal (replaces browser alerts) -->
+    <div id="notification-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div id="notification-icon" style="font-size: 48px; margin-bottom: 16px;"></div>
+            <h3 id="notification-title" style="margin: 0 0 12px 0; color: #333;"></h3>
+            <p id="notification-message" style="margin: 0 0 20px 0; color: #666; line-height: 1.5;"></p>
+            <button onclick="closeNotificationModal()" class="action-btn primary" style="width: 100%;">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 2000;"></div>
+
+    <style>
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        .modal-close:hover {
+            color: #333;
+        }
+
+        /* Re-diarize preset buttons */
+        .rediarize-preset {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .rediarize-preset:hover {
+            background: #f0f7ff;
+            border-color: var(--primary);
+        }
+        .rediarize-preset:active {
+            transform: scale(0.98);
+        }
+        .rediarize-preset .preset-icon {
+            font-size: 24px;
+            width: 36px;
+            text-align: center;
+        }
+        .rediarize-preset .preset-label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 15px;
+            flex: 1;
+        }
+        .rediarize-preset .preset-hint {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+        .rediarize-preset.selected {
+            background: #f0f7ff;
+            border-color: var(--primary);
+        }
+    </style>
+
+    <script>
+        // Configuration (replaced by deployment script)
+        const config = {
+            userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+            userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+            region: 'TO_BE_REPLACED_REGION',
+            apiUrl: 'TO_BE_REPLACED_AUDIO_API_URL',
+            appUrl: 'TO_BE_REPLACED_APP_URL'
+        };
+
+        // Pipeline stages definition
+        const STAGES = [
+            { id: 'upload', name: 'Upload', icon: 'fa-cloud-upload-alt', file: 'audio.wav' },
+            { id: 'transcribe', name: 'Transcribe', icon: 'fa-microphone', file: 'transcription-diarized.json' },
+            { id: 'diarize', name: 'Diarize', icon: 'fa-users', file: null }, // Checked via transcript content
+            { id: 'ai-analysis', name: 'AI Analysis', icon: 'fa-brain', file: 'transcription-ai-analysis.json' },
+            { id: 'topics', name: 'Topics', icon: 'fa-tags', file: 'transcription-topic-segmented.json' }
+        ];
+
+        let currentSession = null;
+        let currentView = 'linear';
+        let refreshInterval = null;
+        let sessions = [];
+        let pipelineStatus = {};
+        let selectedTimezone = 'UTC';
+
+        // Setup timezone selector with auto-detection
+        function setupTimezoneSelector() {
+            const selector = document.getElementById('timezone-selector');
+
+            // Try to auto-detect user's timezone
+            try {
+                const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                console.log('Detected user timezone:', userTimezone);
+
+                // Check if detected timezone is in our list
+                const options = Array.from(selector.options);
+                const matchingOption = options.find(opt => opt.value === userTimezone);
+
+                if (matchingOption) {
+                    selector.value = userTimezone;
+                    selectedTimezone = userTimezone;
+                    console.log('Set timezone to detected:', userTimezone);
+                } else {
+                    // Default to Central if not found (user mentioned they're in Central)
+                    selector.value = 'America/Chicago';
+                    selectedTimezone = 'America/Chicago';
+                }
+            } catch (e) {
+                console.error('Failed to detect timezone:', e);
+                selectedTimezone = 'UTC';
+            }
+
+            // Handle changes
+            selector.addEventListener('change', (e) => {
+                selectedTimezone = e.target.value;
+                console.log('Timezone changed to:', selectedTimezone);
+
+                // Reload session list with new timezone
+                loadSessions();
+
+                // Reload current session if one is selected
+                if (currentSession) {
+                    loadPipelineStatus(currentSession);
+                }
+            });
+        }
+
+        // Format session name for display (handles various naming patterns)
+        function formatSessionName(folderName) {
+            if (!folderName) return 'Unknown Session';
+
+            // Handle upload format: 20251122-190709-upload-49c5cb494bc7
+            const uploadMatch = folderName.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-upload-/);
+            if (uploadMatch) {
+                const [, year, month, day, hour, min, sec] = uploadMatch;
+                // Create UTC date then format with timezone
+                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(min), parseInt(sec)));
+                return `📁 Upload - ${formatDateWithTimezone(date)}`;
+            }
+
+            // Handle session format: session_2025-11-22T20_41_54_121Z
+            const sessionMatch = folderName.match(/session_(\d{4})-(\d{2})-(\d{2})T(\d{2})_(\d{2})_(\d{2})_(\d{3})Z/);
+            if (sessionMatch) {
+                const [, year, month, day, hour, min, sec] = sessionMatch;
+                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(min), parseInt(sec)));
+                return `🎤 Recording - ${formatDateWithTimezone(date)}`;
+            }
+
+            // Fallback: clean up the folder name
+            return folderName.replace(/[-_]/g, ' ').replace(/session /i, '');
+        }
+
+        // Format date with selected timezone
+        function formatDateWithTimezone(date) {
+            const dateOptions = {
+                timeZone: selectedTimezone,
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            };
+            const timeOptions = {
+                timeZone: selectedTimezone,
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            };
+
+            const dateStr = date.toLocaleDateString('en-US', dateOptions);
+            const timeStr = date.toLocaleTimeString('en-US', timeOptions);
+
+            // Get timezone abbreviation
+            const tzAbbr = selectedTimezone === 'UTC' ? 'UTC' :
+                          new Intl.DateTimeFormat('en-US', { timeZone: selectedTimezone, timeZoneName: 'short' })
+                              .formatToParts(date)
+                              .find(p => p.type === 'timeZoneName')?.value || '';
+
+            return `${dateStr} ${timeStr} ${tzAbbr}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupTimezoneSelector();
+            checkAuth();
+            setupEventListeners();
+        });
+
+        function checkAuth() {
+            const token = localStorage.getItem('id_token');
+            if (!token) {
+                window.location.href = 'index.html';
+                return;
+            }
+            loadSessions();
+        }
+
+        function setupEventListeners() {
+            // Session selector
+            document.getElementById('session-select').addEventListener('change', (e) => {
+                if (e.target.value) {
+                    loadPipelineStatus(e.target.value);
+                } else {
+                    showEmptyState();
+                }
+            });
+
+            // View toggle
+            document.querySelectorAll('.view-toggle button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentView = btn.dataset.view;
+                    switchView(currentView);
+                });
+            });
+
+            // Auto-refresh toggle
+            document.getElementById('auto-refresh').addEventListener('change', (e) => {
+                if (e.target.checked && currentSession) {
+                    startAutoRefresh();
+                } else {
+                    stopAutoRefresh();
+                }
+            });
+
+            // Visibility change (pause refresh when tab hidden)
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    stopAutoRefresh();
+                } else if (document.getElementById('auto-refresh').checked && currentSession) {
+                    startAutoRefresh();
+                }
+            });
+        }
+
+        async function loadSessions() {
+            const select = document.getElementById('session-select');
+            select.innerHTML = '<option value="">Loading sessions...</option>';
+
+            try {
+                const token = localStorage.getItem('id_token');
+                console.log('Loading sessions with token:', token ? 'present' : 'missing');
+
+                if (!token) {
+                    select.innerHTML = '<option value="">No auth token - please login</option>';
+                    return;
+                }
+
+                const response = await fetch(`${config.apiUrl}/api/audio/sessions`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                console.log('Sessions API response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error:', errorText);
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Sessions received:', data.count, 'sessions');
+                sessions = data.sessions || [];
+
+                select.innerHTML = '<option value="">Select a session...</option>';
+
+                if (sessions.length === 0) {
+                    select.innerHTML = '<option value="">No sessions found</option>';
+                    return;
+                }
+
+                // Sort sessions by date (most recent first)
+                sessions.sort((a, b) => {
+                    const folderA = a.folder || a.sessionId || '';
+                    const folderB = b.folder || b.sessionId || '';
+                    // Extract date from folder name for sorting
+                    return folderB.localeCompare(folderA);
+                });
+
+                sessions.forEach(session => {
+                    const option = document.createElement('option');
+                    option.value = session.sessionId || session.folder;
+                    option.textContent = formatSessionName(session.folder || session.sessionId);
+                    select.appendChild(option);
+                });
+
+                console.log('Dropdown populated with', sessions.length, 'sessions');
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                select.innerHTML = `<option value="">Error: ${error.message}</option>`;
+            }
+        }
+
+        async function loadPipelineStatus(sessionId) {
+            currentSession = sessionId;
+            showLoading();
+
+            try {
+                const token = localStorage.getItem('id_token');
+
+                // Debug: show what we're searching for
+                console.log('🔍 Looking for sessionId:', sessionId);
+                console.log('🔍 Available sessions:', sessions.map(s => ({id: s.sessionId, folder: s.folder})));
+
+                const session = sessions.find(s => s.sessionId === sessionId || s.folder === sessionId);
+                console.log('🔍 Found session:', session);
+
+                // Get user ID from token
+                const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                const userId = tokenPayload.sub;
+
+                // Get the actual folder name for this session
+                const folderName = session?.folder || session?.sessionId || sessionId;
+                console.log('🔍 Using folder:', folderName);
+
+                // Get list of files in session folder to detect completed stages
+                // Note: API automatically prepends users/{userId}/ when userScope=true (default)
+                const sessionPrefix = `audio/sessions/${folderName}/`;
+                const fullSessionPath = `users/${userId}/${sessionPrefix}`;  // For display only
+                console.log('🔍 S3 list prefix:', sessionPrefix);
+                console.log('🔍 Full S3 path:', fullSessionPath);
+
+                const filesResponse = await fetch(
+                    `${config.apiUrl}/api/s3/list?prefix=${encodeURIComponent(sessionPrefix)}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+
+                let sessionFiles = [];
+                if (filesResponse.ok) {
+                    const filesData = await filesResponse.json();
+                    sessionFiles = filesData.files || [];
+                    console.log('📁 Session files from API:', sessionFiles);
+                    console.log('📁 File keys:', sessionFiles.map(f => f.key || f.displayKey));
+                } else {
+                    console.error('❌ S3 list API failed:', filesResponse.status);
+                }
+
+                // Also try to get action status (for jobs queued through Actions system)
+                let actionStatus = {};
+                try {
+                    const statusResponse = await fetch(
+                        `${config.apiUrl}/api/actions/status?sessionId=${sessionId}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }
+                    );
+                    if (statusResponse.ok) {
+                        const statusData = await statusResponse.json();
+                        actionStatus = statusData.actions || {};
+                        console.log('🔧 Actions API response:', actionStatus);
+                        console.log('🔧 Diarize from API:', actionStatus['diarize']);
+                        console.log('🔧 Diarize status:', actionStatus['diarize']?.status);
+                    } else {
+                        console.log('⚠️ Actions API returned:', statusResponse.status);
+                    }
+                } catch (e) {
+                    console.log('Actions API not available, using file detection only');
+                }
+
+                console.log('🎯 Calling renderPipeline with', sessionFiles.length, 'files');
+                renderPipeline(session, actionStatus, sessionFiles, fullSessionPath);
+                showPipelineContent();
+
+                if (document.getElementById('auto-refresh').checked) {
+                    startAutoRefresh();
+                }
+            } catch (error) {
+                console.error('Error loading pipeline status:', error);
+                showEmptyState();
+            }
+        }
+
+        // Check if a file exists in the session files list (strict matching)
+        function hasFile(files, filename) {
+            return files.some(f => {
+                // API returns: key (full path), displayKey (shorter path)
+                const fullPath = f.key || f.displayKey || '';
+                const shortPath = f.displayKey || '';
+                // Match exact filename at end of path
+                return fullPath.endsWith('/' + filename) ||
+                       shortPath.endsWith('/' + filename) ||
+                       shortPath === filename;
+            });
+        }
+
+        // Check for files matching extension or pattern (e.g., '.wav', 'chunk-')
+        function hasFilePattern(files, pattern) {
+            return files.some(f => {
+                const fullPath = f.key || f.displayKey || '';
+                const shortPath = f.displayKey || '';
+                const filename = shortPath.split('/').pop() || fullPath.split('/').pop() || '';
+                // Check if filename ends with pattern (for extensions) or contains pattern
+                return filename.endsWith(pattern) || filename.includes(pattern);
+            });
+        }
+
+        // Get file info from session files (strict matching)
+        function getFileInfo(files, filename) {
+            const file = files.find(f => {
+                const fullPath = f.key || f.displayKey || '';
+                const shortPath = f.displayKey || '';
+                return fullPath.endsWith('/' + filename) ||
+                       shortPath.endsWith('/' + filename) ||
+                       shortPath === filename;
+            });
+            if (file) {
+                console.log(`✅ Found file: ${filename}`, file);
+            } else {
+                console.log(`❌ File not found: ${filename}`);
+            }
+            return file ? {
+                lastModified: file.lastModified,
+                size: file.size
+            } : null;
+        }
+
+        function renderPipeline(session, status, files = [], sessionPath = '') {
+            // Update session info
+            document.getElementById('session-name').textContent = formatSessionName(session?.folder || currentSession);
+            const meta = session?.metadata || {};
+            const duration = meta.duration ? `${Math.floor(meta.duration / 60)}:${String(Math.floor(meta.duration % 60)).padStart(2, '0')}` : '';
+            const durationText = duration ? ` | Duration: ${duration}` : '';
+            document.getElementById('session-meta').textContent = durationText;
+            document.getElementById('session-path').textContent = `S3: ${sessionPath} (${files.length} files)`;
+            document.getElementById('session-info').style.display = 'block';
+
+            // Build stage status by checking BOTH action status AND file existence
+            const stageStatus = {};
+
+            // Upload - complete if we have audio files (use pattern matching for extensions)
+            const hasAudio = hasFilePattern(files, '.wav') || hasFilePattern(files, '.webm') ||
+                            hasFilePattern(files, '.aac') || hasFilePattern(files, '.mp3') ||
+                            hasFilePattern(files, '.m4a') || hasFilePattern(files, 'chunk-');
+
+            // Get upload timestamp from first audio file
+            const audioFile = files.find(f => {
+                const name = (f.displayKey || f.key || '').split('/').pop();
+                return name.endsWith('.wav') || name.endsWith('.webm') ||
+                       name.endsWith('.aac') || name.includes('chunk-');
+            });
+
+            stageStatus['upload'] = {
+                status: hasAudio ? 'completed' : 'not_started',
+                lastModified: audioFile?.lastModified || session?.metadata?.createdAt,
+                outputFile: hasAudio ? (audioFile?.displayKey?.split('/').pop() || 'audio files') : null
+            };
+
+            // Transcribe - check for transcription files (including legacy layers format)
+            const transcribeFile = getFileInfo(files, 'transcription-processed.json') ||
+                                   getFileInfo(files, 'transcription-diarized.json') ||
+                                   getFileInfo(files, 'transcription.json') ||
+                                   getFileInfo(files, 'layer-0-raw-transcription/data.json') ||  // Legacy layers format
+                                   getFileInfo(files, 'layer-0-raw-transcription/chunk-001.json');  // Legacy chunks
+            if (transcribeFile) {
+                const outputName = transcribeFile.key?.includes('layer-0') ? 'layers/layer-0-raw-transcription/data.json' : 'transcription-processed.json';
+                stageStatus['transcribe'] = {
+                    status: 'completed',
+                    lastModified: transcribeFile.lastModified,
+                    outputFile: outputName
+                };
+            } else if (status['transcribe']?.status) {
+                stageStatus['transcribe'] = status['transcribe'];
+            } else {
+                stageStatus['transcribe'] = { status: 'not_started' };
+            }
+
+            // Diarize - check for queued marker file FIRST, then completed files
+            // For legacy format, if transcription exists, consider diarize done (speakers embedded)
+            const diarizeQueuedMarker = getFileInfo(files, 'diarize-queued.json');
+            const diarizeFile = getFileInfo(files, 'transcription-diarized.json');
+            const hasLegacyTranscript = transcribeFile?.key?.includes('layer-0');
+
+            console.log('🔍 Diarize detection:', {
+                diarizeQueuedMarker: !!diarizeQueuedMarker,
+                diarizeFile: !!diarizeFile,
+                hasLegacyTranscript
+            });
+
+            // Priority: queued marker file > completed file > legacy format
+            if (diarizeQueuedMarker) {
+                // Marker file exists - diarization is queued
+                stageStatus['diarize'] = {
+                    status: 'queued',
+                    queuedAt: diarizeQueuedMarker.lastModified,
+                    outputFile: 'Re-diarization queued...'
+                };
+            } else if (diarizeFile) {
+                stageStatus['diarize'] = {
+                    status: 'completed',
+                    lastModified: diarizeFile.lastModified,
+                    outputFile: 'transcription-diarized.json'
+                };
+            } else if (hasLegacyTranscript) {
+                // Legacy format has speakers embedded in layer-0
+                stageStatus['diarize'] = {
+                    status: 'completed',
+                    lastModified: transcribeFile.lastModified,
+                    outputFile: 'layers/layer-0 (embedded)'
+                };
+            } else {
+                stageStatus['diarize'] = { status: 'not_started' };
+            }
+
+            // AI Analysis - check for marker file first, then output file
+            const aiQueuedMarker = getFileInfo(files, 'ai-analysis-queued.json');
+            const aiFile = getFileInfo(files, 'transcription-ai-analysis.json');
+            if (aiQueuedMarker) {
+                stageStatus['ai-analysis'] = {
+                    status: 'queued',
+                    queuedAt: aiQueuedMarker.lastModified,
+                    outputFile: 'AI Analysis queued...'
+                };
+            } else if (aiFile) {
+                stageStatus['ai-analysis'] = {
+                    status: 'completed',
+                    lastModified: aiFile.lastModified,
+                    outputFile: 'transcription-ai-analysis.json'
+                };
+            } else if (status['ai-analysis']?.status) {
+                stageStatus['ai-analysis'] = status['ai-analysis'];
+            } else {
+                stageStatus['ai-analysis'] = { status: 'not_started' };
+            }
+
+            // Topics - check for marker file first, then output file (including legacy layers format)
+            const topicsQueuedMarker = getFileInfo(files, 'topics-queued.json');
+            const topicsFile = getFileInfo(files, 'transcription-topic-segmented.json') ||
+                               getFileInfo(files, 'layer-3-topic-segments/data.json');  // Legacy layers format
+            if (topicsQueuedMarker) {
+                stageStatus['topics'] = {
+                    status: 'queued',
+                    queuedAt: topicsQueuedMarker.lastModified,
+                    outputFile: 'Topics analysis queued...'
+                };
+            } else if (topicsFile) {
+                const outputName = topicsFile.key?.includes('layer-3') ? 'layers/layer-3-topic-segments/data.json' : 'transcription-topic-segmented.json';
+                stageStatus['topics'] = {
+                    status: 'completed',
+                    lastModified: topicsFile.lastModified,
+                    outputFile: outputName
+                };
+            } else if (status['topics']?.status) {
+                stageStatus['topics'] = status['topics'];
+            } else {
+                stageStatus['topics'] = { status: 'not_started' };
+            }
+
+            console.log('📊 Final stage status:');
+            for (const [key, val] of Object.entries(stageStatus)) {
+                console.log(`   ${key}: ${val.status}`, val.outputFile ? `(${val.outputFile})` : '');
+            }
+
+            renderLinearView(stageStatus);
+            renderTimelineView(stageStatus);
+            renderCompactView(stageStatus);
+            renderStageDetails(stageStatus);
+            renderActions(stageStatus);
+        }
+
+        function getStatusIcon(status) {
+            switch (status) {
+                case 'completed': return '✅';
+                case 'processing':
+                case 'running': return '🔄';
+                case 'queued': return '🟡';
+                case 'failed':
+                case 'error': return '❌';
+                default: return '⚪';
+            }
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'completed': return 'completed';
+                case 'processing':
+                case 'running': return 'processing';
+                case 'queued': return 'queued';
+                case 'failed':
+                case 'error': return 'error';
+                default: return 'not-started';
+            }
+        }
+
+        function renderLinearView(stageStatus) {
+            const container = document.getElementById('linear-stages');
+            container.innerHTML = '';
+
+            STAGES.forEach((stage, index) => {
+                const status = stageStatus[stage.id];
+                const statusClass = getStatusClass(status.status);
+
+                // Stage
+                const stageEl = document.createElement('div');
+                stageEl.className = 'linear-stage';
+                stageEl.innerHTML = `
+                    <div class="stage-icon ${statusClass}">
+                        <i class="fas ${stage.icon}"></i>
+                    </div>
+                    <div class="stage-label">${stage.name}</div>
+                    ${status.retryCount > 0 ? `<div class="stage-badge retry">Attempt ${status.retryCount + 1}</div>` : ''}
+                    ${status.status === 'completed' && status.duration ? `<div class="stage-badge">${status.duration}s</div>` : ''}
+                `;
+                container.appendChild(stageEl);
+
+                // Arrow (except after last)
+                if (index < STAGES.length - 1) {
+                    const arrow = document.createElement('div');
+                    arrow.className = `stage-arrow ${status.status === 'completed' ? 'completed' : ''}`;
+                    arrow.innerHTML = '<i class="fas fa-arrow-right"></i>';
+                    container.appendChild(arrow);
+                }
+            });
+        }
+
+        function renderTimelineView(stageStatus) {
+            const container = document.getElementById('timeline-stages');
+            container.innerHTML = '';
+
+            STAGES.forEach(stage => {
+                const status = stageStatus[stage.id];
+                const statusClass = getStatusClass(status.status);
+                const date = status.lastModified ? new Date(status.lastModified) : null;
+
+                const item = document.createElement('div');
+                item.className = `timeline-item ${statusClass}`;
+                item.innerHTML = `
+                    <div class="timeline-date">${date ? date.toLocaleString() : '—'}</div>
+                    <div class="timeline-dot ${statusClass}"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">
+                            ${getStatusIcon(status.status)} ${stage.name}
+                            ${status.duration ? `<span class="timeline-duration">${status.duration}s</span>` : ''}
+                            ${status.retryCount > 0 ? `<span class="stage-badge retry">Attempt ${status.retryCount + 1}</span>` : ''}
+                        </div>
+                        <div class="timeline-details">
+                            ${status.outputFile ? `Output: ${status.outputFile}` : status.status === 'not_started' ? 'Not started' : status.status}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderCompactView(stageStatus) {
+            const container = document.getElementById('compact-stages');
+            container.innerHTML = '';
+
+            STAGES.forEach(stage => {
+                const status = stageStatus[stage.id];
+                const statusClass = getStatusClass(status.status);
+
+                const stageEl = document.createElement('div');
+                stageEl.className = `compact-stage ${statusClass}`;
+                stageEl.innerHTML = `
+                    ${getStatusIcon(status.status)}
+                    ${stage.name}
+                    ${status.retryCount > 0 ? `(${status.retryCount + 1}/3)` : ''}
+                `;
+                container.appendChild(stageEl);
+            });
+        }
+
+        function renderStageDetails(stageStatus) {
+            const container = document.getElementById('stage-details');
+            container.innerHTML = '';
+
+            STAGES.forEach(stage => {
+                const status = stageStatus[stage.id];
+                const date = status.lastModified ? new Date(status.lastModified) : null;
+
+                const card = document.createElement('div');
+                card.className = 'detail-card';
+                card.innerHTML = `
+                    <div class="detail-header">
+                        <div class="detail-title">
+                            ${getStatusIcon(status.status)} ${stage.name}
+                            ${status.retryCount > 0 ? `<span class="stage-badge retry">Attempt ${status.retryCount + 1}</span>` : ''}
+                        </div>
+                        <div class="detail-time">${date ? date.toLocaleString() : '—'}</div>
+                    </div>
+                    <div class="detail-body">
+                        ${status.outputFile ? `<p>${status.outputFile}</p>` : ''}
+                        ${status.error ? `<p style="color: var(--danger);">${status.error}</p>` : ''}
+                        ${status.status === 'queued' && status.queuedAt ? `<p>Queued at: ${new Date(status.queuedAt).toLocaleString()}</p>` : ''}
+                        ${status.status === 'not_started' ? '<p>Not started yet</p>' : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderActions(stageStatus) {
+            const container = document.getElementById('actions-bar');
+            container.innerHTML = '';
+
+            // AI Analysis button
+            const aiStatus = stageStatus['ai-analysis']?.status;
+            const aiBtn = document.createElement('button');
+            aiBtn.className = `action-btn ${aiStatus === 'completed' ? 'secondary' : 'primary'}`;
+            aiBtn.innerHTML = `<i class="fas fa-brain"></i> ${aiStatus === 'completed' ? 'Re-run AI Analysis' : 'Run AI Analysis'}`;
+            aiBtn.onclick = () => runAction('ai-analysis');
+            aiBtn.disabled = stageStatus['transcribe']?.status !== 'completed';
+            container.appendChild(aiBtn);
+
+            // Topics button
+            const topicsStatus = stageStatus['topics']?.status;
+            const topicsBtn = document.createElement('button');
+            topicsBtn.className = `action-btn ${topicsStatus === 'completed' ? 'secondary' : 'primary'}`;
+            topicsBtn.innerHTML = `<i class="fas fa-tags"></i> ${topicsStatus === 'completed' ? 'Re-run Topics' : 'Run Topics'}`;
+            topicsBtn.onclick = () => runAction('topics');
+            topicsBtn.disabled = stageStatus['transcribe']?.status !== 'completed';
+            container.appendChild(topicsBtn);
+
+            // Diarize button (opens modal to select speakers)
+            const diarizeStatus = stageStatus['diarize']?.status;
+            const diarizeBtn = document.createElement('button');
+            diarizeBtn.className = `action-btn ${diarizeStatus === 'completed' ? 'secondary' : 'primary'}`;
+            diarizeBtn.innerHTML = `<i class="fas fa-users"></i> ${diarizeStatus === 'completed' ? 'Re-diarize' : 'Diarize'}`;
+            diarizeBtn.onclick = () => openRediarizeModal();
+            diarizeBtn.disabled = stageStatus['transcribe']?.status !== 'completed';
+            container.appendChild(diarizeBtn);
+
+            // Refresh button
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'action-btn secondary';
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+            refreshBtn.onclick = () => loadPipelineStatus(currentSession);
+            container.appendChild(refreshBtn);
+        }
+
+        async function runAction(actionName, options = {}) {
+            try {
+                const token = localStorage.getItem('id_token');
+                const response = await fetch(`${config.apiUrl}/api/actions/${actionName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionId: currentSession,
+                        params: { force: true, ...options }
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to run action');
+
+                const result = await response.json();
+                console.log('Action result:', result);
+
+                // Refresh status
+                setTimeout(() => loadPipelineStatus(currentSession), 1000);
+            } catch (error) {
+                console.error('Error running action:', error);
+                showNotification('error', 'Action Failed', 'Failed to run action: ' + error.message);
+            }
+        }
+
+        // ============================================
+        // Re-diarize Modal Functions
+        // ============================================
+
+        function openRediarizeModal() {
+            const modal = document.getElementById('rediarize-modal');
+            modal.style.display = 'flex';
+
+            // Reset state - show all options, hide status/success
+            document.querySelectorAll('.rediarize-preset').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.getElementById('rediarize-status').style.display = 'none';
+            document.getElementById('rediarize-success').style.display = 'none';
+            document.getElementById('rediarize-presets').style.display = 'flex';
+            document.getElementById('custom-range-section').style.display = 'block';
+            document.getElementById('custom-min-speakers').value = '';
+            document.getElementById('custom-max-speakers').value = '';
+        }
+
+        function closeRediarizeModal() {
+            document.getElementById('rediarize-modal').style.display = 'none';
+        }
+
+        // ============================================
+        // Notification Modal Functions (replaces alerts)
+        // ============================================
+
+        function showNotification(type, title, message) {
+            const modal = document.getElementById('notification-modal');
+            const iconEl = document.getElementById('notification-icon');
+            const titleEl = document.getElementById('notification-title');
+            const messageEl = document.getElementById('notification-message');
+
+            // Set icon and color based on type
+            if (type === 'error') {
+                iconEl.textContent = '❌';
+                titleEl.style.color = '#dc3545';
+            } else if (type === 'success') {
+                iconEl.textContent = '✅';
+                titleEl.style.color = '#28a745';
+            } else if (type === 'warning') {
+                iconEl.textContent = '⚠️';
+                titleEl.style.color = '#ffc107';
+            } else {
+                iconEl.textContent = 'ℹ️';
+                titleEl.style.color = '#007bff';
+            }
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            modal.style.display = 'flex';
+        }
+
+        function closeNotificationModal() {
+            document.getElementById('notification-modal').style.display = 'none';
+        }
+
+        async function selectRediarizePreset(minSpeakers, maxSpeakers) {
+            // Highlight selected preset
+            document.querySelectorAll('.rediarize-preset').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            await submitRediarize(minSpeakers, maxSpeakers);
+        }
+
+        function submitCustomSpeakers() {
+            const minVal = document.getElementById('custom-min-speakers').value;
+            const maxVal = document.getElementById('custom-max-speakers').value;
+
+            const minSpeakers = minVal ? parseInt(minVal) : null;
+            const maxSpeakers = maxVal ? parseInt(maxVal) : null;
+
+            // Validate
+            if (minSpeakers && maxSpeakers && minSpeakers > maxSpeakers) {
+                showNotification('warning', 'Invalid Range', 'Min speakers cannot be greater than max speakers');
+                return;
+            }
+
+            submitRediarize(minSpeakers, maxSpeakers);
+        }
+
+        async function submitRediarize(minSpeakers, maxSpeakers) {
+            document.getElementById('rediarize-status').style.display = 'block';
+
+            try {
+                const token = localStorage.getItem('id_token');
+
+                // Get the session folder name
+                const session = sessions.find(s => s.sessionId === currentSession || s.folder === currentSession);
+                const sessionFolder = session?.folder || currentSession;
+
+                const response = await fetch(`${config.apiUrl}/api/rediarize`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionId: sessionFolder,
+                        minSpeakers: minSpeakers,
+                        maxSpeakers: maxSpeakers
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to queue re-diarization');
+                }
+
+                const result = await response.json();
+                console.log('Re-diarization queued:', result);
+
+                // Build speaker info string
+                const speakerInfo = minSpeakers === maxSpeakers
+                    ? `${minSpeakers} speaker${minSpeakers > 1 ? 's' : ''}`
+                    : minSpeakers && maxSpeakers
+                        ? `${minSpeakers}-${maxSpeakers} speakers`
+                        : 'auto-detect';
+
+                // Hide loading, presets, and custom inputs
+                document.getElementById('rediarize-status').style.display = 'none';
+                document.getElementById('rediarize-presets').style.display = 'none';
+                document.getElementById('custom-range-section').style.display = 'none';
+
+                // Show success message within modal
+                document.getElementById('rediarize-success-title').textContent = `Re-diarization queued (${speakerInfo})`;
+                document.getElementById('rediarize-success-message').textContent =
+                    'Will process in the next batch run (~1 hour) or run: ./scripts/515-runpod--batch-transcribe.sh';
+                document.getElementById('rediarize-success').style.display = 'block';
+
+                // Refresh status after a delay
+                setTimeout(() => loadPipelineStatus(currentSession), 1000);
+
+            } catch (error) {
+                console.error('Failed to queue re-diarization:', error);
+                document.getElementById('rediarize-status').style.display = 'none';
+                showToast('Failed to queue re-diarization: ' + error.message, 'error');
+            }
+        }
+
+        // Toast notification function
+        function showToast(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const bgColor = type === 'error' ? '#fef2f2' : type === 'success' ? '#ecfdf5' : '#eff6ff';
+            const borderColor = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#3b82f6';
+            const textColor = type === 'error' ? '#b91c1c' : type === 'success' ? '#065f46' : '#1e40af';
+            const icon = type === 'error' ? 'fa-exclamation-circle' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+
+            toast.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: ${bgColor};
+                            border: 1px solid ${borderColor}; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                            margin-bottom: 8px; max-width: 360px;">
+                    <i class="fas ${icon}" style="color: ${borderColor};"></i>
+                    <span style="color: ${textColor}; font-size: 14px;">${message}</span>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Close modal on outside click
+        document.getElementById('rediarize-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'rediarize-modal') {
+                closeRediarizeModal();
+            }
+        });
+
+        document.getElementById('notification-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'notification-modal') {
+                closeNotificationModal();
+            }
+        });
+
+        function switchView(view) {
+            document.querySelectorAll('.pipeline-view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`${view}-view`).classList.add('active');
+        }
+
+        function showLoading() {
+            document.getElementById('loading-state').style.display = 'block';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('pipeline-content').style.display = 'none';
+        }
+
+        function showEmptyState() {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'block';
+            document.getElementById('pipeline-content').style.display = 'none';
+            document.getElementById('session-info').style.display = 'none';
+            stopAutoRefresh();
+        }
+
+        function showPipelineContent() {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('pipeline-content').style.display = 'block';
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            refreshInterval = setInterval(() => {
+                if (currentSession) {
+                    loadPipelineStatus(currentSession);
+                }
+            }, 300000);  // 5 minutes
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+    </script>
+</body>
+</html>
