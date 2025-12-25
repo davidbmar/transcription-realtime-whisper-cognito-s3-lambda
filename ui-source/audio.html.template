@@ -474,7 +474,21 @@
 
     <!-- Chunks Section -->
     <div class="chunks-panel">
-      <h3 style="margin:0 0 10px 0;color:var(--text);font-size:16px;">Previous Chunks (newest at bottom)</h3>
+      <h3 style="margin:0 0 10px 0;color:var(--text);font-size:16px;display:flex;align-items:center;gap:8px;">
+        Previous Chunks (newest at bottom)
+        <button onclick="showSessionInfo()" style="
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          padding: 2px 6px;
+          opacity: 0.6;
+          transition: opacity 0.2s;
+          line-height: 1;
+        " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="View session details">
+          ℹ️
+        </button>
+      </h3>
       <div id="chunkList" class="list"></div>
     </div>
 
@@ -3935,6 +3949,102 @@
         }
     });
 
+    // Session Info Modal
+    function showSessionInfo() {
+        const modal = document.getElementById('session-info-modal');
+        const body = document.getElementById('session-info-body');
+
+        if (!currentSession) {
+            alert('No active session. Start a recording first.');
+            return;
+        }
+
+        // Get user ID from token
+        let userId = 'unknown';
+        try {
+            const idToken = localStorage.getItem('id_token');
+            if (idToken) {
+                const payload = JSON.parse(atob(idToken.split('.')[1]));
+                userId = payload.sub || 'unknown';
+            }
+        } catch (e) {
+            console.error('Error parsing token:', e);
+        }
+
+        // Format session name
+        const sessionName = formatSessionId(currentSession.id);
+
+        // Build info object (no metadata as requested)
+        const info = {
+            'Session ID': currentSession.id,
+            'User ID': userId,
+            'Display Name': sessionName
+        };
+
+        // Build HTML with copyable fields
+        let html = '<div style="font-family: monospace; font-size: 13px;">';
+
+        for (const [key, value] of Object.entries(info)) {
+            const copyId = 'copy-' + key.toLowerCase().replace(/\s+/g, '-');
+            html += `
+                <div style="margin-bottom: 16px;">
+                    <div style="font-weight: 600; color: var(--muted); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${key}
+                    </div>
+                    <div style="position: relative;">
+                        <div id="${copyId}" style="
+                            background: rgba(255,255,255,0.05);
+                            padding: 12px;
+                            border-radius: 6px;
+                            border: 1px solid var(--stroke);
+                            word-break: break-all;
+                            cursor: text;
+                            user-select: all;
+                            color: var(--text);
+                        ">${value}</div>
+                        <button onclick="copySessionField('${copyId}', '${key}')" style="
+                            position: absolute;
+                            top: 8px;
+                            right: 8px;
+                            background: rgba(255,255,255,0.1);
+                            border: 1px solid var(--stroke);
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            font-size: 11px;
+                            cursor: pointer;
+                            color: var(--text);
+                            font-weight: 500;
+                            transition: all 0.2s;
+                        " onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                            📋 Copy
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
+        body.innerHTML = html;
+        modal.style.display = 'flex';
+    }
+
+    function copySessionField(elementId, label) {
+        const element = document.getElementById(elementId);
+        const text = element.textContent;
+
+        navigator.clipboard.writeText(text).then(() => {
+            log(`${label} copied to clipboard`);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            log(`Failed to copy ${label}`);
+        });
+    }
+
+    function closeSessionInfoModal() {
+        document.getElementById('session-info-modal').style.display = 'none';
+    }
+
     // Logout button handler (shared function)
     function handleLogout() {
         // Hardcoded client ID (deployment script will replace placeholder)
@@ -3961,5 +4071,47 @@
         headerLogoutBtn.addEventListener('click', handleLogout);
     }
     </script>
+
+    <!-- Session Info Modal -->
+    <div id="session-info-modal" onclick="if(event.target===this)closeSessionInfoModal()" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    ">
+        <div style="
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            border: 1px solid var(--stroke);
+        ">
+            <button onclick="closeSessionInfoModal()" style="
+                position: absolute;
+                top: 12px;
+                right: 12px;
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: var(--muted);
+                line-height: 1;
+            ">&times;</button>
+            <h2 style="margin: 0 0 16px 0; color: var(--text); font-size: 18px;">ℹ️ Session Information</h2>
+            <div id="session-info-body" style="padding: 8px 0;">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
 </body>
 </html>
