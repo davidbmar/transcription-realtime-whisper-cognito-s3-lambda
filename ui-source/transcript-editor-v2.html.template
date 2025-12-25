@@ -4989,6 +4989,10 @@
                     return;
                 }
 
+                // Sort sessions by folder name descending (newest first)
+                // Folder names are timestamp-based: YYYYMMDD-HHMMSS-upload-xxx
+                sessionsWithTranscripts.sort((a, b) => b.folder.localeCompare(a.folder));
+
                 // Store filtered sessions and populate dropdown
                 allSessions = sessionsWithTranscripts;
                 populateSessionSelector();
