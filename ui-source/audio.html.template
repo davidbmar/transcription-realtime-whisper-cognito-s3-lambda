@@ -138,6 +138,80 @@
       color:#b8f4ff;
     }
 
+    /* v6.12.2: Options Panels - Simple Preset Style (matches re-diarize modal) */
+    .options-panel {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      overflow: hidden;
+    }
+    .options-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--stroke);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .options-panel-body {
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      gap: 4px;
+    }
+    .preset-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    .preset-row:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    .preset-row.selected {
+      background: rgba(53,224,255,0.08);
+      border-color: rgba(53,224,255,0.3);
+    }
+    .preset-icon {
+      font-size: 18px;
+      width: 28px;
+      text-align: center;
+    }
+    .preset-label {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .preset-desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .help-link {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 11px;
+      opacity: 0.8;
+      padding: 0;
+    }
+    .help-link:hover {
+      opacity: 1;
+    }
+    .audio-source-option.disabled {
+      opacity: 0.4;
+      cursor: not-allowed !important;
+      pointer-events: none;
+    }
+
     /* Control Panel */
     .control-panel{
       width:min(92vw, 920px);
@@ -364,7 +438,7 @@
 
     <!-- Context ribbon -->
     <div id="context-ribbon" class="ribbon">
-      <span style="color:#3be38a;font-weight:600;">v6.10.0</span> &nbsp;•&nbsp;
+      <span style="color:#3be38a;font-weight:600;">v6.12.0</span> &nbsp;•&nbsp;
       In Browser › Audio Recorder › <span id="elapsed">00:00</span>
       &nbsp;•&nbsp; <span class="kbd">⌘</span>/<span class="kbd">Ctrl</span>+<span class="kbd">K</span> to open palette
     </div>
@@ -426,32 +500,84 @@
         </div>
       </div>
 
-      <!-- Session Settings Box - applies to this recording -->
-      <fieldset id="session-settings" style="margin-top:12px;padding:10px 14px;border:1px solid var(--stroke);border-radius:8px;background:rgba(255,255,255,0.02);">
-        <legend style="color:var(--muted);font-size:11px;padding:0 6px;">This Recording</legend>
-        <div class="row" style="flex-wrap:wrap;gap:12px;align-items:center;">
-          <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;">
-            <input id="enable-diarization" type="checkbox" checked
-                   style="accent-color:var(--accent);width:14px;height:14px;" />
-            Speaker diarization
-          </label>
-          <div style="display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;">
-            <span>Speakers:</span>
-            <input id="min-speakers" type="number" value="" min="1" max="20" placeholder="auto"
-                   style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
-                          border-radius:6px;padding:4px 6px;color:var(--text);width:50px;font-size:12px;text-align:center;" />
-            <span>to</span>
-            <input id="max-speakers" type="number" value="" min="1" max="20" placeholder="auto"
-                   style="background:rgba(255,255,255,0.08);border:1px solid var(--stroke);
-                          border-radius:6px;padding:4px 6px;color:var(--text);width:50px;font-size:12px;text-align:center;" />
-            <span title="Leave empty for auto-detect. Set range if you know how many speakers to expect (improves accuracy)."
-                  style="cursor:help;opacity:0.6;">ⓘ</span>
+      <!-- v6.12.2: Recording Options - Simple Preset Style (matches re-diarize modal) -->
+      <div id="session-settings" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+
+        <!-- Speakers Panel -->
+        <div class="options-panel">
+          <div class="options-panel-header">Speakers</div>
+          <div class="options-panel-body">
+            <label class="preset-row" data-speakers="1">
+              <span class="preset-icon">👤</span>
+              <span class="preset-label">Just me</span>
+              <span class="preset-desc">1 speaker</span>
+              <input type="radio" name="speaker-preset" value="1" style="display:none;" />
+            </label>
+            <label class="preset-row selected" data-speakers="2">
+              <span class="preset-icon">👥</span>
+              <span class="preset-label">2 people</span>
+              <span class="preset-desc">Conversation</span>
+              <input type="radio" name="speaker-preset" value="2" checked style="display:none;" />
+            </label>
+            <label class="preset-row" data-speakers="3-6">
+              <span class="preset-icon">👥</span>
+              <span class="preset-label">Small group</span>
+              <span class="preset-desc">3-6 speakers</span>
+              <input type="radio" name="speaker-preset" value="3-6" style="display:none;" />
+            </label>
+            <label class="preset-row" data-speakers="6-12">
+              <span class="preset-icon">👥</span>
+              <span class="preset-label">Large group</span>
+              <span class="preset-desc">6-12 speakers</span>
+              <input type="radio" name="speaker-preset" value="6-12" style="display:none;" />
+            </label>
+            <label class="preset-row" data-speakers="auto">
+              <span class="preset-icon">🔄</span>
+              <span class="preset-label">Auto-detect</span>
+              <span class="preset-desc">Let AI decide</span>
+              <input type="radio" name="speaker-preset" value="auto" style="display:none;" />
+            </label>
           </div>
-          <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;">
-            <input id="enable-speaker-id" type="checkbox" checked
-                   style="accent-color:var(--accent);width:14px;height:14px;" />
-            AI speaker identification
-          </label>
+        </div>
+
+        <!-- Audio Source Panel -->
+        <div class="options-panel">
+          <div class="options-panel-header">
+            <span>Audio Source</span>
+            <button type="button" onclick="showAudioSourceHelp()" class="help-link">How it works →</button>
+          </div>
+          <div class="options-panel-body">
+            <label class="preset-row selected audio-source-option">
+              <span class="preset-icon">🎤</span>
+              <span class="preset-label">Microphone</span>
+              <span class="preset-desc">Your voice</span>
+              <input type="radio" name="audio-source" value="mic" checked style="display:none;" />
+            </label>
+            <label class="preset-row audio-source-option">
+              <span class="preset-icon">🔊</span>
+              <span class="preset-label">Computer Audio</span>
+              <span class="preset-desc">Browser tab</span>
+              <input type="radio" name="audio-source" value="system" style="display:none;" />
+            </label>
+            <label class="preset-row audio-source-option">
+              <span class="preset-icon">🎤+🔊</span>
+              <span class="preset-label">Both</span>
+              <span class="preset-desc">Mic + tab</span>
+              <input type="radio" name="audio-source" value="both" style="display:none;" />
+            </label>
+          </div>
+        </div>
+
+      </div>
+      <!-- Hidden inputs for backward compatibility (default: 2 people) -->
+      <input type="hidden" id="enable-diarization" value="true" />
+      <input type="hidden" id="min-speakers" value="2" />
+      <input type="hidden" id="max-speakers" value="2" />
+      <input type="hidden" id="enable-speaker-id" value="true" />
+        <div id="audio-source-indicator" class="hidden" style="margin-top:8px;padding:6px 10px;background:rgba(53,224,255,0.1);border-radius:6px;border:1px solid rgba(53,224,255,0.3);">
+          <span style="color:var(--accent);font-size:12px;">
+            Recording: <span id="audio-source-label">Microphone</span>
+          </span>
         </div>
       </fieldset>
     </div>
@@ -1662,6 +1788,14 @@
       var decodeCtx = null;
       var transcriptionTimeOffset = null;  // Offset between recording time and WhisperLive time
 
+      // v6.12.0: System Audio Capture state
+      var displayStream = null;       // System audio stream from getDisplayMedia
+      var micStream = null;           // Microphone stream (separate from combined)
+      var combinedStream = null;      // Mixed stream when using both sources
+      var mixerAudioContext = null;   // AudioContext for mixing mic + system
+      var mixerDestination = null;    // MediaStreamDestination for combined output
+      var audioSourceMode = 'mic';   // 'mic', 'system', or 'both' (default: mic)
+
       // WhisperLive state
       var ws = null;
       var whisperAudioContext = null;
@@ -2376,6 +2510,360 @@
         });
         activeRecorders = [];
       }
+
+      // =====================================================
+      // v6.12.0: System Audio Capture Functions
+      // =====================================================
+
+      /**
+       * Get audio streams based on selected source mode
+       * @returns {Promise<MediaStream>} The stream to use for recording
+       */
+      async function getAudioStreams() {
+        const audioSourceEl = document.querySelector('input[name="audio-source"]:checked');
+        audioSourceMode = audioSourceEl ? audioSourceEl.value : 'both';
+
+        log('[AudioSource] Mode: ' + audioSourceMode);
+
+        // Reset all streams
+        micStream = null;
+        displayStream = null;
+        combinedStream = null;
+
+        try {
+          if (audioSourceMode === 'mic') {
+            // Microphone only - current behavior
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            log('[AudioSource] Microphone acquired');
+            updateAudioSourceIndicator('Microphone');
+            return micStream;
+
+          } else if (audioSourceMode === 'system') {
+            // System audio only
+            displayStream = await getSystemAudio();
+            if (!displayStream) {
+              throw new Error('System audio capture cancelled or failed');
+            }
+            log('[AudioSource] System audio acquired');
+            updateAudioSourceIndicator('Computer Audio');
+            return displayStream;
+
+          } else {
+            // Both - mix mic + system (default)
+            log('[AudioSource] Acquiring microphone...');
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            log('[AudioSource] Microphone acquired, now requesting system audio...');
+
+            displayStream = await getSystemAudio();
+
+            if (!displayStream) {
+              // User cancelled system picker - fall back to mic only
+              log('[AudioSource] System audio cancelled, falling back to mic only');
+              audioSourceMode = 'mic';
+              updateAudioSourceIndicator('Microphone (system cancelled)');
+              return micStream;
+            }
+
+            // Mix both streams
+            combinedStream = await mixAudioStreams(micStream, displayStream);
+            log('[AudioSource] Mixed stream created');
+            updateAudioSourceIndicator('Mic + Computer Audio');
+            return combinedStream;
+          }
+        } catch (err) {
+          log('[AudioSource] Error: ' + err.message);
+          throw err;
+        }
+      }
+
+      /**
+       * Request system audio via getDisplayMedia
+       * Note: video:true is required by the API but we discard the video track
+       */
+      async function getSystemAudio() {
+        // Check browser support
+        if (!navigator.mediaDevices.getDisplayMedia) {
+          throw new Error('System audio capture not supported. Use Chrome or Edge.');
+        }
+
+        try {
+          // Show instruction to user BEFORE the picker appears
+          log('[AudioSource] Requesting system audio...');
+          log('[AudioSource] IMPORTANT: In the picker, select a CHROME TAB and check "Also share tab audio" at the bottom!');
+
+          // Show a brief alert to guide the user
+          showSystemAudioInstructions();
+
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,  // Required by API, but we'll discard it
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false
+            },
+            // Chrome-specific: prefer current tab and request system audio
+            preferCurrentTab: false,  // false = let user pick any tab
+            selfBrowserSurface: 'include',  // Allow capturing browser tabs
+            systemAudio: 'include',  // Explicitly request system audio
+            surfaceSwitching: 'include'  // Allow switching between surfaces
+          });
+
+          // Stop the video track immediately - we only want audio
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoTrack.stop();
+            stream.removeTrack(videoTrack);
+            log('[AudioSource] Video track stopped (not needed)');
+          }
+
+          // Check if we got audio
+          const audioTracks = stream.getAudioTracks();
+          if (audioTracks.length === 0) {
+            log('[AudioSource] ERROR: No audio track received!');
+            log('[AudioSource] You must check "Also share tab audio" checkbox in the picker');
+            alert('No audio track received!\n\nTo capture system audio:\n1. Select a Chrome TAB (not window/screen)\n2. Check "Also share tab audio" at the bottom\n3. Click Share');
+            throw new Error('No audio track. Check "Also share tab audio" in the picker.');
+          }
+
+          log('[AudioSource] System audio track acquired: ' + audioTracks[0].label);
+          log('[AudioSource] Track settings: ' + JSON.stringify(audioTracks[0].getSettings()));
+
+          // Monitor for user stopping screen share
+          audioTracks[0].addEventListener('ended', function() {
+            log('[AudioSource] System audio track ended (user stopped sharing or tab closed)');
+            if (running) {
+              handleSystemAudioEnded();
+            }
+          });
+
+          // Hide the instruction overlay
+          hideSystemAudioInstructions();
+
+          return stream;
+
+        } catch (err) {
+          hideSystemAudioInstructions();
+          if (err.name === 'NotAllowedError') {
+            log('[AudioSource] User cancelled system audio picker');
+            return null; // Caller should handle gracefully
+          }
+          throw err;
+        }
+      }
+
+      /**
+       * v6.12.0: Show "How it works" help modal for audio source options
+       */
+      function showAudioSourceHelp() {
+        var modal = document.getElementById('audio-source-help-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'audio-source-help-modal';
+          modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+          modal.innerHTML = `
+            <div style="background:rgba(20,25,35,0.95);border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:24px;max-width:420px;width:90%;box-shadow:0 10px 30px rgba(0,0,0,0.35);position:relative;backdrop-filter:blur(16px);">
+              <button onclick="this.closest('#audio-source-help-modal').style.display='none'"
+                      style="position:absolute;top:12px;right:14px;background:none;border:none;color:#9aa6b2;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+
+              <h3 style="color:#e6edf3;margin:0 0 16px 0;font-size:16px;font-weight:600;">Audio Source Options</h3>
+
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="background:rgba(255,255,255,0.06);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+                  <div style="color:#e6edf3;font-size:14px;margin-bottom:4px;font-weight:500;">🎤 Microphone</div>
+                  <div style="color:#9aa6b2;font-size:12px;line-height:1.4;">Records audio from your microphone. Best for voice memos, meetings in person, or when you're the only speaker.</div>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.06);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+                  <div style="color:#e6edf3;font-size:14px;margin-bottom:4px;font-weight:500;">🔊 Computer Audio</div>
+                  <div style="color:#9aa6b2;font-size:12px;line-height:1.4;">Records audio playing in a browser tab (YouTube, Zoom web, podcasts). You'll select which tab to capture.</div>
+                </div>
+
+                <div style="background:rgba(255,255,255,0.06);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+                  <div style="color:#e6edf3;font-size:14px;margin-bottom:4px;font-weight:500;">🎤+🔊 Mic + Computer</div>
+                  <div style="color:#9aa6b2;font-size:12px;line-height:1.4;">Records both your voice AND a browser tab together. Great for commenting over videos or participating in web meetings.</div>
+                </div>
+              </div>
+
+              <div style="margin-top:14px;padding:12px;background:rgba(53,224,255,0.08);border-radius:10px;border:1px solid rgba(53,224,255,0.2);">
+                <div style="color:#35e0ff;font-size:12px;">💡 Tip: Computer Audio requires Chrome or Edge, and only works with browser tabs (not desktop apps).</div>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+        }
+        modal.style.display = 'flex';
+      }
+
+      /**
+       * v6.12.0: Show instructions overlay before system audio picker (redesigned)
+       */
+      function showSystemAudioInstructions() {
+        var overlay = document.getElementById('system-audio-instructions');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'system-audio-instructions';
+          overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+          overlay.innerHTML = `
+            <div style="background:rgba(20,25,35,0.95);border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:28px;max-width:400px;width:90%;box-shadow:0 10px 30px rgba(0,0,0,0.35);backdrop-filter:blur(16px);">
+              <div style="text-align:center;margin-bottom:20px;">
+                <div style="font-size:40px;margin-bottom:8px;">🔊</div>
+                <h3 style="color:#e6edf3;margin:0;font-size:18px;font-weight:600;">Select a Browser Tab</h3>
+                <p style="color:#9aa6b2;margin:8px 0 0 0;font-size:13px;">A picker will appear in a moment</p>
+              </div>
+
+              <div style="background:rgba(255,255,255,0.06);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.08);">
+                <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+                  <span style="background:#35e0ff;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">1</span>
+                  <div>
+                    <div style="color:#e6edf3;font-size:13px;font-weight:500;">Click "Chrome Tab"</div>
+                    <div style="color:#9aa6b2;font-size:11px;">Not "Entire Screen" or "Window"</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+                  <span style="background:#35e0ff;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">2</span>
+                  <div>
+                    <div style="color:#e6edf3;font-size:13px;font-weight:500;">Select the tab with audio</div>
+                    <div style="color:#9aa6b2;font-size:11px;">e.g., your YouTube or Zoom tab</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:flex-start;gap:12px;">
+                  <span style="background:#3be38a;color:#000;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">3</span>
+                  <div>
+                    <div style="color:#3be38a;font-size:13px;font-weight:600;">Check "Also share tab audio"</div>
+                    <div style="color:#9aa6b2;font-size:11px;">This checkbox is at the bottom!</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:14px;padding:10px;background:rgba(255,107,107,0.1);border-radius:8px;text-align:center;border:1px solid rgba(255,107,107,0.2);">
+                <span style="color:#ff6b6b;font-size:11px;">⚠️ Without the checkbox, no audio will be captured</span>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+        }
+        overlay.style.display = 'flex';
+      }
+
+      /**
+       * Hide the system audio instructions overlay
+       */
+      function hideSystemAudioInstructions() {
+        var overlay = document.getElementById('system-audio-instructions');
+        if (overlay) {
+          overlay.style.display = 'none';
+        }
+      }
+
+      /**
+       * Mix microphone and system audio using Web Audio API
+       */
+      async function mixAudioStreams(micStreamInput, systemStreamInput) {
+        // Create AudioContext at native sample rate
+        mixerAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Create sources from streams
+        var micSource = mixerAudioContext.createMediaStreamSource(micStreamInput);
+        var systemSource = mixerAudioContext.createMediaStreamSource(systemStreamInput);
+
+        // Create destination to capture mixed output
+        mixerDestination = mixerAudioContext.createMediaStreamDestination();
+
+        // Connect the graph: sources -> destination
+        micSource.connect(mixerDestination);
+        systemSource.connect(mixerDestination);
+
+        log('[AudioMixer] Audio graph created: mic + system -> mixed output');
+
+        return mixerDestination.stream;
+      }
+
+      /**
+       * Handle system audio track ending during recording
+       */
+      function handleSystemAudioEnded() {
+        if (audioSourceMode === 'system') {
+          // System-only mode: must stop recording
+          log('[AudioSource] CRITICAL: System audio stopped in system-only mode');
+          showRecordingError('System audio stopped', 'The tab you were recording was closed or sharing was stopped. Recording has been stopped.');
+          stop();
+        } else if (audioSourceMode === 'both') {
+          // Mixed mode: continue with mic only
+          log('[AudioSource] System audio stopped - continuing with microphone only');
+          showRecordingWarning('System audio stopped - continuing with microphone only');
+          updateAudioSourceIndicator('Microphone only (system ended)');
+        }
+      }
+
+      /**
+       * Show a recording error toast
+       */
+      function showRecordingError(title, message) {
+        log('ERROR: ' + title + ' - ' + message);
+        // Use existing log mechanism - could enhance with toast notification
+      }
+
+      /**
+       * Show a recording warning toast
+       */
+      function showRecordingWarning(message) {
+        log('WARNING: ' + message);
+        // Use existing log mechanism - could enhance with toast notification
+      }
+
+      /**
+       * Update the audio source indicator during recording
+       */
+      function updateAudioSourceIndicator(label) {
+        var indicator = document.getElementById('audio-source-indicator');
+        var labelEl = document.getElementById('audio-source-label');
+        if (indicator && labelEl) {
+          indicator.classList.remove('hidden');
+          labelEl.textContent = label;
+        }
+      }
+
+      /**
+       * Hide the audio source indicator
+       */
+      function hideAudioSourceIndicator() {
+        var indicator = document.getElementById('audio-source-indicator');
+        if (indicator) {
+          indicator.classList.add('hidden');
+        }
+      }
+
+      /**
+       * Clean up all audio streams and mixer
+       */
+      function cleanupAudioStreams() {
+        if (micStream) {
+          micStream.getTracks().forEach(function(t) { t.stop(); });
+          micStream = null;
+        }
+        if (displayStream) {
+          displayStream.getTracks().forEach(function(t) { t.stop(); });
+          displayStream = null;
+        }
+        if (combinedStream) {
+          combinedStream.getTracks().forEach(function(t) { t.stop(); });
+          combinedStream = null;
+        }
+        if (mixerAudioContext) {
+          mixerAudioContext.close();
+          mixerAudioContext = null;
+          mixerDestination = null;
+        }
+        hideAudioSourceIndicator();
+        log('[AudioSource] All streams cleaned up');
+      }
+
+      // =====================================================
+      // End of System Audio Capture Functions
+      // =====================================================
 
       // Live waveform (frequency bars)
       function setupLiveWaveform(stream) {
@@ -3347,10 +3835,15 @@
             const minSpeakersVal = document.getElementById('min-speakers')?.value;
             const maxSpeakersVal = document.getElementById('max-speakers')?.value;
             const enableSpeakerId = document.getElementById('enable-speaker-id')?.checked ?? true;
+            // v6.12.0: Get audio source mode from UI
+            const audioSourceEl = document.querySelector('input[name="audio-source"]:checked');
+            const selectedAudioSource = audioSourceEl ? audioSourceEl.value : 'both';
 
             currentSession = await window.audioStorage.createSession({
               chunkDuration: SLICE_MS,
               mimeType: chooseMime(),
+              // v6.12.0: Audio source mode for this session
+              audioSource: selectedAudioSource,
               // Speaker diarization settings for this session
               diarization: {
                 enabled: enableDiarization,
@@ -3360,6 +3853,7 @@
               }
             });
             log('Created session:', currentSession.id);
+            log(`  Audio source: ${selectedAudioSource}`);
             if (enableDiarization) {
               const speakerRange = (minSpeakersVal || maxSpeakersVal)
                 ? `${minSpeakersVal || '?'}-${maxSpeakersVal || '?'}`
@@ -3368,20 +3862,24 @@
             }
           }
 
-          const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+          // v6.12.0: Get audio stream based on selected source (mic, system, or both)
+          const stream = await getAudioStreams();
 
           mediaStream = stream;
 
-          // v6.11.0: Add track ended listener to detect mic disconnection (phone call, Bluetooth switch, etc.)
-          mediaStream.getTracks().forEach(track => {
-            track.addEventListener('ended', () => {
-              if (running) {
-                log('[Stream] CRITICAL: Audio track ended unexpectedly');
-                showRecordingError('Microphone disconnected', 'The audio input was interrupted (phone call, Bluetooth switch, or permission revoked)');
-              }
+          // v6.12.0: Monitor tracks for disconnection (mic or system audio)
+          // Note: System audio track 'ended' event is handled in handleSystemAudioEnded()
+          if (micStream) {
+            micStream.getTracks().forEach(track => {
+              track.addEventListener('ended', () => {
+                if (running && audioSourceMode === 'mic') {
+                  log('[Stream] CRITICAL: Microphone audio track ended unexpectedly');
+                  showRecordingError('Microphone disconnected', 'The audio input was interrupted (phone call, Bluetooth switch, or permission revoked)');
+                }
+              });
+              log(`[Stream] Monitoring mic track: ${track.kind} (${track.label})`);
             });
-            log(`[Stream] Monitoring track: ${track.kind} (${track.label})`);
-          });
+          }
 
           // v6.7.0: Request wake lock to prevent device sleep during recording
           // This prevents corrupted audio chunks caused by browser backgrounding
@@ -3501,6 +3999,8 @@
           }
         }
 
+        // v6.12.0: Clean up all audio streams (mic, system, combined)
+        cleanupAudioStreams();
         if (mediaStream){ mediaStream.getTracks().forEach(function(t){ t.stop(); }); mediaStream = null; }
         dot.classList.remove('good');
         startBtn.disabled = false;
@@ -3626,6 +4126,30 @@
         log('ERROR: MediaRecorder not supported');
       }
 
+      // v6.12.2: Check getDisplayMedia support and disable system audio options if not available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        log('WARNING: getDisplayMedia not supported - system audio capture disabled');
+        log('         Use Chrome or Edge for system audio capture');
+
+        // Disable Computer Audio and Both options
+        document.querySelectorAll('.preset-row.audio-source-option').forEach(function(row) {
+          var radio = row.querySelector('input[type="radio"]');
+          if (radio && (radio.value === 'system' || radio.value === 'both')) {
+            row.classList.add('disabled');
+            row.title = 'Requires Chrome or Edge';
+            var desc = row.querySelector('.preset-desc');
+            if (desc) desc.textContent = 'Chrome/Edge only';
+          }
+        });
+
+        // Ensure mic is selected
+        var micRow = document.querySelector('.preset-row.audio-source-option input[value="mic"]');
+        if (micRow) {
+          micRow.checked = true;
+          micRow.closest('.preset-row').classList.add('selected');
+        }
+      }
+
       startBtn.addEventListener('click', start);
       stopBtn.addEventListener('click', stop);
       palStart.addEventListener('click', start);
@@ -3650,6 +4174,59 @@
           window.location.reload();
         });
       }
+
+      // v6.12.2: Preset row selection handler
+      function setupPresetRows() {
+        // Speaker preset rows
+        document.querySelectorAll('.preset-row[data-speakers]').forEach(function(row) {
+          row.addEventListener('click', function() {
+            // Update visual selection
+            document.querySelectorAll('.preset-row[data-speakers]').forEach(r => r.classList.remove('selected'));
+            this.classList.add('selected');
+            // Check the hidden radio
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+            // Update hidden inputs for backward compatibility
+            const value = this.dataset.speakers;
+            const minInput = document.getElementById('min-speakers');
+            const maxInput = document.getElementById('max-speakers');
+            if (value === 'auto') {
+              minInput.value = '';
+              maxInput.value = '';
+            } else if (value === '1') {
+              minInput.value = '1';
+              maxInput.value = '1';
+            } else if (value === '2') {
+              minInput.value = '2';
+              maxInput.value = '2';
+            } else if (value === '3-6') {
+              minInput.value = '3';
+              maxInput.value = '6';
+            } else if (value === '6-12') {
+              minInput.value = '6';
+              maxInput.value = '12';
+            }
+            log('Speaker preset: ' + value);
+          });
+        });
+
+        // Audio source preset rows
+        document.querySelectorAll('.preset-row.audio-source-option').forEach(function(row) {
+          row.addEventListener('click', function() {
+            if (this.classList.contains('disabled')) return;
+            // Update visual selection
+            document.querySelectorAll('.preset-row.audio-source-option').forEach(r => r.classList.remove('selected'));
+            this.classList.add('selected');
+            // Check the hidden radio
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+            // Update audioSourceMode
+            audioSourceMode = radio.value;
+            log('Audio source: ' + audioSourceMode);
+          });
+        });
+      }
+      setupPresetRows();
 
       window.addEventListener('keydown', (e)=>{
         const mod = e.ctrlKey || e.metaKey;

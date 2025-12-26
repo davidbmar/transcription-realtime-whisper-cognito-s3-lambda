@@ -164,6 +164,13 @@ else
     log_warn "  - transcript-editor-v2.html.template not found (skipping)"
 fi
 
+if [ -f "$SOURCE_UI_DIR/pipeline-status.html.template" ]; then
+    cp "$SOURCE_UI_DIR/pipeline-status.html.template" ./pipeline-status.html
+    log_info "  - Copied pipeline-status.html.template"
+else
+    log_warn "  - pipeline-status.html.template not found (skipping)"
+fi
+
 # Copy JavaScript libraries from ui-source
 if [ -f "$SOURCE_UI_DIR/transcript-preprocessor-boundary.js" ]; then
     cp "$SOURCE_UI_DIR/transcript-preprocessor-boundary.js" ./
@@ -268,6 +275,24 @@ if [ -f "./transcript-editor-v2.html" ]; then
     echo ""
 else
     log_info "Step 4c: transcript-editor-v2.html not found (skipping)"
+    echo ""
+fi
+
+# Update pipeline-status.html with deployment values
+if [ -f "./pipeline-status.html" ]; then
+    log_info "Step 4d: Updating pipeline-status.html configuration"
+
+    # Replace placeholders in pipeline-status.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" pipeline-status.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" pipeline-status.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" pipeline-status.html
+    sed -i "s|TO_BE_REPLACED_AUDIO_API_URL|$COGNITO_API_ENDPOINT|g" pipeline-status.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" pipeline-status.html
+
+    log_success "Configuration updated in pipeline-status.html"
+    echo ""
+else
+    log_info "Step 4d: pipeline-status.html not found (skipping)"
     echo ""
 fi
 
