@@ -416,6 +416,7 @@
         let isRecording = false;
         let authHelper = null;
         let wakeLock = null;
+        let recordingDuration = 0; // Duration in seconds for metadata
 
         // Initialize
         async function init() {
@@ -641,8 +642,9 @@
 
             recordedBlob = new Blob(recordedChunks, { type: 'audio/webm' });
             const duration = Date.now() - startTime;
+            recordingDuration = Math.round(duration / 1000); // Store in seconds for metadata
 
-            console.log('[SimpleRecorder] Blob size:', recordedBlob.size, 'Duration:', duration);
+            console.log('[SimpleRecorder] Blob size:', recordedBlob.size, 'Duration:', recordingDuration, 'seconds');
 
             // Save to IndexedDB
             if (audioStorage && sessionId) {
@@ -776,7 +778,10 @@
         }
 
         async function uploadToS3(sessId, blob) {
-            // Get presigned upload URL
+            // Calculate duration from recording time
+            const durationSeconds = recordingDuration || 0;
+
+            // Get presigned upload URL for audio chunk
             const response = await authHelper.authenticatedFetch(`${config.apiUrl}/api/audio/upload-chunk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -784,7 +789,7 @@
                     sessionId: sessId,
                     chunkNumber: 1,
                     contentType: blob.type || 'audio/webm',
-                    duration: 0
+                    duration: durationSeconds
                 })
             });
 
@@ -794,7 +799,7 @@
 
             const data = await response.json();
 
-            // Upload to S3
+            // Upload audio to S3
             const uploadResponse = await fetch(data.uploadUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': blob.type || 'audio/webm' },
@@ -805,7 +810,50 @@
                 throw new Error(`S3 upload failed: ${uploadResponse.status}`);
             }
 
-            console.log('[SimpleRecorder] Uploaded to S3:', data.s3Key);
+            console.log('[SimpleRecorder] Uploaded audio to S3:', data.s3Key);
+
+            // Get user email from id_token for metadata
+            let userEmail = '';
+            try {
+                const idToken = authHelper.getIdToken();
+                if (idToken) {
+                    const payload = JSON.parse(atob(idToken.split('.')[1]));
+                    userEmail = payload.email || '';
+                }
+            } catch (e) {
+                console.warn('[SimpleRecorder] Could not parse user email from token');
+            }
+
+            // Upload session metadata (required for batch transcription)
+            const metadataResponse = await authHelper.authenticatedFetch(`${config.apiUrl}/api/audio/session-metadata`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: sessId,
+                    metadata: {
+                        sessionId: sessId,
+                        userEmail: userEmail,
+                        createdAt: new Date().toISOString(),
+                        duration: durationSeconds,
+                        chunkCount: 1,
+                        chunkDuration: durationSeconds,
+                        status: 'completed',
+                        source: 'simple-recorder',
+                        chunks: [{
+                            chunkNumber: 1,
+                            filename: 'chunk-001.webm',
+                            size: blob.size,
+                            uploadedAt: new Date().toISOString()
+                        }]
+                    }
+                })
+            });
+
+            if (!metadataResponse.ok) {
+                console.warn('[SimpleRecorder] Metadata upload failed, but audio was saved');
+            } else {
+                console.log('[SimpleRecorder] Metadata uploaded successfully');
+            }
         }
 
         async function checkPendingUploads() {
