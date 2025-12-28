@@ -676,6 +676,64 @@ functions:
             authorizerId:
               Ref: ApiGatewayAuthorizer
 
+  # ============================================================================
+  # Authentication Endpoints (Public - No Cognito Authorizer)
+  # ============================================================================
+  # These endpoints handle OAuth token exchange and refresh.
+  # They set HttpOnly cookies for secure refresh token storage.
+
+  authCallback:
+    handler: api/auth.callback
+    environment:
+      COGNITO_DOMAIN: ${env:COGNITO_DOMAIN}
+      COGNITO_USER_POOL_CLIENT_ID: ${env:COGNITO_USER_POOL_CLIENT_ID}
+      AWS_COGNITO_REGION: ${env:AWS_REGION}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/auth/callback
+          method: post
+          cors:
+            origin: ${env:COGNITO_CLOUDFRONT_URL}
+            headers:
+              - Content-Type
+              - Accept
+            allowCredentials: true
+
+  authRefresh:
+    handler: api/auth.refresh
+    environment:
+      COGNITO_DOMAIN: ${env:COGNITO_DOMAIN}
+      COGNITO_USER_POOL_CLIENT_ID: ${env:COGNITO_USER_POOL_CLIENT_ID}
+      AWS_COGNITO_REGION: ${env:AWS_REGION}
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/auth/refresh
+          method: post
+          cors:
+            origin: ${env:COGNITO_CLOUDFRONT_URL}
+            headers:
+              - Content-Type
+              - Accept
+              - Cookie
+            allowCredentials: true
+
+  authLogout:
+    handler: api/auth.logout
+    environment:
+      CLOUDFRONT_URL: ${env:COGNITO_CLOUDFRONT_URL}
+    events:
+      - http:
+          path: api/auth/logout
+          method: post
+          cors:
+            origin: ${env:COGNITO_CLOUDFRONT_URL}
+            headers:
+              - Content-Type
+              - Accept
+            allowCredentials: true
+
 resources:
   Resources:
     # API Gateway Authorizer
@@ -758,6 +816,14 @@ resources:
         ExplicitAuthFlows:
           - ALLOW_USER_SRP_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
+        # Token validity settings for long-lived sessions
+        TokenValidityUnits:
+          AccessToken: minutes
+          IdToken: minutes
+          RefreshToken: days
+        AccessTokenValidity: 15         # 15 minutes
+        IdTokenValidity: 15             # 15 minutes
+        RefreshTokenValidity: 30        # 30 days
         AllowedOAuthFlowsUserPoolClient: true
         AllowedOAuthFlows:
           - implicit

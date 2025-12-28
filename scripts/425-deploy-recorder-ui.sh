@@ -205,6 +205,45 @@ if [ -f "$SOURCE_UI_DIR/profile.html" ]; then
     log_info "  - Copied profile.html (user profile page)"
 fi
 
+# ============================================================================
+# NEW: Simple Recorder (Frictionless Auth feature)
+# ============================================================================
+# Copy simple-recorder.html.template - the "Big Red Button" mobile-first UI
+if [ -f "$SOURCE_UI_DIR/simple-recorder.html.template" ]; then
+    cp "$SOURCE_UI_DIR/simple-recorder.html.template" ./simple-recorder.html
+    log_info "  - Copied simple-recorder.html.template (Big Red Button recorder)"
+fi
+
+# Copy callback.html.template - handles OAuth code flow with backend
+if [ -f "$SOURCE_UI_DIR/callback.html.template" ]; then
+    cp "$SOURCE_UI_DIR/callback.html.template" ./callback.html
+    log_info "  - Copied callback.html.template (OAuth callback handler)"
+fi
+
+# ============================================================================
+# LANDING PAGE TEMPLATE PROCESSING
+# ============================================================================
+# The landing page (landing.html.template) contains Cognito auth URLs that
+# link directly to signup/login. These URLs require environment-specific
+# values that are replaced here during deployment.
+#
+# Placeholders:
+#   TO_BE_REPLACED_COGNITO_DOMAIN      → Cognito domain prefix
+#   TO_BE_REPLACED_USER_POOL_CLIENT_ID → App client ID
+#   TO_BE_REPLACED_REGION              → AWS region
+#   TO_BE_REPLACED_APP_URL             → CloudFront URL (for redirect_uri)
+#
+# The resulting URLs follow this pattern:
+#   https://{domain}.auth.{region}.amazoncognito.com/signup?client_id=...
+# ============================================================================
+if [ -f "$SOURCE_UI_DIR/landing.html.template" ]; then
+    cp "$SOURCE_UI_DIR/landing.html.template" ./landing.html
+    log_info "  - Copied landing.html.template (DispatchTrain landing page)"
+elif [ -f "$SOURCE_UI_DIR/landing.html" ]; then
+    cp "$SOURCE_UI_DIR/landing.html" ./landing.html
+    log_info "  - Copied landing.html (static, no template)"
+fi
+
 # Note: Viewer files are deployed separately via 426-deploy-viewer.sh
 
 log_success "UI files copied"
@@ -308,6 +347,66 @@ if [ -f "./profile.html" ]; then
     echo ""
 else
     log_info "Step 4d: profile.html not found (skipping)"
+    echo ""
+fi
+
+# Update landing.html with Cognito auth URLs
+if [ -f "./landing.html" ]; then
+    log_info "Step 4e: Updating landing.html configuration"
+
+    # Replace Cognito placeholders for auth URLs
+    sed -i "s|TO_BE_REPLACED_COGNITO_DOMAIN|$COGNITO_DOMAIN|g" landing.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" landing.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" landing.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" landing.html
+
+    log_success "Configuration updated in landing.html"
+    log_info "  - Sign In → Cognito /login"
+    log_info "  - Get Started → Cognito /signup"
+    echo ""
+else
+    log_info "Step 4e: landing.html not found (skipping)"
+    echo ""
+fi
+
+# ============================================================================
+# NEW: Simple Recorder (Frictionless Auth) template processing
+# ============================================================================
+if [ -f "./simple-recorder.html" ]; then
+    log_info "Step 4f: Updating simple-recorder.html configuration"
+
+    # Replace placeholders in simple-recorder.html
+    sed -i "s|TO_BE_REPLACED_API_URL|$COGNITO_API_ENDPOINT|g" simple-recorder.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" simple-recorder.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" simple-recorder.html
+    sed -i "s|TO_BE_REPLACED_COGNITO_DOMAIN|$COGNITO_DOMAIN|g" simple-recorder.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" simple-recorder.html
+
+    log_success "Configuration updated in simple-recorder.html"
+    log_info "  - Big Red Button recorder ready"
+    log_info "  - Record-first logic enabled"
+    echo ""
+else
+    log_info "Step 4f: simple-recorder.html not found (skipping)"
+    echo ""
+fi
+
+# ============================================================================
+# NEW: Callback handler template processing (OAuth code flow)
+# ============================================================================
+if [ -f "./callback.html" ] && grep -q "TO_BE_REPLACED" ./callback.html 2>/dev/null; then
+    log_info "Step 4g: Updating callback.html configuration (template version)"
+
+    # Replace placeholders in callback.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_ID|$COGNITO_USER_POOL_ID|g" callback.html
+    sed -i "s|TO_BE_REPLACED_USER_POOL_CLIENT_ID|$COGNITO_USER_POOL_CLIENT_ID|g" callback.html
+    sed -i "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" callback.html
+    sed -i "s|TO_BE_REPLACED_API_URL|$COGNITO_API_ENDPOINT|g" callback.html
+    sed -i "s|TO_BE_REPLACED_APP_URL|$COGNITO_CLOUDFRONT_URL|g" callback.html
+
+    log_success "Configuration updated in callback.html"
+    log_info "  - OAuth code flow enabled"
+    log_info "  - HttpOnly refresh token support"
     echo ""
 fi
 
@@ -588,8 +687,13 @@ if (document.getElementById('get-data-button')) {
 }
 EOL
 
-# Generate callback.html
-cat > callback.html << EOL
+# Generate callback.html (only if template version was NOT processed)
+# The template version supports OAuth code flow with refresh tokens
+if [ -f "./callback.html" ] && grep -q "api/auth/callback" ./callback.html 2>/dev/null; then
+    log_info "  - callback.html already processed from template (code flow enabled)"
+else
+    log_info "  - Generating legacy callback.html (implicit flow only)"
+    cat > callback.html << EOL
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -654,6 +758,7 @@ cat > callback.html << EOL
 </body>
 </html>
 EOL
+fi
 
 log_success "app.js and callback.html generated"
 echo ""

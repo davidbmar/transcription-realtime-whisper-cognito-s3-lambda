@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Callback</title>
+    <style>
+        :root {
+            --bg: #090d16;
+            --text: #e6edf3;
+            --accent: #35e0ff;
+            --glass: rgba(22,27,34,.85);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: var(--glass);
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+        p {
+            color: #8b949e;
+            margin-bottom: 20px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(53,224,255,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #status {
+            font-size: 0.9rem;
+            color: #8b949e;
+            margin-top: 16px;
+        }
+        .error { color: #ff6b6b; }
+        .success { color: #3be38a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Signing you in...</h1>
+        <p>Please wait while we complete authentication.</p>
+        <div class="spinner" id="spinner"></div>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        // Configuration (replaced during deployment)
+        const config = {
+            userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+            userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+            region: 'TO_BE_REPLACED_REGION',
+            apiUrl: 'TO_BE_REPLACED_API_URL',
+            appUrl: 'TO_BE_REPLACED_APP_URL'
+        };
+
+        const statusEl = document.getElementById('status');
+        const spinnerEl = document.getElementById('spinner');
+
+        function log(message, isError = false) {
+            console.log(message);
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.className = isError ? 'error' : '';
+            statusEl.appendChild(p);
+        }
+
+        function hideSpinner() {
+            spinnerEl.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            hideSpinner();
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.className = 'success';
+            statusEl.appendChild(p);
+        }
+
+        function showError(message) {
+            hideSpinner();
+            log(message, true);
+        }
+
+        // Get return URL from query params or localStorage
+        function getReturnUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnUrl = urlParams.get('return') || localStorage.getItem('auth_return_url');
+            localStorage.removeItem('auth_return_url');
+            return returnUrl || 'transcript-editor-v2.html';
+        }
+
+        // Parse JWT payload
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Exchange authorization code for tokens via backend
+        async function exchangeCodeForTokens(code) {
+            log('Exchanging authorization code...');
+
+            const redirectUri = `${config.appUrl}/callback.html`;
+
+            try {
+                const response = await fetch(`${config.apiUrl}/api/auth/callback`, {
+                    method: 'POST',
+                    credentials: 'include', // Important: receive HttpOnly cookie
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        redirect_uri: redirectUri
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(errorData.message || `Failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Store tokens for backward compatibility
+                // Note: refresh_token is in HttpOnly cookie (automatic)
+                localStorage.setItem('id_token', data.id_token);
+                localStorage.setItem('access_token', data.access_token);
+
+                return data;
+            } catch (error) {
+                console.error('Token exchange error:', error);
+                throw error;
+            }
+        }
+
+        // Handle implicit flow (legacy, for backward compatibility)
+        function handleImplicitFlow(fragmentParams) {
+            log('Processing implicit flow tokens...');
+
+            const idToken = fragmentParams.get('id_token');
+            const accessToken = fragmentParams.get('access_token');
+
+            // Store tokens
+            localStorage.setItem('id_token', idToken);
+            if (accessToken) {
+                localStorage.setItem('access_token', accessToken);
+            }
+
+            return { id_token: idToken, access_token: accessToken };
+        }
+
+        // Main authentication flow
+        async function processAuthentication() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            const fragment = window.location.hash.substring(1);
+            const fragmentParams = new URLSearchParams(fragment);
+
+            // Check for errors first
+            if (error) {
+                showError(`Authentication error: ${error}`);
+                if (errorDescription) {
+                    log(decodeURIComponent(errorDescription), true);
+                }
+                log('Redirecting in 3 seconds...');
+                setTimeout(() => {
+                    window.location.href = getReturnUrl();
+                }, 3000);
+                return;
+            }
+
+            let tokenData = null;
+
+            // Authorization code flow (preferred)
+            if (code) {
+                try {
+                    tokenData = await exchangeCodeForTokens(code);
+                } catch (e) {
+                    showError(`Token exchange failed: ${e.message}`);
+                    log('Redirecting in 3 seconds...');
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 3000);
+                    return;
+                }
+            }
+            // Implicit flow (legacy fallback)
+            else if (fragmentParams.get('id_token')) {
+                try {
+                    tokenData = handleImplicitFlow(fragmentParams);
+                } catch (e) {
+                    showError(`Token processing failed: ${e.message}`);
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 3000);
+                    return;
+                }
+            }
+            // No authentication information
+            else {
+                showError('No authentication information found');
+                log('Redirecting in 3 seconds...');
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 3000);
+                return;
+            }
+
+            // Parse and display token info
+            if (tokenData && tokenData.id_token) {
+                const payload = parseJwt(tokenData.id_token);
+                if (payload) {
+                    const email = payload.email || 'User';
+                    showSuccess(`Welcome, ${email}!`);
+                    log(`Session expires: ${new Date(payload.exp * 1000).toLocaleString()}`);
+                } else {
+                    showSuccess('Authentication successful!');
+                }
+            } else {
+                showSuccess('Authentication successful!');
+            }
+
+            // Redirect to return URL
+            const returnUrl = getReturnUrl();
+            log(`Redirecting to ${returnUrl}...`);
+            setTimeout(() => {
+                window.location.href = returnUrl;
+            }, 1000);
+        }
+
+        // Start authentication processing
+        processAuthentication().catch(e => {
+            console.error('Authentication error:', e);
+            showError('An unexpected error occurred');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

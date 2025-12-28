@@ -132,29 +132,60 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
-// Login function - this will be replaced during deployment with the correct domain
-function login() {
+// Login function - redirects to Cognito hosted UI
+// Uses authorization code flow for better security and long-lived sessions
+function login(returnUrl = null) {
     console.log("Login function called");
     // The domain prefix will be replaced during deployment
     const authUrl = 'https://YOUR_COGNITO_DOMAIN.auth.YOUR_REGION.amazoncognito.com/login';
     const redirectUri = `${config.appUrl}/callback.html`;
-    
+
+    // Store return URL for redirect after login
+    if (returnUrl) {
+        localStorage.setItem('auth_return_url', returnUrl);
+    }
+
     const queryParams = new URLSearchParams({
         client_id: config.userPoolClientId,
-        response_type: 'token', // Use token for implicit flow
+        response_type: 'code', // Use authorization code flow for refresh tokens
         scope: 'email openid profile aws.cognito.signin.user.admin',
         redirect_uri: redirectUri,
     });
-    
+
     const loginUrl = `${authUrl}?${queryParams.toString()}`;
     console.log("Redirecting to:", loginUrl);
     window.location.href = loginUrl;
 }
 
-// Logout function
-function logout() {
+// Logout function - clears local tokens and calls backend to clear HttpOnly cookie
+async function logout() {
+    console.log("Logout function called");
+
+    // Clear local storage tokens
     localStorage.removeItem('id_token');
     localStorage.removeItem('access_token');
+
+    // Clear all Cognito-related items
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+        if (key.includes('CognitoIdentityServiceProvider') ||
+            key.includes('amplify') ||
+            key.includes('aws')) {
+            localStorage.removeItem(key);
+        }
+    }
+
+    // Call backend logout endpoint to clear HttpOnly cookie
+    try {
+        await fetch(`${config.apiUrl}/api/auth/logout`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (e) {
+        console.warn('Logout endpoint call failed:', e);
+    }
+
     checkAuthentication();
 }
 
