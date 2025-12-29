@@ -649,11 +649,17 @@
             // Save to IndexedDB
             if (audioStorage && sessionId) {
                 try {
-                    await audioStorage.saveChunk(sessionId, 1, recordedBlob, duration / 1000);
+                    await audioStorage.saveChunk({
+                        sessionId: sessionId,
+                        chunkNumber: 1,
+                        audioBlob: recordedBlob,
+                        mimeType: recordedBlob.type || 'audio/webm',
+                        duration: recordingDuration
+                    });
                     await audioStorage.updateSession(sessionId, {
                         status: 'completed',
                         chunkCount: 1,
-                        totalDuration: duration / 1000
+                        totalDuration: recordingDuration
                     });
                     console.log('[SimpleRecorder] Saved to IndexedDB');
                 } catch (e) {
@@ -865,10 +871,14 @@
                 // Try to load from IndexedDB
                 if (audioStorage) {
                     try {
+                        console.log('[SimpleRecorder] Loading chunks from IndexedDB...');
                         const chunks = await audioStorage.getSessionChunks(pendingSession);
+                        console.log('[SimpleRecorder] Got chunks:', chunks ? chunks.length : 'null');
+
                         if (chunks && chunks.length > 0) {
                             sessionId = pendingSession;
                             recordedBlob = chunks[0].audioBlob;
+                            recordingDuration = chunks[0].duration || 0;
 
                             // Setup UI for pending upload
                             statusText.textContent = 'Previous recording ready to save';
@@ -879,11 +889,18 @@
                             audioPlayer.src = blobUrl;
                             audioPreview.classList.add('visible');
 
-                            showToast('Previous recording restored');
+                            console.log('[SimpleRecorder] Restored recording, blob size:', recordedBlob.size);
+                            showToast('Previous recording restored - click Save to upload');
+                        } else {
+                            console.warn('[SimpleRecorder] No chunks found in IndexedDB for session:', pendingSession);
+                            showToast('Previous recording not found');
                         }
                     } catch (e) {
                         console.error('[SimpleRecorder] Failed to load pending session:', e);
+                        showToast('Failed to restore previous recording');
                     }
+                } else {
+                    console.error('[SimpleRecorder] AudioStorage not initialized');
                 }
             }
         }

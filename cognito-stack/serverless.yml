@@ -172,7 +172,13 @@ functions:
       - http:
           path: api/audio/upload-chunk
           method: post
-          cors: true
+          cors:
+            origin: ${env:COGNITO_CLOUDFRONT_URL}
+            headers:
+              - Content-Type
+              - Accept
+              - Authorization
+            allowCredentials: true
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId:
@@ -187,7 +193,13 @@ functions:
       - http:
           path: api/audio/session-metadata
           method: post
-          cors: true
+          cors:
+            origin: ${env:COGNITO_CLOUDFRONT_URL}
+            headers:
+              - Content-Type
+              - Accept
+              - Authorization
+            allowCredentials: true
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId:

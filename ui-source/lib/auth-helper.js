@@ -140,14 +140,25 @@
      */
     async _doRefresh() {
       try {
-        const response = await fetch(`${this.apiUrl}/api/auth/refresh`, {
+        // Check for localStorage refresh token first (fallback for 3rd-party cookie blocking)
+        const storedRefreshToken = localStorage.getItem('refresh_token');
+
+        // Build request - include refresh_token in body if we have one
+        const requestOptions = {
           method: 'POST',
           credentials: 'include', // Include HttpOnly cookies
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           }
-        });
+        };
+
+        if (storedRefreshToken) {
+          console.log('[AuthHelper] Using localStorage refresh token');
+          requestOptions.body = JSON.stringify({ refresh_token: storedRefreshToken });
+        }
+
+        const response = await fetch(`${this.apiUrl}/api/auth/refresh`, requestOptions);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -159,12 +170,19 @@
           this.tokenExpiry = null;
           localStorage.removeItem('id_token');
           localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
 
           throw new Error(errorData.message || 'Token refresh failed');
         }
 
         const data = await response.json();
         this.setTokens(data.access_token, data.id_token, data.expires_in);
+
+        // Update stored refresh token if rotated
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+
         console.log('[AuthHelper] Token refresh successful');
 
         return data;
@@ -193,13 +211,14 @@
       }
 
       // Build request with auth header
+      // Note: Cognito authorizers expect the ID token, not access token
       const makeRequest = async () => {
         const headers = {
           ...options.headers
         };
 
-        if (this.accessToken) {
-          headers['Authorization'] = `Bearer ${this.accessToken}`;
+        if (this.idToken) {
+          headers['Authorization'] = `Bearer ${this.idToken}`;
         }
 
         return fetch(url, {
@@ -252,6 +271,7 @@
       // Clear localStorage tokens
       localStorage.removeItem('id_token');
       localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
 
       // Clear all Cognito-related items
       const keys = Object.keys(localStorage);

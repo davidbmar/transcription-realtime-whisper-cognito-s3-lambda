@@ -152,10 +152,13 @@
 
                 const data = await response.json();
 
-                // Store tokens for backward compatibility
-                // Note: refresh_token is in HttpOnly cookie (automatic)
+                // Store tokens
+                // Note: refresh_token also stored as fallback when 3rd-party cookies blocked
                 localStorage.setItem('id_token', data.id_token);
                 localStorage.setItem('access_token', data.access_token);
+                if (data.refresh_token) {
+                    localStorage.setItem('refresh_token', data.refresh_token);
+                }
 
                 return data;
             } catch (error) {

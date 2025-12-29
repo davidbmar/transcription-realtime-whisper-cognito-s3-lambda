@@ -35,20 +35,17 @@ function getCorsHeaders() {
  * Build Set-Cookie header for refresh token
  */
 function buildRefreshTokenCookie(refreshToken) {
-  const isProduction = process.env.CLOUDFRONT_URL && process.env.CLOUDFRONT_URL.includes('https://');
-  const secureFlag = isProduction ? 'Secure; ' : '';
-
-  return `${COOKIE_NAME}=${refreshToken}; HttpOnly; ${secureFlag}SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}; Path=${COOKIE_PATH}`;
+  // SameSite=None required for cross-origin (CloudFront -> API Gateway)
+  // SameSite=None requires Secure flag
+  return `${COOKIE_NAME}=${refreshToken}; HttpOnly; Secure; SameSite=None; Max-Age=${COOKIE_MAX_AGE}; Path=${COOKIE_PATH}`;
 }
 
 /**
  * Build Set-Cookie header to clear the refresh token
  */
 function buildClearCookie() {
-  const isProduction = process.env.CLOUDFRONT_URL && process.env.CLOUDFRONT_URL.includes('https://');
-  const secureFlag = isProduction ? 'Secure; ' : '';
-
-  return `${COOKIE_NAME}=; HttpOnly; ${secureFlag}SameSite=Strict; Max-Age=0; Path=${COOKIE_PATH}`;
+  // Must match the flags used when setting the cookie
+  return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=None; Max-Age=0; Path=${COOKIE_PATH}`;
 }
 
 /**
@@ -177,7 +174,10 @@ module.exports.callback = async (event) => {
 
     // Build response with refresh token in HttpOnly cookie
     const responseHeaders = getCorsHeaders();
-    responseHeaders['Set-Cookie'] = buildRefreshTokenCookie(tokenResponse.refresh_token);
+    const cookieHeader = buildRefreshTokenCookie(tokenResponse.refresh_token);
+    responseHeaders['Set-Cookie'] = cookieHeader;
+
+    console.log('Setting cookie header:', cookieHeader.substring(0, 50) + '...');
 
     return {
       statusCode: 200,
@@ -185,6 +185,7 @@ module.exports.callback = async (event) => {
       body: JSON.stringify({
         access_token: tokenResponse.access_token,
         id_token: tokenResponse.id_token,
+        refresh_token: tokenResponse.refresh_token, // Also in body for browsers blocking 3rd-party cookies
         expires_in: tokenResponse.expires_in,
         token_type: tokenResponse.token_type
       })
@@ -226,13 +227,27 @@ module.exports.refresh = async (event) => {
   console.log('Auth refresh request');
 
   try {
-    // Parse cookies from request
+    // Try to get refresh token from cookie first
     const cookieHeader = event.headers?.Cookie || event.headers?.cookie || '';
+    console.log('Received cookie header:', cookieHeader ? cookieHeader.substring(0, 100) : '(empty)');
     const cookies = parseCookies(cookieHeader);
-    const refreshToken = cookies[COOKIE_NAME];
+    let refreshToken = cookies[COOKIE_NAME];
+
+    // Fallback: check request body (for browsers blocking 3rd-party cookies)
+    if (!refreshToken && event.body) {
+      try {
+        const body = JSON.parse(event.body);
+        if (body.refresh_token) {
+          console.log('Using refresh token from request body (cookie fallback)');
+          refreshToken = body.refresh_token;
+        }
+      } catch (e) {
+        // Body parsing failed, ignore
+      }
+    }
 
     if (!refreshToken) {
-      console.log('No refresh token found in cookies');
+      console.log('No refresh token found in cookies or body. Available cookies:', Object.keys(cookies).join(', ') || 'none');
       return {
         statusCode: 401,
         headers: getCorsHeaders(),
@@ -273,6 +288,7 @@ module.exports.refresh = async (event) => {
       body: JSON.stringify({
         access_token: tokenResponse.access_token,
         id_token: tokenResponse.id_token,
+        refresh_token: tokenResponse.refresh_token, // For localStorage fallback
         expires_in: tokenResponse.expires_in,
         token_type: tokenResponse.token_type
       })
