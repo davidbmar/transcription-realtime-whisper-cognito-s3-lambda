@@ -880,7 +880,33 @@
                             recordedBlob = chunks[0].audioBlob;
                             recordingDuration = chunks[0].duration || 0;
 
-                            // Setup UI for pending upload
+                            console.log('[SimpleRecorder] Restored recording, blob size:', recordedBlob.size);
+
+                            // If authenticated, auto-upload immediately (user just logged in)
+                            if (!authHelper.isTokenExpired()) {
+                                console.log('[SimpleRecorder] Authenticated - auto-uploading pending recording');
+                                showToast('Uploading previous recording...');
+
+                                try {
+                                    await uploadToS3(sessionId, recordedBlob);
+                                    await audioStorage.deleteSession(sessionId);
+                                    showToast('Recording saved!', 'success');
+                                    resetUI();
+                                } catch (e) {
+                                    console.error('[SimpleRecorder] Auto-upload failed:', e);
+                                    // Fall through to show manual UI
+                                    statusText.textContent = 'Upload failed - try again';
+                                    postControls.classList.add('visible');
+                                    durationEl.classList.add('hidden');
+                                    const blobUrl = URL.createObjectURL(recordedBlob);
+                                    audioPlayer.src = blobUrl;
+                                    audioPreview.classList.add('visible');
+                                    showToast('Upload failed. Click Save to retry.', 'error');
+                                }
+                                return;
+                            }
+
+                            // Not authenticated - show manual upload UI
                             statusText.textContent = 'Previous recording ready to save';
                             postControls.classList.add('visible');
                             durationEl.classList.add('hidden');
@@ -889,7 +915,6 @@
                             audioPlayer.src = blobUrl;
                             audioPreview.classList.add('visible');
 
-                            console.log('[SimpleRecorder] Restored recording, blob size:', recordedBlob.size);
                             showToast('Previous recording restored - click Save to upload');
                         } else {
                             console.warn('[SimpleRecorder] No chunks found in IndexedDB for session:', pendingSession);
