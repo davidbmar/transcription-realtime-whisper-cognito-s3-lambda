@@ -1,0 +1,228 @@
+/**
+ * CloudDrive Shared Header Styles
+ *
+ * Provides consistent header/navigation styling across all CloudDrive pages.
+ * Used by clouddrive-header.js component.
+ */
+
+/* CSS Custom Properties for theming */
+:root {
+  --cd-primary: #667eea;
+  --cd-primary-dark: #5a67d8;
+  --cd-primary-light: rgba(102, 126, 234, 0.1);
+  --cd-text: #374151;
+  --cd-text-muted: #9ca3af;
+  --cd-bg: rgba(255, 255, 255, 0.98);
+  --cd-border: rgba(0, 0, 0, 0.08);
+  --cd-danger: #ef4444;
+  --cd-danger-dark: #dc2626;
+}
+
+/* Main Header Container */
+.cd-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  background: var(--cd-bg);
+  border-bottom: 1px solid var(--cd-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Left Section: Logo + Breadcrumb */
+.cd-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* CloudDrive Logo */
+.cd-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--cd-primary);
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: opacity 0.2s ease;
+}
+
+.cd-logo:hover {
+  opacity: 0.8;
+}
+
+.cd-logo i {
+  font-size: 1.25rem;
+}
+
+.cd-logo span {
+  color: var(--cd-text);
+}
+
+/* Breadcrumb Navigation */
+.cd-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cd-breadcrumb-separator {
+  color: var(--cd-text-muted);
+  font-size: 1.1rem;
+  user-select: none;
+}
+
+.cd-breadcrumb-current {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--cd-text);
+  font-size: 0.95rem;
+}
+
+.cd-breadcrumb-current i {
+  color: var(--cd-primary);
+  font-size: 0.9rem;
+}
+
+/* Right Section: User Info + Actions */
+.cd-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cd-user-email {
+  color: var(--cd-text-muted);
+  font-size: 0.85rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Settings Icon */
+.cd-settings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--cd-text-muted);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.cd-settings-icon:hover {
+  background: var(--cd-primary-light);
+  color: var(--cd-primary);
+}
+
+.cd-settings-icon i {
+  font-size: 1.1rem;
+}
+
+/* Buttons */
+.cd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.cd-btn i {
+  font-size: 0.9rem;
+}
+
+.cd-btn-primary {
+  background: var(--cd-primary);
+  color: white;
+}
+
+.cd-btn-primary:hover {
+  background: var(--cd-primary-dark);
+}
+
+.cd-btn-secondary {
+  background: var(--cd-primary-light);
+  color: var(--cd-primary);
+}
+
+.cd-btn-secondary:hover {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+.cd-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--cd-danger);
+}
+
+.cd-btn-danger:hover {
+  background: var(--cd-danger);
+  color: white;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .cd-header {
+    padding: 0.6rem 1rem;
+  }
+
+  .cd-logo span {
+    display: none;
+  }
+
+  .cd-logo i {
+    font-size: 1.4rem;
+  }
+
+  .cd-user-email {
+    display: none;
+  }
+
+  .cd-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .cd-btn span {
+    display: none;
+  }
+
+  .cd-breadcrumb-current span {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .cd-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .cd-breadcrumb-current span {
+    max-width: 80px;
+  }
+}
+
+/* Placeholder styling to prevent FOUC */
+#clouddrive-header:empty {
+  min-height: 56px;
+  background: var(--cd-bg, rgba(255, 255, 255, 0.98));
+}

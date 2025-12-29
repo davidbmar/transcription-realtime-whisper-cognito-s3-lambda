@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#090d16">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Quick Record - CloudDrive</title>
+    <link rel="stylesheet" href="lib/clouddrive-header.css">
+    <style>
+        :root {
+            --bg: #090d16;
+            --bg-secondary: #0d1117;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #35e0ff;
+            --danger: #ff4444;
+            --danger-light: rgba(255,68,68,0.2);
+            --good: #3be38a;
+            --glass: rgba(22,27,34,.85);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+        }
+
+        /* Main recorder container */
+        .recorder-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 60px);
+            min-height: calc(100dvh - 60px);
+            padding: 20px;
+            padding-bottom: 80px;
+        }
+
+        /* Big red record button */
+        .record-btn {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 5px solid var(--danger);
+            background: var(--danger);
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .record-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .record-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Recording state - pulsing animation */
+        .record-btn.recording {
+            animation: pulse 1.5s ease-in-out infinite;
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(255,68,68,0.5);
+            }
+            50% {
+                box-shadow: 0 0 0 30px rgba(255,68,68,0);
+            }
+        }
+
+        /* Stop icon inside button when recording */
+        .record-btn.recording::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        /* Status text */
+        .status-text {
+            margin-top: 24px;
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Duration display */
+        .duration {
+            font-size: 2.5rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            margin-top: 8px;
+            color: var(--text);
+            letter-spacing: 0.05em;
+        }
+
+        .duration.hidden { display: none; }
+
+        /* Post-recording controls */
+        .post-controls {
+            display: none;
+            flex-direction: row;
+            gap: 16px;
+            margin-top: 32px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .post-controls.visible {
+            display: flex;
+        }
+
+        .post-controls button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.1s ease, opacity 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .post-controls button:active {
+            transform: scale(0.95);
+        }
+
+        .btn-discard {
+            background: rgba(255,68,68,0.15);
+            color: #ff6b6b;
+        }
+
+        .btn-play {
+            background: rgba(53,224,255,0.15);
+            color: var(--accent);
+        }
+
+        .btn-save {
+            background: rgba(59,227,138,0.15);
+            color: var(--good);
+        }
+
+        .btn-save.uploading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        /* Audio playback preview */
+        .audio-preview {
+            display: none;
+            width: 100%;
+            max-width: 320px;
+            margin-top: 24px;
+            background: var(--glass);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .audio-preview.visible {
+            display: block;
+        }
+
+        .audio-preview audio {
+            width: 100%;
+        }
+
+        /* Power user link */
+        .power-user-link {
+            margin-top: 48px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .power-user-link:hover {
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        /* Settings gear button */
+        .settings-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .settings-btn:hover {
+            background: rgba(53,224,255,0.1);
+            color: var(--accent);
+        }
+
+        /* Settings panel */
+        .settings-panel {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 260px;
+        }
+
+        .settings-panel.visible {
+            display: block;
+        }
+
+        .settings-panel label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .settings-panel select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--bg-secondary);
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--glass);
+            color: var(--text);
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .toast.visible {
+            opacity: 1;
+        }
+
+        .toast.error {
+            background: rgba(255,68,68,0.9);
+        }
+
+        .toast.success {
+            background: rgba(59,227,138,0.9);
+        }
+
+        /* Offline indicator */
+        .offline-indicator {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,193,7,0.9);
+            color: #000;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .offline-indicator.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="clouddrive-header"
+         data-page="Quick Record"
+         data-icon="microphone"
+         data-show-user="true"
+         data-home-url="index.html"
+         data-login-url="index.html"></div>
+
+    <div class="offline-indicator" id="offline-indicator">
+        You're offline. Recording will be saved locally.
+    </div>
+
+    <main class="recorder-container">
+        <button class="record-btn" id="record-btn" aria-label="Record"></button>
+
+        <div class="status-text" id="status-text">Tap to start recording</div>
+        <div class="duration hidden" id="duration">00:00</div>
+
+        <div class="audio-preview" id="audio-preview">
+            <audio id="audio-player" controls></audio>
+        </div>
+
+        <div class="post-controls" id="post-controls">
+            <button class="btn-discard" id="discard-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+                Discard
+            </button>
+            <button class="btn-play" id="play-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                Play
+            </button>
+            <button class="btn-save" id="save-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+                Save
+            </button>
+        </div>
+
+        <a href="audio.html" class="power-user-link">
+            Need more options? Open full recorder &rarr;
+        </a>
+    </main>
+
+    <button class="settings-btn" id="settings-btn" aria-label="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+    </button>
+
+    <div class="settings-panel" id="settings-panel">
+        <label for="mic-select">Microphone</label>
+        <select id="mic-select">
+            <option value="default">Default microphone</option>
+        </select>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Libraries -->
+    <script src="lib/clouddrive-header.js"></script>
+    <script src="lib/audio-storage.js"></script>
+    <script src="lib/upload-queue.js"></script>
+    <script src="lib/auth-helper.js"></script>
+
+    <script>
+        // Configuration (replaced during deployment)
+        const config = {
+            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
+            appUrl: 'https://d2l28rla2hk7np.cloudfront.net',
+            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
+            cognitoDomain: 'clouddrive-app-1762054794',
+            region: 'us-east-2'
+        };
+
+        // DOM Elements
+        const recordBtn = document.getElementById('record-btn');
+        const statusText = document.getElementById('status-text');
+        const durationEl = document.getElementById('duration');
+        const postControls = document.getElementById('post-controls');
+        const audioPreview = document.getElementById('audio-preview');
+        const audioPlayer = document.getElementById('audio-player');
+        const discardBtn = document.getElementById('discard-btn');
+        const playBtn = document.getElementById('play-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsPanel = document.getElementById('settings-panel');
+        const micSelect = document.getElementById('mic-select');
+        const toast = document.getElementById('toast');
+        const offlineIndicator = document.getElementById('offline-indicator');
+
+        // State
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordedBlob = null;
+        let audioStorage = null;
+        let sessionId = null;
+        let startTime = null;
+        let durationInterval = null;
+        let isRecording = false;
+        let authHelper = null;
+        let wakeLock = null;
+        let recordingDuration = 0; // Duration in seconds for metadata
+
+        // Initialize
+        async function init() {
+            console.log('[SimpleRecorder] Initializing...');
+
+            // Initialize IndexedDB storage (works offline)
+            try {
+                audioStorage = new AudioStorage();
+                await audioStorage.init();
+                console.log('[SimpleRecorder] Audio storage initialized');
+            } catch (e) {
+                console.error('[SimpleRecorder] Audio storage init failed:', e);
+            }
+
+            // Initialize auth helper
+            authHelper = initAuthHelper({ apiUrl: config.apiUrl });
+
+            // Populate microphone list
+            await populateMicList();
+
+            // Setup event listeners
+            setupEventListeners();
+
+            // Check auth status (non-blocking)
+            checkAuthStatus();
+
+            // Check for pending uploads
+            await checkPendingUploads();
+
+            // Network status
+            updateNetworkStatus();
+            window.addEventListener('online', updateNetworkStatus);
+            window.addEventListener('offline', updateNetworkStatus);
+        }
+
+        function setupEventListeners() {
+            recordBtn.addEventListener('click', toggleRecording);
+            discardBtn.addEventListener('click', discardRecording);
+            playBtn.addEventListener('click', playRecording);
+            saveBtn.addEventListener('click', saveRecording);
+            settingsBtn.addEventListener('click', toggleSettings);
+
+            // Close settings when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+                    settingsPanel.classList.remove('visible');
+                }
+            });
+        }
+
+        async function checkAuthStatus() {
+            try {
+                await authHelper.refreshToken();
+                console.log('[SimpleRecorder] User authenticated');
+            } catch (e) {
+                console.log('[SimpleRecorder] User not authenticated - recording will save locally');
+            }
+        }
+
+        function updateNetworkStatus() {
+            if (!navigator.onLine) {
+                offlineIndicator.classList.add('visible');
+            } else {
+                offlineIndicator.classList.remove('visible');
+            }
+        }
+
+        async function populateMicList() {
+            try {
+                // Request permission first (don't block if denied)
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Stop the test stream immediately
+                stream.getTracks().forEach(t => t.stop());
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const mics = devices.filter(d => d.kind === 'audioinput');
+
+                // Keep default option, add enumerated devices
+                micSelect.innerHTML = '<option value="">Default microphone</option>';
+                mics.forEach((mic, i) => {
+                    const option = document.createElement('option');
+                    option.value = mic.deviceId;
+                    option.textContent = mic.label || `Microphone ${i + 1}`;
+                    micSelect.appendChild(option);
+                });
+                console.log('[SimpleRecorder] Found', mics.length, 'microphones');
+            } catch (e) {
+                console.warn('[SimpleRecorder] Could not enumerate devices:', e.name, e.message);
+                // Keep default option - will request permission when recording starts
+                micSelect.innerHTML = '<option value="">Default microphone</option>';
+            }
+        }
+
+        function toggleSettings() {
+            settingsPanel.classList.toggle('visible');
+        }
+
+        // Recording functions
+        async function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                console.log('[SimpleRecorder] Starting recording...');
+
+                // Get microphone stream
+                // Use specific device if selected, otherwise use default
+                const selectedDeviceId = micSelect.value;
+                const constraints = {
+                    audio: selectedDeviceId
+                        ? { deviceId: { exact: selectedDeviceId } }
+                        : true
+                };
+
+                console.log('[SimpleRecorder] Requesting microphone with constraints:', JSON.stringify(constraints));
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // Generate session ID
+                sessionId = `quick-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                console.log('[SimpleRecorder] Session ID:', sessionId);
+
+                // Save session to IndexedDB (record-first: works without auth)
+                if (audioStorage) {
+                    await audioStorage.createSession({
+                        sessionId: sessionId,
+                        userId: 'pending'
+                    });
+                }
+
+                // Acquire wake lock to prevent screen sleep
+                if ('wakeLock' in navigator) {
+                    try {
+                        wakeLock = await navigator.wakeLock.request('screen');
+                        console.log('[SimpleRecorder] Wake lock acquired');
+                    } catch (e) {
+                        console.warn('[SimpleRecorder] Wake lock failed:', e);
+                    }
+                }
+
+                // Setup MediaRecorder
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                    ? 'audio/webm;codecs=opus'
+                    : 'audio/webm';
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                recordedChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = onRecordingStop;
+
+                mediaRecorder.onerror = (e) => {
+                    console.error('[SimpleRecorder] MediaRecorder error:', e);
+                    showToast('Recording error occurred', 'error');
+                    resetUI();
+                };
+
+                // Start recording
+                mediaRecorder.start();
+                startTime = Date.now();
+                isRecording = true;
+
+                // Update UI
+                recordBtn.classList.add('recording');
+                statusText.textContent = 'Recording...';
+                durationEl.classList.remove('hidden');
+                postControls.classList.remove('visible');
+                audioPreview.classList.remove('visible');
+
+                // Start duration timer
+                durationInterval = setInterval(updateDuration, 100);
+
+            } catch (err) {
+                console.error('[SimpleRecorder] Failed to start recording:', err.name, err.message);
+
+                // Show specific error messages based on error type
+                let errorMsg = 'Could not access microphone';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMsg = 'Microphone permission denied. Please allow access.';
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    errorMsg = 'No microphone found. Please connect one.';
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    errorMsg = 'Microphone is in use by another app.';
+                } else if (err.name === 'OverconstrainedError') {
+                    errorMsg = 'Selected microphone not available.';
+                }
+
+                showToast(errorMsg, 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                console.log('[SimpleRecorder] Stopping recording...');
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+            }
+
+            isRecording = false;
+            clearInterval(durationInterval);
+
+            // Release wake lock
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+
+            recordBtn.classList.remove('recording');
+        }
+
+        async function onRecordingStop() {
+            console.log('[SimpleRecorder] Recording stopped');
+
+            recordedBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+            const duration = Date.now() - startTime;
+            recordingDuration = Math.round(duration / 1000); // Store in seconds for metadata
+
+            console.log('[SimpleRecorder] Blob size:', recordedBlob.size, 'Duration:', recordingDuration, 'seconds');
+
+            // Save to IndexedDB
+            if (audioStorage && sessionId) {
+                try {
+                    await audioStorage.saveChunk({
+                        sessionId: sessionId,
+                        chunkNumber: 1,
+                        audioBlob: recordedBlob,
+                        mimeType: recordedBlob.type || 'audio/webm',
+                        duration: recordingDuration
+                    });
+                    await audioStorage.updateSession(sessionId, {
+                        status: 'completed',
+                        chunkCount: 1,
+                        totalDuration: recordingDuration
+                    });
+                    console.log('[SimpleRecorder] Saved to IndexedDB');
+                } catch (e) {
+                    console.error('[SimpleRecorder] Save to IndexedDB failed:', e);
+                }
+            }
+
+            // Update UI
+            statusText.textContent = 'Recording complete';
+            postControls.classList.add('visible');
+
+            // Setup audio preview
+            const blobUrl = URL.createObjectURL(recordedBlob);
+            audioPlayer.src = blobUrl;
+            audioPreview.classList.add('visible');
+        }
+
+        function updateDuration() {
+            if (!startTime) return;
+            const elapsed = Date.now() - startTime;
+            const minutes = Math.floor(elapsed / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            durationEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // Post-recording actions
+        function discardRecording() {
+            if (confirm('Discard this recording?')) {
+                // Clean up IndexedDB
+                if (audioStorage && sessionId) {
+                    audioStorage.deleteSession(sessionId).catch(e => {
+                        console.warn('[SimpleRecorder] Failed to delete session:', e);
+                    });
+                }
+                resetUI();
+                showToast('Recording discarded');
+            }
+        }
+
+        function playRecording() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                playBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16"/>
+                        <rect x="14" y="4" width="4" height="16"/>
+                    </svg>
+                    Pause
+                `;
+            } else {
+                audioPlayer.pause();
+                playBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    Play
+                `;
+            }
+        }
+
+        async function saveRecording() {
+            console.log('[SimpleRecorder] Saving recording...');
+
+            // Check if we have auth
+            if (authHelper.isTokenExpired()) {
+                try {
+                    await authHelper.refreshToken();
+                } catch (e) {
+                    // Need to log in - save session ID for later
+                    localStorage.setItem('pending_upload_session', sessionId);
+                    localStorage.setItem('auth_return_url', 'simple-recorder.html');
+
+                    showToast('Please log in to save recordings');
+
+                    // Redirect to login
+                    const authUrl = `https://${config.cognitoDomain}.auth.${config.region}.amazoncognito.com/login`;
+                    const redirectUri = `${config.appUrl}/callback.html`;
+                    const params = new URLSearchParams({
+                        client_id: config.userPoolClientId,
+                        response_type: 'code',
+                        scope: 'email openid profile aws.cognito.signin.user.admin',
+                        redirect_uri: redirectUri
+                    });
+
+                    setTimeout(() => {
+                        window.location.href = `${authUrl}?${params}`;
+                    }, 1500);
+                    return;
+                }
+            }
+
+            // Upload to S3
+            saveBtn.classList.add('uploading');
+            saveBtn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+                    <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+                </svg>
+                Uploading...
+            `;
+
+            try {
+                await uploadToS3(sessionId, recordedBlob);
+                showToast('Recording saved!', 'success');
+
+                // Clean up local storage after successful upload
+                if (audioStorage) {
+                    await audioStorage.deleteSession(sessionId);
+                }
+
+                resetUI();
+            } catch (e) {
+                console.error('[SimpleRecorder] Upload failed:', e);
+                showToast('Upload failed. Recording saved locally.', 'error');
+                saveBtn.classList.remove('uploading');
+                saveBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    Retry
+                `;
+            }
+        }
+
+        async function uploadToS3(sessId, blob) {
+            // Calculate duration from recording time
+            const durationSeconds = recordingDuration || 0;
+
+            // Get presigned upload URL for audio chunk
+            const response = await authHelper.authenticatedFetch(`${config.apiUrl}/api/audio/upload-chunk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: sessId,
+                    chunkNumber: 1,
+                    contentType: blob.type || 'audio/webm',
+                    duration: durationSeconds
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to get upload URL: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Upload audio to S3
+            const uploadResponse = await fetch(data.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': blob.type || 'audio/webm' },
+                body: blob
+            });
+
+            if (!uploadResponse.ok) {
+                throw new Error(`S3 upload failed: ${uploadResponse.status}`);
+            }
+
+            console.log('[SimpleRecorder] Uploaded audio to S3:', data.s3Key);
+
+            // Get user email from id_token for metadata
+            let userEmail = '';
+            try {
+                const idToken = authHelper.getIdToken();
+                if (idToken) {
+                    const payload = JSON.parse(atob(idToken.split('.')[1]));
+                    userEmail = payload.email || '';
+                }
+            } catch (e) {
+                console.warn('[SimpleRecorder] Could not parse user email from token');
+            }
+
+            // Upload session metadata (required for batch transcription)
+            const metadataResponse = await authHelper.authenticatedFetch(`${config.apiUrl}/api/audio/session-metadata`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: sessId,
+                    metadata: {
+                        sessionId: sessId,
+                        userEmail: userEmail,
+                        createdAt: new Date().toISOString(),
+                        duration: durationSeconds,
+                        chunkCount: 1,
+                        chunkDuration: durationSeconds,
+                        status: 'completed',
+                        source: 'simple-recorder',
+                        chunks: [{
+                            chunkNumber: 1,
+                            filename: 'chunk-001.webm',
+                            size: blob.size,
+                            uploadedAt: new Date().toISOString()
+                        }]
+                    }
+                })
+            });
+
+            if (!metadataResponse.ok) {
+                console.warn('[SimpleRecorder] Metadata upload failed, but audio was saved');
+            } else {
+                console.log('[SimpleRecorder] Metadata uploaded successfully');
+            }
+        }
+
+        async function checkPendingUploads() {
+            const pendingSession = localStorage.getItem('pending_upload_session');
+            if (pendingSession) {
+                console.log('[SimpleRecorder] Found pending upload:', pendingSession);
+                localStorage.removeItem('pending_upload_session');
+
+                // Try to load from IndexedDB
+                if (audioStorage) {
+                    try {
+                        console.log('[SimpleRecorder] Loading chunks from IndexedDB...');
+                        const chunks = await audioStorage.getSessionChunks(pendingSession);
+                        console.log('[SimpleRecorder] Got chunks:', chunks ? chunks.length : 'null');
+
+                        if (chunks && chunks.length > 0) {
+                            sessionId = pendingSession;
+                            recordedBlob = chunks[0].audioBlob;
+                            recordingDuration = chunks[0].duration || 0;
+
+                            // Setup UI for pending upload
+                            statusText.textContent = 'Previous recording ready to save';
+                            postControls.classList.add('visible');
+                            durationEl.classList.add('hidden');
+
+                            const blobUrl = URL.createObjectURL(recordedBlob);
+                            audioPlayer.src = blobUrl;
+                            audioPreview.classList.add('visible');
+
+                            console.log('[SimpleRecorder] Restored recording, blob size:', recordedBlob.size);
+                            showToast('Previous recording restored - click Save to upload');
+                        } else {
+                            console.warn('[SimpleRecorder] No chunks found in IndexedDB for session:', pendingSession);
+                            showToast('Previous recording not found');
+                        }
+                    } catch (e) {
+                        console.error('[SimpleRecorder] Failed to load pending session:', e);
+                        showToast('Failed to restore previous recording');
+                    }
+                } else {
+                    console.error('[SimpleRecorder] AudioStorage not initialized');
+                }
+            }
+        }
+
+        function resetUI() {
+            recordedBlob = null;
+            sessionId = null;
+            recordedChunks = [];
+
+            recordBtn.classList.remove('recording');
+            statusText.textContent = 'Tap to start recording';
+            durationEl.textContent = '00:00';
+            durationEl.classList.add('hidden');
+            postControls.classList.remove('visible');
+            audioPreview.classList.remove('visible');
+
+            // Reset play button
+            playBtn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                Play
+            `;
+
+            // Reset save button
+            saveBtn.classList.remove('uploading');
+            saveBtn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+                Save
+            `;
+        }
+
+        function showToast(message, type = '') {
+            toast.textContent = message;
+            toast.className = 'toast visible ' + type;
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+
+        // Add CSS for spinner
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin-loader {
+                to { transform: rotate(360deg); }
+            }
+            .spin {
+                animation: spin-loader 1s linear infinite;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Start
+        init().catch(e => {
+            console.error('[SimpleRecorder] Init error:', e);
+        });
+    </script>
+</body>
+</html>

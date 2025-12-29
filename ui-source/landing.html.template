@@ -1,0 +1,216 @@
+<!--
+============================================================================
+landing.html.template - DispatchTrain Landing Page
+============================================================================
+
+TEMPLATE SYSTEM:
+  This file contains TO_BE_REPLACED_* placeholders that are replaced during
+  deployment by scripts/425-deploy-recorder-ui.sh with values from .env
+
+PLACEHOLDERS USED:
+  TO_BE_REPLACED_COGNITO_DOMAIN      -> COGNITO_DOMAIN (e.g., clouddrive-app-1762054794)
+  TO_BE_REPLACED_USER_POOL_CLIENT_ID -> COGNITO_USER_POOL_CLIENT_ID
+  TO_BE_REPLACED_REGION              -> AWS_REGION (e.g., us-east-2)
+  TO_BE_REPLACED_APP_URL             -> COGNITO_CLOUDFRONT_URL
+
+AUTH FLOW:
+  1. User clicks "Get Started" or "Sign In"
+  2. Redirects to Cognito Hosted UI (signup or login)
+  3. After auth, Cognito redirects to /callback.html with tokens
+  4. callback.html stores tokens in localStorage
+  5. User lands on dashboard, authenticated
+
+COGNITO URL PATTERN:
+  https://{COGNITO_DOMAIN}.auth.{REGION}.amazoncognito.com/{login|signup}
+    ?client_id={CLIENT_ID}
+    &response_type=token
+    &scope=email%20openid%20profile
+    &redirect_uri={APP_URL}/callback.html
+
+DEPLOYMENT:
+  ./scripts/425-deploy-recorder-ui.sh
+
+DO NOT EDIT the deployed version in cognito-stack/web/landing.html
+ALWAYS edit this template file: ui-source/landing.html.template
+
+Version: 1.0.0
+============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DispatchTrain | AI Audio Labeling</title>
+    <style>
+        /* Color Palette Variables */
+        :root {
+            --midnight: #0f172a;
+            --signal-blue: #38bdf8;
+            --slate-grey: #94a3b8;
+            --graphite: #1e293b;
+            --pure-white: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--midnight);
+            color: var(--pure-white);
+            line-height: 1.6;
+        }
+
+        /* Header / Nav */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 5%;
+            background: rgba(15, 23, 42, 0.9);
+            position: sticky;
+            top: 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: var(--pure-white);
+        }
+
+        .logo span {
+            color: var(--signal-blue);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-link {
+            color: var(--slate-grey);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--pure-white);
+        }
+
+        .sign-in-button {
+            color: var(--signal-blue);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border: 1px solid var(--signal-blue);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .sign-in-button:hover {
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 100px 5%;
+            text-align: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #fff, var(--signal-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            color: var(--slate-grey);
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 2rem auto;
+        }
+
+        .cta-button {
+            background-color: var(--signal-blue);
+            color: var(--midnight);
+            padding: 12px 30px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        /* Feature Transcription Box */
+        .preview-box {
+            margin: 50px auto;
+            max-width: 800px;
+            background: var(--graphite);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .waveform-placeholder {
+            height: 60px;
+            background: repeating-linear-gradient(90deg, var(--signal-blue), var(--signal-blue) 2px, transparent 2px, transparent 8px);
+            opacity: 0.4;
+            margin-bottom: 20px;
+        }
+
+        .label-tag {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--signal-blue);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-right: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">Dispatch<span>Train</span></div>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Product</a>
+            <a href="#how-it-works" class="nav-link">Solutions</a>
+            <!-- Sign In: Existing users - goes to Cognito login -->
+            <a href="https://TO_BE_REPLACED_COGNITO_DOMAIN.auth.TO_BE_REPLACED_REGION.amazoncognito.com/login?client_id=TO_BE_REPLACED_USER_POOL_CLIENT_ID&response_type=token&scope=email%20openid%20profile&redirect_uri=TO_BE_REPLACED_APP_URL/callback.html" class="sign-in-button">Sign In</a>
+            <!-- Get Started: New users - goes to Cognito signup -->
+            <a href="https://TO_BE_REPLACED_COGNITO_DOMAIN.auth.TO_BE_REPLACED_REGION.amazoncognito.com/signup?client_id=TO_BE_REPLACED_USER_POOL_CLIENT_ID&response_type=token&scope=email%20openid%20profile&redirect_uri=TO_BE_REPLACED_APP_URL/callback.html" class="cta-button">Get Started</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <h1>Turn Audio into Intelligence.</h1>
+        <p class="tagline">High-fidelity transcription and precision labeling for the next generation of Speech AI.</p>
+
+        <div class="preview-box">
+            <div class="waveform-placeholder"></div>
+            <p>
+                <span class="label-tag">Speaker A</span> "How does the dispatch system handle latency?"
+            </p>
+            <p>
+                <span class="label-tag" style="color: #a78bfa; border-color: #a78bfa;">AI Response</span> <span style="border-bottom: 2px solid var(--signal-blue);">The training model optimizes for sub-200ms processing.</span>
+            </p>
+        </div>
+
+        <!-- Primary CTA: New users - goes to Cognito signup -->
+        <a href="https://TO_BE_REPLACED_COGNITO_DOMAIN.auth.TO_BE_REPLACED_REGION.amazoncognito.com/signup?client_id=TO_BE_REPLACED_USER_POOL_CLIENT_ID&response_type=token&scope=email%20openid%20profile&redirect_uri=TO_BE_REPLACED_APP_URL/callback.html" class="cta-button">Start Training Now</a>
+    </section>
+
+</body>
+</html>

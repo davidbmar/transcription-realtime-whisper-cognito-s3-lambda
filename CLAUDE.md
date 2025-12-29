@@ -66,6 +66,7 @@ Browser ──WSS──> Edge Box (Caddy) ──> GPU (WhisperLive:9090)
 - `ui-source/*.template` - **ALWAYS edit these, NEVER edit cognito-stack/web/**
 - `ui-source/app.js.template` - Main application config
 - `ui-source/audio.html.template` - **Audio recorder UI (v6.10.0) - CRITICAL: Use template, not audio.html**
+- `ui-source/landing.html.template` - **DispatchTrain landing page with Cognito auth** (signup/login buttons)
 - `ui-source/index.html` - Dashboard
 - `ui-source/viewer.html` - Transcript viewer
 - `ui-source/transcript-editor.html.template` - Transcript editor with download/export
