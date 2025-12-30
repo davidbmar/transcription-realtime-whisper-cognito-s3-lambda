@@ -59,7 +59,7 @@ check_warn() {
 
 # Check 1: Required scripts
 echo "Checking required scripts..."
-for script in 512-scan-missing-chunks.sh 515-run-batch-transcribe.sh 530-gpu-cost-tracker.sh 535-trigger--batch-scheduler.sh 540-gpu-usage-reporter.sh; do
+for script in 512-queue--scan-pending-jobs.sh 515-run-batch-transcribe.sh 530-gpu-cost-tracker.sh 535-trigger--batch-scheduler.sh 540-gpu-usage-reporter.sh; do
     if [[ -x "$PROJECT_ROOT/scripts/$script" ]]; then
         check_pass "$script exists and is executable"
     else

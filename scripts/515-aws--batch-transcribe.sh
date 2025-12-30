@@ -10,7 +10,7 @@ exec > >(tee -a "logs/$(basename $0 .sh)-$(date +%Y%m%d-%H%M%S).log") 2>&1
 #
 # What this does:
 # 1. Checks batch lock (skips if live session active)
-# 2. Calls 512-scan-missing-chunks.sh (fast, no GPU)
+# 2. Calls 512-queue--scan-pending-jobs.sh (fast, no GPU)
 # 3. If no missing chunks: Generates report and exits (no GPU start)
 # 4. If missing chunks found:
 #    - Checks GPU state (running/stopped)
@@ -186,14 +186,14 @@ run_scanner() {
     log_info "Step 2: Scanning S3 for missing transcriptions..." >&2
 
     # Call 512-scan script
-    if [ ! -x "$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh" ]; then
-        log_error "Scanner script not found: scripts/512-scan-missing-chunks.sh" >&2
+    if [ ! -x "$PROJECT_ROOT/scripts/512-queue--scan-pending-jobs.sh" ]; then
+        log_error "Scanner script not found: scripts/512-queue--scan-pending-jobs.sh" >&2
         log_info "Run: ./scripts/500-setup-batch-transcription.sh" >&2
         exit 1
     fi
 
     # Run scanner and capture output (last line is chunk count)
-    SCANNER_OUTPUT=$("$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh" 2>&1)
+    SCANNER_OUTPUT=$("$PROJECT_ROOT/scripts/512-queue--scan-pending-jobs.sh" 2>&1)
     MISSING_COUNT=$(echo "$SCANNER_OUTPUT" | tail -1)
 
     # Validate output
@@ -340,7 +340,7 @@ verify_batch_transcription() {
     log_info "  Stage 9: Verifying batch transcription..." >&2
 
     # Run scanner to check remaining missing chunks
-    local remaining_missing=$("$PROJECT_ROOT/scripts/512-scan-missing-chunks.sh" 2>&1 | tail -1)
+    local remaining_missing=$("$PROJECT_ROOT/scripts/512-queue--scan-pending-jobs.sh" 2>&1 | tail -1)
 
     # Validate output
     if ! [[ "$remaining_missing" =~ ^[0-9]+$ ]]; then
