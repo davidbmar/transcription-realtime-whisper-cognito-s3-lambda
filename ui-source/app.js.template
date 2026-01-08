@@ -4,13 +4,13 @@
 
 // Configuration - to be updated after deployment
 window.config = {
-    userPoolId: 'YOUR_USER_POOL_ID',
-    userPoolClientId: 'YOUR_USER_POOL_CLIENT_ID',
-    identityPoolId: 'YOUR_IDENTITY_POOL_ID',
-    region: 'YOUR_REGION', // Your AWS region
-    apiUrl: 'YOUR_CLOUDFRONT_API_ENDPOINT', // CloudFront API endpoint
-    s3ApiUrl: 'YOUR_CLOUDFRONT_S3_API_ENDPOINT', // CloudFront S3 API endpoint
-    appUrl: 'YOUR_APP_URL',
+    userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+    userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+    identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
+    region: 'TO_BE_REPLACED_REGION',
+    apiUrl: 'TO_BE_REPLACED_API_URL',
+    s3ApiUrl: 'TO_BE_REPLACED_S3_API_URL',
+    appUrl: 'TO_BE_REPLACED_APP_URL',
     whisperLiveWsUrl: 'YOUR_WHISPERLIVE_WS_URL', // WhisperLive WebSocket endpoint
     googleDocId: 'YOUR_GOOGLE_DOC_ID' // Google Docs integration (optional)
 };
