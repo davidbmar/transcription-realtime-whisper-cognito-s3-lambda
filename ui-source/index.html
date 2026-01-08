@@ -2162,11 +2162,15 @@
 
         function showUploadAudio() {
             hideAllSections();
-            document.getElementById('upload-audio-section').style.display = 'block';
-            // Hide main logo, show breadcrumb
-            document.getElementById('main-logo').style.display = 'none';
-            document.getElementById('breadcrumb-header').style.display = 'flex';
-            document.getElementById('breadcrumb-page-name').textContent = 'Upload Audio';
+            const uploadSection = document.getElementById('upload-audio-section');
+            if (uploadSection) uploadSection.style.display = 'block';
+            // Hide main logo, show breadcrumb (if elements exist)
+            const mainLogo = document.getElementById('main-logo');
+            const breadcrumbHeader = document.getElementById('breadcrumb-header');
+            const breadcrumbPageName = document.getElementById('breadcrumb-page-name');
+            if (mainLogo) mainLogo.style.display = 'none';
+            if (breadcrumbHeader) breadcrumbHeader.style.display = 'flex';
+            if (breadcrumbPageName) breadcrumbPageName.textContent = 'Upload Audio';
             loadUploadedFiles();
             initializeUploadHandlers();
         }
