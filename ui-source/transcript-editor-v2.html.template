@@ -2752,10 +2752,10 @@
     </div>
 
     <!-- Preprocessor Scripts - Version 2 for cache busting -->
-    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
-    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
-    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
-    <script src="https://d2l28rla2hk7np.cloudfront.net/transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
+    <script src="transcript-preprocessor-boundary.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-boundary.js')"></script>
+    <script src="transcript-preprocessor-simple.js?v=2" onerror="console.error('Failed to load transcript-preprocessor-simple.js')"></script>
+    <script src="transcript-preprocessor.js?v=2" onerror="console.error('Failed to load transcript-preprocessor.js')"></script>
+    <script src="transcript-plugins.js?v=2" onerror="console.error('Failed to load transcript-plugins.js')"></script>
 
     <script>
         // Verify scripts loaded
