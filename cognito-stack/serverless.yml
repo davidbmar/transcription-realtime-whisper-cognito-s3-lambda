@@ -795,7 +795,7 @@ resources:
           RestrictPublicBuckets: true
         CorsConfiguration:
           CorsRules:
-            - AllowedHeaders: ['Authorization', 'Content-Type', 'Content-Length', 'x-amz-date', 'x-amz-security-token']
+            - AllowedHeaders: ['Authorization', 'Content-Type', 'Content-Length', 'x-amz-date', 'x-amz-security-token', 'x-amz-meta-*']
               AllowedMethods: [GET, HEAD, PUT]
               AllowedOrigins:
                 - ${env:COGNITO_CLOUDFRONT_URL}
