@@ -269,6 +269,7 @@ sed -i.bak "s|TO_BE_REPLACED_REGION|$AWS_REGION|g" web/app.js
 sed -i.bak "s|TO_BE_REPLACED_API_URL|$API_ENDPOINT|g" web/app.js
 sed -i.bak "s|TO_BE_REPLACED_S3_API_URL|$API_ENDPOINT|g" web/app.js
 sed -i.bak "s|TO_BE_REPLACED_APP_URL|$CLOUDFRONT_URL|g" web/app.js
+sed -i.bak "s|TO_BE_REPLACED_COGNITO_DOMAIN|$COGNITO_DOMAIN|g" web/app.js
 sed -i.bak "s|YOUR_WHISPERLIVE_WS_URL|$WHISPERLIVE_WS_URL|g" web/app.js
 rm -f web/app.js.bak
 

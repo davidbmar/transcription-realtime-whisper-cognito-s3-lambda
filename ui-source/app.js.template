@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function login(returnUrl = null) {
     console.log("Login function called");
     // The domain prefix will be replaced during deployment
-    const authUrl = 'https://YOUR_COGNITO_DOMAIN.auth.YOUR_REGION.amazoncognito.com/login';
+    const authUrl = 'https://TO_BE_REPLACED_COGNITO_DOMAIN.auth.TO_BE_REPLACED_REGION.amazoncognito.com/login';
     const redirectUri = `${config.appUrl}/callback.html`;
 
     // Store return URL for redirect after login
