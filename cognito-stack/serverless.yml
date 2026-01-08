@@ -55,7 +55,7 @@ provider:
 
 custom:
   s3Bucket: ${env:COGNITO_S3_BUCKET, '${self:service}-bucket'}
-  cloudfrontUrl: ${env:CLOUDFRONT_URL, 'https://example.cloudfront.net'}
+  cloudfrontUrl: ${env:COGNITO_CLOUDFRONT_URL, 'https://placeholder.cloudfront.net'}
 
 functions:
   # Test endpoint
