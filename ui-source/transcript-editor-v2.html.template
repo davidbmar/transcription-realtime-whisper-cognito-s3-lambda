@@ -2772,13 +2772,13 @@
     <script>
         // Configuration
         const config = {
-            userPoolId: 'us-east-2_6sN45GbIh',
-            userPoolClientId: '7sjtp1gd6buhs3a7b362pvod3a',
-            identityPoolId: 'us-east-2:43b4ec02-d7c0-4c8b-a188-27b9d1f16287',
-            region: 'us-east-2',
-            apiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
-            s3ApiUrl: 'https://5x0ygivhe1.execute-api.us-east-2.amazonaws.com/dev',
-            appUrl: 'https://d2l28rla2hk7np.cloudfront.net'
+            userPoolId: 'TO_BE_REPLACED_USER_POOL_ID',
+            userPoolClientId: 'TO_BE_REPLACED_USER_POOL_CLIENT_ID',
+            identityPoolId: 'TO_BE_REPLACED_IDENTITY_POOL_ID',
+            region: 'TO_BE_REPLACED_REGION',
+            apiUrl: 'TO_BE_REPLACED_API_URL',
+            s3ApiUrl: 'TO_BE_REPLACED_S3_API_URL',
+            appUrl: 'TO_BE_REPLACED_APP_URL'
         };
 
         let transcriptData = null;
