@@ -485,7 +485,8 @@ module.exports.uploadAudioFile = async (event) => {
     // Validate MIME type - allow audio and video files (video files contain audio tracks)
     const allowedTypes = [
       // Audio formats
-      'audio/aac', 'audio/x-m4a', 'audio/m4a',
+      'audio/aac', 'audio/x-m4a', 'audio/m4a', 'audio/mp4',
+      'audio/x-m4b', 'audio/m4b',  // Audiobook format
       'audio/wav', 'audio/x-wav', 'audio/wave',
       'audio/mpeg', 'audio/mp3',
       'audio/webm', 'audio/ogg', 'audio/flac',
